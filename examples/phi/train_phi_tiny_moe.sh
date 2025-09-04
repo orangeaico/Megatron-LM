@@ -36,8 +36,8 @@ MODEL_ARGS=(
     --use-mcore-models
     --disable-bias-linear
     --seq-length 1024
-    --max-position-embeddings 16384
-    --num-layers 16
+    --max-position-embeddings 40960
+    --num-layers 8
     --hidden-size 4096
     --ffn-hidden-size 448
     --num-attention-heads 16  # Phi-tiny-MoE attention heads
@@ -64,6 +64,7 @@ MOE_ARGS=(
     --moe-aux-loss-coeff 0.0  # router_aux_loss_coef from config
     --moe-grouped-gemm
     --moe-token-dispatcher-type alltoall
+    --moe-permute-fusion
 )
 
 DATA_ARGS=()
@@ -111,7 +112,6 @@ TRAINING_ARGS=(
     --cross-entropy-loss-fusion
     --empty-unused-memory-level 1 
     --exit-duration-in-mins 235
-    --recompute-activations
     --use-flash-attn
     --bf16
     --use-precision-aware-optimizer
@@ -126,6 +126,7 @@ MODEL_PARALLEL_ARGS=(
     --tensor-model-parallel-size 2
     --pipeline-model-parallel-size 1
     --expert-model-parallel-size 1
+    --expert-tensor-parallel-size 1
     --context-parallel-size 1
     --sequence-parallel
     --use-distributed-optimizer

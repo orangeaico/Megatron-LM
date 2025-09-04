@@ -88,7 +88,7 @@ MODEL_ARGS=(
   --ffn-hidden-size 448
   --num-attention-heads 16
   --group-query-attention 
-  --num-query-groups 16
+  --num-query-groups 4
   --kv-channels 128
   --qk-layernorm 
   --seq-length 2048
@@ -146,7 +146,7 @@ MODEL_ARGS=(
   --tensorboard-dir "${CHECKPOINT_PATH}/tensorboard"
 
   # Add mixed precision args
-  --bf16 
+    --bf16
 )
 
 torchrun ${DISTRIBUTED_ARGS[@]} pretrain_gpt.py \
