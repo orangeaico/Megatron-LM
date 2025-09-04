@@ -2,6 +2,10 @@
 
 """Pretrain and SFT GPT."""
 
+import os
+import time
+import contextlib
+
 import torch
 
 from functools import partial
@@ -14,7 +18,6 @@ from megatron.core.enums import ModelType
 from megatron.core.models.gpt import GPTModel
 from megatron.core.rerun_state_machine import get_rerun_state_machine
 from megatron.core.utils import StragglerDetector
-from megatron.core.tokenizers.text.utils.build_tokenizer import build_tokenizer
 from megatron.training import get_args, get_timers, get_tokenizer, pretrain, print_rank_0
 from megatron.training.utils import (
     get_batch_on_this_cp_rank,
@@ -33,6 +36,119 @@ try:
 except ImportError:
     has_nvidia_modelopt = False
 
+# =========================
+# Phase logger utilities
+# =========================
+
+PHASE_LOGGER = True
+PHASE_LAYER_LOGGER = False
+
+def _is_rank0():
+    try:
+        if parallel_state.is_unitialized() if hasattr(parallel_state, "is_unitialized") else False:
+            return int(os.environ.get("RANK", "0")) == 0
+        # Prefer Megatron’s notion of data-parallel rank if available
+        if hasattr(parallel_state, "get_data_parallel_rank"):
+            return parallel_state.get_data_parallel_rank() == 0
+    except Exception:
+        pass
+    return int(os.environ.get("RANK", "0")) == 0
+
+def _bytes(x: int) -> str:
+    x = float(x)
+    for u in ["B","KB","MB","GB","TB","PB"]:
+        if x < 1024: return f"{x:.2f}{u}"
+        x /= 1024
+    return f"{x:.2f}EB"
+
+def _mem_stats(device=None):
+    if device is None:
+        device = torch.cuda.current_device()
+    torch.cuda.synchronize(device)
+    alloc    = torch.cuda.memory_allocated(device)
+    reserved = torch.cuda.memory_reserved(device)
+    peak_a   = torch.cuda.max_memory_allocated(device)
+    peak_r   = torch.cuda.max_memory_reserved(device)
+    return {
+        "allocated": _bytes(alloc),
+        "reserved":  _bytes(reserved),
+        "peak_allocated": _bytes(peak_a),
+        "peak_reserved":  _bytes(peak_r),
+    }
+
+def _barrier():
+    try:
+        import torch.distributed as dist
+        if dist.is_available() and dist.is_initialized():
+            dist.barrier()
+    except Exception:
+        pass
+
+@contextlib.contextmanager
+def mem_phase(name: str, do_barrier: bool = False):
+    """Emit per-phase CUDA memory stats (allocated/reserved + peaks)."""
+    if not PHASE_LOGGER or not torch.cuda.is_available():
+        yield
+        return
+    device = torch.cuda.current_device()
+    if do_barrier:
+        _barrier()
+    torch.cuda.reset_peak_memory_stats(device)
+    t0 = time.time()
+    try:
+        yield
+    finally:
+        torch.cuda.synchronize(device)
+        dt = time.time() - t0
+        stats = _mem_stats(device)
+        if _is_rank0():
+            print(
+                f"[MEM][{name}] dt={dt:.3f}s | "
+                f"alloc={stats['allocated']} res={stats['reserved']} "
+                f"peak_alloc={stats['peak_allocated']} peak_res={stats['peak_reserved']}",
+                flush=True,
+            )
+
+def attach_module_peaks(module: torch.nn.Module, device=None):
+    """Optionally print per-leaf-module forward peaks on rank 0."""
+    if not (PHASE_LOGGER and PHASE_LAYER_LOGGER and torch.cuda.is_available() and _is_rank0()):
+        return
+    if device is None:
+        device = torch.cuda.current_device()
+
+    for name, m in module.named_modules():
+        # Skip container modules; focus on compute layers
+        if any(True for _ in m.children()):
+            continue
+
+        def pre_hook(mod, inp, n=name):
+            torch.cuda.reset_peak_memory_stats(device)
+
+        def post_hook(mod, out, n=name):
+            pa = torch.cuda.max_memory_allocated(device)
+            pr = torch.cuda.max_memory_reserved(device)
+            print(f"[LAYER][{n}] peak_alloc={_bytes(pa)} peak_res={_bytes(pr)}", flush=True)
+
+        m.register_forward_pre_hook(pre_hook)
+        m.register_forward_hook(post_hook)
+
+# NVTX helpers (nice in Chrome/Nsight traces)
+try:
+    import torch.cuda.nvtx as nvtx
+    def nvtx_range(name):
+        return contextlib.ExitStack().__enter__() if not torch.cuda.is_available() else _NVTX(name)
+    class _NVTX:
+        def __init__(self, name): self.name=name
+        def __enter__(self): 
+            try: nvtx.range_push(self.name)
+            except Exception: pass
+        def __exit__(self, exc_type, exc, tb):
+            try: nvtx.range_pop()
+            except Exception: pass
+except Exception:
+    def nvtx_range(name):  # fallback no-op
+        return contextlib.nullcontext()
+
 stimer = StragglerDetector()
 
 
@@ -45,10 +161,11 @@ def get_batch(data_iterator):
         return None, None, None, None, None
 
     # get batches based on the TP rank you are on
-    batch = get_batch_on_this_tp_rank(data_iterator)
+    with mem_phase("LOAD_BATCH", do_barrier=True), nvtx_range("LOAD_BATCH"):
+        batch = get_batch_on_this_tp_rank(data_iterator)
 
-    # slice batch along sequence dimension for context parallelism
-    batch = get_batch_on_this_cp_rank(batch)
+        # slice batch along sequence dimension for context parallelism
+        batch = get_batch_on_this_cp_rank(batch)
 
     return batch.values()
 
@@ -137,7 +254,14 @@ def forward_step(data_iterator, model: GPTModel, return_schedule_plan: bool = Fa
         tokens, labels, loss_mask, attention_mask, position_ids = get_batch(data_iterator)
     timers('batch-generator').stop()
 
-    with stimer:
+    # Optional per-layer peaks (only once the model exists)
+    if PHASE_LOGGER and PHASE_LAYER_LOGGER:
+        # Attach hooks only once per process
+        if not hasattr(model, "_phase_layer_hooks_attached"):
+            attach_module_peaks(model)
+            model._phase_layer_hooks_attached = True
+
+    with stimer, mem_phase("FORWARD", do_barrier=True), nvtx_range("FORWARD"):
         if args.use_legacy_models:
             output_tensor = model(tokens, position_ids, attention_mask, labels=labels)
         else:
@@ -165,10 +289,7 @@ def is_dataset_built_on_rank():
 
 
 def core_gpt_dataset_config_from_args(args):
-    if args.legacy_tokenizer:
-        tokenizer = get_tokenizer()
-    else:
-        tokenizer = build_tokenizer(args)
+    tokenizer = get_tokenizer()
 
     # Sometimes --data-path is too long, instead we parse it from a file.
     blend: Optional[Tuple[List[str], Optional[List[float]]]]
@@ -225,6 +346,19 @@ def train_valid_test_datasets_provider(train_val_test_num_samples):
     return train_ds, valid_ds, test_ds
 
 
+# Wrapper to attach per-layer hooks as soon as the model is created (works with pretrain())
+def _model_provider_with_phase(gbuilder, *args, **kwargs):
+    mdl = model_provider(gbuilder, *args, **kwargs)
+    if PHASE_LOGGER and PHASE_LAYER_LOGGER:
+        try:
+            if not hasattr(mdl, "_phase_layer_hooks_attached"):
+                attach_module_peaks(mdl)
+                mdl._phase_layer_hooks_attached = True
+        except Exception:
+            pass
+    return mdl
+
+
 if __name__ == "__main__":
 
     # Temporary for transition to core datasets
@@ -234,11 +368,11 @@ if __name__ == "__main__":
     pretrain, store = inprocess_restart.maybe_wrap_for_inprocess_restart(pretrain)
 
     pretrain(
-        train_valid_test_datasets_provider,
-        partial(model_provider, gpt_builder),
-        ModelType.encoder_or_decoder,
-        forward_step,
-        args_defaults={'tokenizer_type': 'GPT2BPETokenizer'},
-        extra_args_provider=add_modelopt_args if has_nvidia_modelopt else None,
-        store=store,
+    train_valid_test_datasets_provider,
+    partial(_model_provider_with_phase, gpt_builder),  # <-- wrapped to attach layer peaks
+    ModelType.encoder_or_decoder,
+    forward_step,
+    args_defaults={'tokenizer_type': 'GPT2BPETokenizer'},
+    extra_args_provider=add_modelopt_args if has_nvidia_modelopt else None,
+    store=store,
     )
