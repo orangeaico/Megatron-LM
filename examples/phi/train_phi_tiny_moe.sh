@@ -35,9 +35,9 @@ DISTRIBUTED_ARGS=(
 MODEL_ARGS=(
     --use-mcore-models
     --disable-bias-linear
-    --seq-length 1024
+    --seq-length 32768
     --max-position-embeddings 40960
-    --num-layers 8
+    --num-layers 4
     --hidden-size 4096
     --ffn-hidden-size 448
     --num-attention-heads 16  # Phi-tiny-MoE attention heads
@@ -110,7 +110,7 @@ TRAINING_ARGS=(
     --adam-beta1 0.9
     --adam-beta2 0.95
     --cross-entropy-loss-fusion
-    --empty-unused-memory-level 1 
+    --cross-entropy-fusion-impl te
     --exit-duration-in-mins 235
     --use-flash-attn
     --bf16

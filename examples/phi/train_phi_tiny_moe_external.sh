@@ -83,7 +83,7 @@ MODEL_ARGS=(
   --normalization RMSNorm
   --swiglu 
   --norm-epsilon 1e-06
-  --num-layers 8
+  --num-layers 4
   --hidden-size 4096
   --ffn-hidden-size 448
   --num-attention-heads 16
@@ -91,7 +91,7 @@ MODEL_ARGS=(
   --num-query-groups 4
   --kv-channels 128
   --qk-layernorm 
-  --seq-length 2048
+  --seq-length 32768
   --max-position-embeddings 40960
   --make-vocab-size-divisible-by 1187
 
