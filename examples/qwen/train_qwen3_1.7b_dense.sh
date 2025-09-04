@@ -93,9 +93,9 @@ TRAINING_ARGS=(
     --adam-beta1 0.9
     --adam-beta2 0.95
     --cross-entropy-loss-fusion
+    --cross-entropy-fusion-impl te
     --calculate-per-token-loss 
     --manual-gc 
-    --empty-unused-memory-level 1 
     --exit-duration-in-mins 235 
     --recompute-activations
     --recompute-granularity full
