@@ -11,16 +11,17 @@ export CUDA_DEVICE_MAX_CONNECTIONS=${CUDA_DEVICE_MAX_CONNECTIONS:-1}
 
 CHECKPOINT_PATH=${1:-"checkpoints/qwen3_1.7b_fp8"}
 TENSORBOARD_LOGS_PATH=${2:-"tensorboard_logs/qwen3_1.7b_fp8"}
-TENSORBOARD_LOGS_PATH_MEMORY=${2:-"tensorboard_logs/qwen3_1.7b_fp8/memory_snapshots"}
+TENSORBOARD_LOGS_PATH_MEMORY=${2:-"tensorboard_logs/qwen3_1.7b_fp8/memory_snapshots/memory_snapshot.pickle"}
 TOKENIZER_ARG=${3:-"MOCK"} # Path to tokenizer model, or "MOCK"
 DATA_ARG=${4:-"MOCK"}     # Data prefix, or "MOCK"
 
 # Create directories if they don't exist
 mkdir -p "$(dirname "$CHECKPOINT_PATH")"
 mkdir -p "$(dirname "$TENSORBOARD_LOGS_PATH")"
+mkdir -p "$(dirname "$TENSORBOARD_LOGS_PATH_MEMORY")"
 
 # Distributed training setup
-GPUS_PER_NODE=2
+GPUS_PER_NODE=1
 NUM_NODES=1
 MASTER_ADDR=${MASTER_ADDR:-localhost}
 MASTER_PORT=${MASTER_PORT:-6000}
@@ -31,12 +32,12 @@ WORLD_SIZE=$(($GPUS_PER_NODE*$NUM_NODES))
 PRETRAIN_SCRIPT_PATH="pretrain_gpt.py"
 
 # Fixed model and training parameters for Qwen3-1.7B
-TP_SIZE=2    
+TP_SIZE=1    
 CP_SIZE=1     
 PP_SIZE=1     
 MICRO_BATCH_SIZE=1 # Increased from 1 due to smaller model size
 GLOBAL_BATCH_SIZE=1  # Increased from 128 for better efficiency with smaller model
-NUM_LAYERS=28  # Qwen3-1.7B has 28 layers
+NUM_LAYERS=14  # Qwen3-1.7B has 28 layers
 DTYPE="bf16"
 SEQ_LENGTH=8192
 MAX_POSITION_EMBEDDINGS=40960  # Qwen3-1.7B supports up to 40960
@@ -73,16 +74,15 @@ MODEL_ARGS=(
     --init-method-std 0.02  # Standard initialization for smaller model
     --attention-backend fused
     --apply-layernorm-1p 
-    --untie-embeddings-and-output-weights
     --disable-bias-linear 
 )
 
 TRAINING_ARGS=(
     --micro-batch-size $MICRO_BATCH_SIZE
     --global-batch-size $GLOBAL_BATCH_SIZE
-    --train-samples 2000
-    --lr-decay-samples 1000
-    --lr-warmup-samples 100
+    --train-samples 20
+    --lr-decay-samples 10
+    --lr-warmup-samples 5
     --lr 0.0003  # Higher learning rate for smaller model
     --min-lr 0.00003  # Adjusted min learning rate
     --decoupled-lr 8.0e-4  # Adjusted for smaller model
@@ -97,8 +97,9 @@ TRAINING_ARGS=(
     --calculate-per-token-loss 
     --manual-gc 
     --exit-duration-in-mins 235 
-    --recompute-activations
     --recompute-granularity full
+    --recompute-method uniform
+    --recompute-num-layers $NUM_LAYERS
     --use-flash-attn
     --bf16
     --use-precision-aware-optimizer
@@ -175,16 +176,17 @@ EVAL_AND_LOGGING_ARGS=(
     --save-interval 1000
     --log-throughput
     --profile
-    --profile-step-start 4
-    --profile-step-end 6
+    --profile-step-start 2
+    --profile-step-end 3
     --profile-ranks 0
     --ckpt-format torch_dist 
     --distributed-timeout-minutes 60
     --save "$CHECKPOINT_PATH"
-    --load "$CHECKPOINT_PATH" 
-    --tensorboard-dir "$TENSORBOARD_LOGS_PATH"
     --use-pytorch-profiler
+    --tensorboard-dir "$TENSORBOARD_LOGS_PATH"
     --log-memory-to-tensorboard
+    --record-memory-history
+    --memory-snapshot-path "$TENSORBOARD_LOGS_PATH_MEMORY"
 )
 
 # Ensure pretrain_gpt.py is found
