@@ -37,9 +37,10 @@ def analyze_memory_snapshot(pickle_path: str):
         segments = snapshot['segments']
         print(f"Total segments: {len(segments)}")
         
-        # Collect active and inactive blocks from all segments
+        # Collect active, inactive, and active_awaiting_free blocks from all segments
         active_blocks = []
         inactive_blocks = []
+        active_awaiting_free_blocks = []
         for seg in segments:
             if isinstance(seg, dict):
                 # Check if segment has blocks
@@ -61,16 +62,20 @@ def analyze_memory_snapshot(pickle_path: str):
                             first_frame = frames[0]
                             block_info['name'] = first_frame.get('name', 'N/A')
                             block_info['filename'] = first_frame.get('filename', 'N/A')
+                            block_info['line'] = first_frame.get('line', 0)
                         
                         if block.get('state') == 'active_allocated':
                             active_blocks.append(block_info)
                         elif block.get('state') == 'inactive':
                             inactive_blocks.append(block_info)
+                        elif block.get('state') == 'active_awaiting_free':
+                            active_awaiting_free_blocks.append(block_info)
         
         # Sort by size in descending order
         active_blocks.sort(key=lambda x: x['size'], reverse=True)
         
-        print(f"\n=== TOP 50 ACTIVE ALLOCATED BLOCKS (sorted by size) ===")
+        print(f"\n=== BLOCK-LEVEL FRAMES ANALYSIS ===")
+        print(f"\n--- TOP 50 ACTIVE ALLOCATED BLOCKS (sorted by size) ---")
         print(f"Total active blocks found: {len(active_blocks)}")
         print(f"\n{'Rank':<6} {'Size':>15} {'Requested Size':>15} {'Frame Name':<40} {'Filename'}")
         print("-" * 120)
@@ -81,21 +86,22 @@ def analyze_memory_snapshot(pickle_path: str):
                   f"{block['name'][:39]:<40} "
                   f"{block['filename']}")
         
-        # Group by unique frame name and filename combination
+        # Group by unique frame name, filename, and line combination
         frame_totals = defaultdict(lambda: {'size': 0, 'requested_size': 0, 'count': 0})
         
         for block in active_blocks:
-            key = (block['name'], block['filename'])
+            key = (block['name'], block['filename'], block.get('line', 0))
             frame_totals[key]['size'] += block['size']
             frame_totals[key]['requested_size'] += block['requested_size']
             frame_totals[key]['count'] += 1
         
         # Convert to list and sort by total size
         frame_list = []
-        for (name, filename), totals in frame_totals.items():
+        for (name, filename, line), totals in frame_totals.items():
             frame_list.append({
                 'name': name,
                 'filename': filename,
+                'line': line,
                 'total_size': totals['size'],
                 'total_requested_size': totals['requested_size'],
                 'count': totals['count']
@@ -103,9 +109,9 @@ def analyze_memory_snapshot(pickle_path: str):
         
         frame_list.sort(key=lambda x: x['total_size'], reverse=True)
         
-        print(f"\n=== ACTIVE BLOCKS - MEMORY USAGE BY FRAME (sorted by total size) ===")
+        print(f"\n--- ACTIVE BLOCKS - MEMORY USAGE BY FRAME (sorted by total size) ---")
         print(f"Total unique frame combinations: {len(frame_list)}")
-        print(f"\n{'Rank':<6} {'Total Size':>15} {'Total Req Size':>15} {'Count':>8} {'Frame Name':<40} {'Filename'}")
+        print(f"\n{'Rank':<6} {'Total Size':>15} {'Total Req Size':>15} {'Count':>8} {'Frame Name':<40} {'Filename:Line'}")
         print("-" * 140)
         
         for i, frame in enumerate(frame_list, 1):
@@ -113,12 +119,12 @@ def analyze_memory_snapshot(pickle_path: str):
                   f"{format_bytes(frame['total_requested_size']):>15} "
                   f"{frame['count']:>8} "
                   f"{frame['name'][:39]:<40} "
-                  f"{frame['filename']}")
+                  f"{frame['filename']}:{frame['line']}")
         
         # Now process inactive blocks
         inactive_blocks.sort(key=lambda x: x['size'], reverse=True)
         
-        print(f"\n=== TOP 50 INACTIVE BLOCKS (sorted by size) ===")
+        print(f"\n--- TOP 50 INACTIVE BLOCKS (sorted by size) ---")
         print(f"Total inactive blocks found: {len(inactive_blocks)}")
         print(f"\n{'Rank':<6} {'Size':>15} {'Requested Size':>15} {'Frame Name':<40} {'Filename'}")
         print("-" * 120)
@@ -129,21 +135,22 @@ def analyze_memory_snapshot(pickle_path: str):
                   f"{block['name'][:39]:<40} "
                   f"{block['filename']}")
         
-        # Group inactive blocks by unique frame name and filename combination
+        # Group inactive blocks by unique frame name, filename, and line combination
         inactive_frame_totals = defaultdict(lambda: {'size': 0, 'requested_size': 0, 'count': 0})
         
         for block in inactive_blocks:
-            key = (block['name'], block['filename'])
+            key = (block['name'], block['filename'], block.get('line', 0))
             inactive_frame_totals[key]['size'] += block['size']
             inactive_frame_totals[key]['requested_size'] += block['requested_size']
             inactive_frame_totals[key]['count'] += 1
         
         # Convert to list and sort by total size
         inactive_frame_list = []
-        for (name, filename), totals in inactive_frame_totals.items():
+        for (name, filename, line), totals in inactive_frame_totals.items():
             inactive_frame_list.append({
                 'name': name,
                 'filename': filename,
+                'line': line,
                 'total_size': totals['size'],
                 'total_requested_size': totals['requested_size'],
                 'count': totals['count']
@@ -151,9 +158,9 @@ def analyze_memory_snapshot(pickle_path: str):
         
         inactive_frame_list.sort(key=lambda x: x['total_size'], reverse=True)
         
-        print(f"\n=== INACTIVE BLOCKS - MEMORY USAGE BY FRAME (sorted by total size) ===")
+        print(f"\n--- INACTIVE BLOCKS - MEMORY USAGE BY FRAME (sorted by total size) ---")
         print(f"Total unique frame combinations: {len(inactive_frame_list)}")
-        print(f"\n{'Rank':<6} {'Total Size':>15} {'Total Req Size':>15} {'Count':>8} {'Frame Name':<40} {'Filename'}")
+        print(f"\n{'Rank':<6} {'Total Size':>15} {'Total Req Size':>15} {'Count':>8} {'Frame Name':<40} {'Filename:Line'}")
         print("-" * 140)
         
         for i, frame in enumerate(inactive_frame_list, 1):
@@ -161,7 +168,56 @@ def analyze_memory_snapshot(pickle_path: str):
                   f"{format_bytes(frame['total_requested_size']):>15} "
                   f"{frame['count']:>8} "
                   f"{frame['name'][:39]:<40} "
-                  f"{frame['filename']}")
+                  f"{frame['filename']}:{frame['line']}")
+        
+        # Now process active_awaiting_free blocks
+        active_awaiting_free_blocks.sort(key=lambda x: x['size'], reverse=True)
+        
+        print(f"\n--- TOP 50 ACTIVE AWAITING FREE BLOCKS (sorted by size) ---")
+        print(f"Total active awaiting free blocks found: {len(active_awaiting_free_blocks)}")
+        print(f"\n{'Rank':<6} {'Size':>15} {'Requested Size':>15} {'Frame Name':<40} {'Filename'}")
+        print("-" * 120)
+        
+        for i, block in enumerate(active_awaiting_free_blocks[:50], 1):
+            print(f"{i:<6} {format_bytes(block['size']):>15} "
+                  f"{format_bytes(block['requested_size']):>15} "
+                  f"{block['name'][:39]:<40} "
+                  f"{block['filename']}")
+        
+        # Group active_awaiting_free blocks by unique frame name, filename, and line combination
+        awaiting_frame_totals = defaultdict(lambda: {'size': 0, 'requested_size': 0, 'count': 0})
+        
+        for block in active_awaiting_free_blocks:
+            key = (block['name'], block['filename'], block.get('line', 0))
+            awaiting_frame_totals[key]['size'] += block['size']
+            awaiting_frame_totals[key]['requested_size'] += block['requested_size']
+            awaiting_frame_totals[key]['count'] += 1
+        
+        # Convert to list and sort by total size
+        awaiting_frame_list = []
+        for (name, filename, line), totals in awaiting_frame_totals.items():
+            awaiting_frame_list.append({
+                'name': name,
+                'filename': filename,
+                'line': line,
+                'total_size': totals['size'],
+                'total_requested_size': totals['requested_size'],
+                'count': totals['count']
+            })
+        
+        awaiting_frame_list.sort(key=lambda x: x['total_size'], reverse=True)
+        
+        print(f"\n--- ACTIVE AWAITING FREE BLOCKS - MEMORY USAGE BY FRAME (sorted by total size) ---")
+        print(f"Total unique frame combinations: {len(awaiting_frame_list)}")
+        print(f"\n{'Rank':<6} {'Total Size':>15} {'Total Req Size':>15} {'Count':>8} {'Frame Name':<40} {'Filename:Line'}")
+        print("-" * 140)
+        
+        for i, frame in enumerate(awaiting_frame_list, 1):
+            print(f"{i:<6} {format_bytes(frame['total_size']):>15} "
+                  f"{format_bytes(frame['total_requested_size']):>15} "
+                  f"{frame['count']:>8} "
+                  f"{frame['name'][:39]:<40} "
+                  f"{frame['filename']}:{frame['line']}")
         
         # Group segments by type
         segment_types = defaultdict(list)

@@ -666,6 +666,28 @@ class TransformerConfig(ModelParallelConfig):
     """Transformer implementation to use.
     Options are 'transformer_engine' for Transformer Engine and 'local' for MCore."""
 
+    # ---------------- Cut Cross-Entropy (CCE) integration ----------------
+    # Use Apple's cut-cross-entropy to compute CE without materializing [B,T,V] logits.
+    # Forward will return per-token losses when labels are provided.
+    use_linear_cross_entropy: bool = True
+
+    # Implementation selector (see apple/ml-cross-entropy README):
+    # "cce" (default), "torch_compile", "cce_kahan", etc.
+    linear_ce_impl: str = "cce"
+
+    # Return per-token losses ("none") so Megatron's loss mask / reduction still apply.
+    # You may set "mean"/"sum" if you want CCE to reduce internally.
+    linear_ce_reduction: str = "none"
+
+    # Do causal shift inside the kernel (predict t+1 from hidden at t) without allocating a shifted tensor.
+    linear_ce_shift: bool = False
+
+    # Ignore index for padding/packed labels (matches PyTorch default & Megatron datasets).
+    linear_ce_ignore_index: int = -100
+
+    # For debugging: also return logits even when using CCE (defeats the memory win).
+    return_logits_when_using_cce: bool = False
+
     def __post_init__(self):
         """Python dataclass method that is used to modify attributes after initialization.
         See https://docs.python.org/3/library/dataclasses.html#post-init-processing for more

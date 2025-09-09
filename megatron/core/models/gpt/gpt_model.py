@@ -16,6 +16,8 @@ from megatron.core.models.common.embeddings.rotary_pos_embedding import (
     RotaryEmbedding,
 )
 from megatron.core.models.common.language_module.language_module import LanguageModule
+from megatron.core.pipeline_parallel.utils import is_pp_last_stage
+from megatron.core.fusions.cce_loss import cce_per_token_loss
 from megatron.core.packed_seq_params import PackedSeqParams
 from megatron.core.process_groups_config import ProcessGroupCollection
 from megatron.core.quantization.utils import get_quant_config_or_none
@@ -464,6 +466,48 @@ class GPTModel(LanguageModule):
 
         if not self.post_process:
             return hidden_states
+
+        # -------- Cut Cross-Entropy fast path (no logits materialization) -------
+        if labels is not None and self.config.use_linear_cross_entropy:
+            # With pipeline parallel, only the last stage computes loss.
+            # if not is_pp_last_stage():
+            #     return None
+
+            # Choose classifier weights (tied vs. untied).
+            if self.share_embeddings_and_output_weights:
+                output_weight = self.shared_embedding_or_output_weight()
+            else:
+                output_weight = None
+            
+            if output_weight is None:
+                classifier_weight = self.output_layer.weight
+            else:
+                classifier_weight = output_weight
+
+            # Global (padded) vocab size if present; else actual weight rows.
+            vocab_size = getattr(self, "padded_vocab_size", None) or \
+                         getattr(self, "vocab_size", classifier_weight.size(0))
+
+            token_losses = cce_per_token_loss(
+                embeddings=hidden_states,             # [B, T, H]
+                classifier_weight=classifier_weight,  # [V, H] (or [V_local, H])
+                labels=labels,                        # [B, T]
+                vocab_size=vocab_size,
+                impl=self.config.linear_ce_impl,
+                reduction=self.config.linear_ce_reduction,
+                shift=self.config.linear_ce_shift,
+                ignore_index=self.config.linear_ce_ignore_index,
+            )
+
+            if self.config.return_logits_when_using_cce:
+                # Compute logits after the fact only if explicitly requested.
+                logits, _ = self.output_layer(
+                    hidden_states, weight=output_weight, runtime_gather_output=runtime_gather_output
+                )
+                return token_losses, logits
+
+            # Default: return per-token losses for Megatron's loss masking/reduction.
+            return token_losses
 
         if self.mtp_process:
             mtp_labels = labels.clone()
