@@ -669,7 +669,7 @@ class TransformerConfig(ModelParallelConfig):
     # ---------------- Cut Cross-Entropy (CCE) integration ----------------
     # Use Apple's cut-cross-entropy to compute CE without materializing [B,T,V] logits.
     # Forward will return per-token losses when labels are provided.
-    use_linear_cross_entropy: bool = True
+    use_linear_cross_entropy: bool = False
 
     # Implementation selector (see apple/ml-cross-entropy README):
     # "cce" (default), "torch_compile", "cce_kahan", etc.

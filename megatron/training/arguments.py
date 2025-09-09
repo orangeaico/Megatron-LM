@@ -2027,6 +2027,9 @@ def _add_training_args(parser):
                       choices=['rope', 'yarn'],
                       help='Type of rope to use. Note that MLA takes yarn by default, '
                       'and common attention takes rope by default.')
+    group.add_argument('--fused-linear-cross-entropy', action='store_true',
+                       help='Use Apple\'s cut-cross-entropy (CCE) to compute cross-entropy loss without materializing logits.',
+                       dest='use_linear_cross_entropy')
     group.add_argument('--cross-entropy-loss-fusion', action='store_true',
                        help='Enabled fusion of cross entropy loss calculation.',
                        dest='cross_entropy_loss_fusion')
