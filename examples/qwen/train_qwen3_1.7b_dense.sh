@@ -9,11 +9,13 @@ export CUDA_DEVICE_MAX_CONNECTIONS=${CUDA_DEVICE_MAX_CONNECTIONS:-1}
 #export NCCL_P2P_NET_CHUNKSIZE=${NCCL_P2P_NET_CHUNKSIZE:-2097152}
 #export NCCL_AVOID_RECORD_STREAMS=${NCCL_AVOID_RECORD_STREAMS:-1}
 
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 CHECKPOINT_PATH=${1:-"checkpoints/qwen3_1.7b_fp8"}
 TENSORBOARD_LOGS_PATH=${2:-"tensorboard_logs/qwen3_1.7b_fp8"}
 TENSORBOARD_LOGS_PATH_MEMORY=${2:-"tensorboard_logs/qwen3_1.7b_fp8/memory_snapshots/memory_snapshot.pickle"}
 TOKENIZER_ARG=${3:-"MOCK"} # Path to tokenizer model, or "MOCK"
 DATA_ARG=${4:-"MOCK"}     # Data prefix, or "MOCK"
+LOAD_CHECKPOINT_PATH=${5:-"/workspace/data/qwen1_7_mg"}
 
 # Create directories if they don't exist
 mkdir -p "$(dirname "$CHECKPOINT_PATH")"
@@ -37,9 +39,9 @@ CP_SIZE=1
 PP_SIZE=1     
 MICRO_BATCH_SIZE=1 # Increased from 1 due to smaller model size
 GLOBAL_BATCH_SIZE=1  # Increased from 128 for better efficiency with smaller model
-NUM_LAYERS=14  # Qwen3-1.7B has 28 layers
+NUM_LAYERS=28  # Qwen3-1.7B has 28 layers
 DTYPE="bf16"
-SEQ_LENGTH=8192
+SEQ_LENGTH=16384
 MAX_POSITION_EMBEDDINGS=40960  # Qwen3-1.7B supports up to 40960
 
 # Data cache path (useful for both mock and real data)
@@ -57,13 +59,14 @@ DISTRIBUTED_ARGS=(
 MODEL_ARGS=(
     --use-mcore-models
     --num-layers $NUM_LAYERS
+    --seq-length $SEQ_LENGTH
     --hidden-size 2048  # Qwen3-1.7B hidden size
     --ffn-hidden-size 6144  # Qwen3-1.7B intermediate size
     --num-attention-heads 16  # Qwen3-1.7B attention heads
     --group-query-attention
     --num-query-groups 8  # Qwen3-1.7B KV heads
     --kv-channels 128  # 2048 / 16 = 128
-    --seq-length $SEQ_LENGTH
+    --normalization RMSNorm
     --max-position-embeddings $MAX_POSITION_EMBEDDINGS
     --position-embedding-type rope
     --rotary-base 1000000  # Same as Qwen3 rope_theta
@@ -72,9 +75,9 @@ MODEL_ARGS=(
     --hidden-dropout 0.0
     --swiglu  # Qwen3 uses silu activation, compatible with swiglu
     --init-method-std 0.02  # Standard initialization for smaller model
-    --attention-backend fused
-    --apply-layernorm-1p 
-    --disable-bias-linear 
+    --transformer-impl transformer_engine  # Use local implementation to avoid TE's fused layernorm
+    --attention-backend fused 
+    --disable-bias-linear
 )
 
 TRAINING_ARGS=(
@@ -99,7 +102,7 @@ TRAINING_ARGS=(
     --exit-duration-in-mins 235 
     --recompute-granularity full
     --recompute-method uniform
-    --recompute-num-layers $NUM_LAYERS
+    --recompute-num-layers 1
     --use-flash-attn
     --bf16
     --use-precision-aware-optimizer
@@ -179,14 +182,24 @@ EVAL_AND_LOGGING_ARGS=(
     --profile-step-start 2
     --profile-step-end 3
     --profile-ranks 0
-    --ckpt-format torch_dist 
-    --distributed-timeout-minutes 60
-    --save "$CHECKPOINT_PATH"
     --use-pytorch-profiler
     --tensorboard-dir "$TENSORBOARD_LOGS_PATH"
     --log-memory-to-tensorboard
     --record-memory-history
     --memory-snapshot-path "$TENSORBOARD_LOGS_PATH_MEMORY"
+)
+
+CHECKPOINT_ARGS=(
+    --ckpt-format torch_dist 
+    --distributed-timeout-minutes 60
+    --save "$CHECKPOINT_PATH"
+    --load "$LOAD_CHECKPOINT_PATH"
+    --finetune
+    --no-load-optim
+    --no-load-rng
+    --pretrained-checkpoint "$LOAD_CHECKPOINT_PATH"
+    --no-initialization
+    --exit-on-missing-checkpoint
 )
 
 # Ensure pretrain_gpt.py is found
@@ -204,6 +217,7 @@ torchrun ${DISTRIBUTED_ARGS[@]} \
     ${DTYPE_ARGS[@]} \
     ${MODEL_PARALLEL_ARGS[@]} \
     ${DATA_ARGS_LIST[@]} \
-    ${EVAL_AND_LOGGING_ARGS[@]}
+    ${EVAL_AND_LOGGING_ARGS[@]} \
+    ${CHECKPOINT_ARGS[@]}
 
 set +x
