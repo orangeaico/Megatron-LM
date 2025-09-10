@@ -16,7 +16,6 @@ from megatron.core.models.common.embeddings.rotary_pos_embedding import (
     RotaryEmbedding,
 )
 from megatron.core.models.common.language_module.language_module import LanguageModule
-from megatron.core.pipeline_parallel.utils import is_pp_last_stage
 from megatron.core.fusions.cce_loss import cce_per_token_loss
 from megatron.core.packed_seq_params import PackedSeqParams
 from megatron.core.process_groups_config import ProcessGroupCollection
@@ -468,10 +467,12 @@ class GPTModel(LanguageModule):
             return hidden_states
 
         # -------- Cut Cross-Entropy fast path (no logits materialization) -------
-        if labels is not None and self.config.use_linear_cross_entropy:
-            # With pipeline parallel, only the last stage computes loss.
-            # if not is_pp_last_stage():
-            #     return None
+        # Only compute loss on the LAST PP stage; others take the default path.
+        if (
+            labels is not None
+            and self.config.use_linear_cross_entropy
+            and parallel_state.is_pipeline_last_stage()
+        ):
 
             # Choose classifier weights (tied vs. untied).
             if self.share_embeddings_and_output_weights:
