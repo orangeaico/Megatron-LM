@@ -13,7 +13,7 @@ export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 export NVTE_ALLOW_NONDETERMINISTIC_ALGO=1
 export NCCL_NVLS_ENABLE=0
 
-MODEL_NAME="qwen3_1.7b"
+MODEL_NAME="qwen3_30b_a3b"
 LOAD_CHECKPOINT_PATH="/workspace/data/qwen1_7_mg"
 SAVE_CHECKPOINT_PATH="checkpoints/$MODEL_NAME"
 # Data cache path (useful for both mock and real data)
@@ -32,7 +32,7 @@ mkdir -p "$(dirname "$MEMORY_SNAPSHOT_PATH")"
 mkdir -p "$DATA_CACHE_PATH"
 
 # Distributed training setup
-GPUS_PER_NODE=1
+GPUS_PER_NODE=2
 NUM_NODES=1
 MASTER_ADDR=${MASTER_ADDR:-localhost}
 MASTER_PORT=${MASTER_PORT:-6000}
@@ -43,12 +43,15 @@ WORLD_SIZE=$(($GPUS_PER_NODE*$NUM_NODES))
 PRETRAIN_SCRIPT_PATH="pretrain_gpt.py"
 
 # Fixed model and training parameters for Qwen3-1.7B
-TP_SIZE=1 
-CP_SIZE=1     
-PP_SIZE=1     
+TP_SIZE=2 
+CP_SIZE=1
+EP_SIZE=1
+EXPERT_TP_SIZE=1
+PP_SIZE=1
+LAYERS_PER_VP=1
 MICRO_BATCH_SIZE=1 
 GLOBAL_BATCH_SIZE=1  
-NUM_LAYERS=28  
+NUM_LAYERS=48  
 DTYPE="bf16"
 SEQ_LENGTH=8192
 MAX_POSITION_EMBEDDINGS=40960 
@@ -67,13 +70,14 @@ MODEL_ARGS=(
     --seq-length $SEQ_LENGTH
     --hidden-size 2048  
     --ffn-hidden-size 6144 
-    --num-attention-heads 16  
+    --num-attention-heads 32  
     --group-query-attention
-    --num-query-groups 8 
+    --num-query-groups 4 
     --kv-channels 128 
     --qk-layernorm
     --normalization RMSNorm
     --max-position-embeddings $MAX_POSITION_EMBEDDINGS
+    --untie-embeddings-and-output-weights
     --make-vocab-size-divisible-by 1187
     --position-embedding-type rope
     --rotary-base 1000000  # Same as Qwen3 rope_theta
@@ -81,8 +85,21 @@ MODEL_ARGS=(
     --rotary-seq-len-interpolation-factor 1
     --swiglu
     --norm-epsilon 1e-06
-    --init-method-std 0.02  
+    --init-method-std 0.02 
     --disable-bias-linear
+)
+
+MOE_ARGS=(
+    --num-experts 128 
+    --moe-ffn-hidden-size 768
+    --moe-router-load-balancing-type aux_loss
+    --moe-router-topk 8  # num_experts_per_tok
+    --moe-grouped-gemm
+    --moe-aux-loss-coeff 1e-3  # router_aux_loss_coef from config
+    --moe-token-dispatcher-type alltoall
+    --moe-permute-fusion
+    --moe-router-dtype fp32
+    # --moe-router-fusion # This is only supported in TransformerEngine 2.7.0 and above. Current installed TE is 2.2
 )
 
 TRAINING_ARGS=(
@@ -116,9 +133,9 @@ TRAINING_ARGS=(
     --transformer-impl transformer_engine
     --enable-experimental
     --use-flash-attn
-    --fused-linear-cross-entropy
-    # --cross-entropy-loss-fusion
-    # --cross-entropy-fusion-impl te
+    # --fused-linear-cross-entropy
+    --cross-entropy-loss-fusion
+    --cross-entropy-fusion-impl te
     --recompute-granularity full
     --recompute-method uniform
     --recompute-num-layers 1
@@ -151,9 +168,12 @@ fi
 # Model parallelism arguments
 MODEL_PARALLEL_ARGS=(
     --tensor-model-parallel-size $TP_SIZE
-    --context-parallel-size $CP_SIZE
-    # --pipeline-model-parallel-size $PP_SIZE # Not explicitly set in llama script options, assume 1 if not multi-node PP
     --sequence-parallel  # Always enable sequence parallelism with TP_SIZE=2
+    --context-parallel-size $CP_SIZE
+    --expert-model-parallel-size $EP_SIZE
+    --expert-tensor-parallel-size $EXPERT_TP_SIZE
+    # --pipeline-model-parallel-size $PP_SIZE # Not explicitly set in llama script options, assume 1 if not multi-node PP
+    # --num-layers-per-virtual-pipeline-stage $LAYERS_PER_VP  # interleaved PP; needs PP_SIZE>1
 )
 
 # Data arguments (conditional for mock vs real data)
@@ -191,7 +211,7 @@ CHECKPOINT_ARGS=(
     --auto-detect-ckpt-format
     --dist-ckpt-strictness log_all
     --distributed-timeout-minutes 60
-    --load "$LOAD_CHECKPOINT_PATH"
+    # --load "$LOAD_CHECKPOINT_PATH"
     --save "$SAVE_CHECKPOINT_PATH"
     --save-interval 1000
     --exit-on-missing-checkpoint
@@ -224,8 +244,6 @@ if [ -n "${WANDB_API_KEY}" ]; then
     )
 fi
 
-
-
 # Ensure pretrain_gpt.py is found
 if [ ! -f "$PRETRAIN_SCRIPT_PATH" ]; then
     echo "Error: pretrain_gpt.py not found at $PRETRAIN_SCRIPT_PATH"
@@ -237,6 +255,7 @@ fi
 torchrun ${DISTRIBUTED_ARGS[@]} \
     "$PRETRAIN_SCRIPT_PATH" \
     ${MODEL_ARGS[@]} \
+    ${MOE_ARGS[@]} \
     ${TRAINING_ARGS[@]} \
     ${DTYPE_ARGS[@]} \
     ${MODEL_PARALLEL_ARGS[@]} \
