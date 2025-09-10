@@ -13,7 +13,7 @@ export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 export NVTE_ALLOW_NONDETERMINISTIC_ALGO=1
 export NCCL_NVLS_ENABLE=0
 
-MODEL_NAME="qwen3_30b_a3b"
+MODEL_NAME="phi_tiny_moe_instruct"
 LOAD_CHECKPOINT_PATH="/workspace/data/qwen1_7_mg"
 SAVE_CHECKPOINT_PATH="output/$MODEL_NAME/checkpoints"
 # Data cache path (useful for both mock and real data)
@@ -32,7 +32,7 @@ mkdir -p "$(dirname "$MEMORY_SNAPSHOT_PATH")"
 mkdir -p "$DATA_CACHE_PATH"
 
 # Distributed training setup
-GPUS_PER_NODE=2
+GPUS_PER_NODE=1
 NUM_NODES=1
 MASTER_ADDR=${MASTER_ADDR:-localhost}
 MASTER_PORT=${MASTER_PORT:-6000}
@@ -43,7 +43,7 @@ WORLD_SIZE=$(($GPUS_PER_NODE*$NUM_NODES))
 PRETRAIN_SCRIPT_PATH="pretrain_gpt.py"
 
 # Fixed model and training parameters for Qwen3-1.7B
-TP_SIZE=2 
+TP_SIZE=1 
 CP_SIZE=1
 EP_SIZE=1
 EXPERT_TP_SIZE=1
@@ -51,7 +51,7 @@ PP_SIZE=1
 LAYERS_PER_VP=1
 MICRO_BATCH_SIZE=1 
 GLOBAL_BATCH_SIZE=1  
-NUM_LAYERS=48  
+NUM_LAYERS=8  # Actual 32 layers
 DTYPE="bf16"
 SEQ_LENGTH=8192
 MAX_POSITION_EMBEDDINGS=40960 
@@ -68,9 +68,9 @@ MODEL_ARGS=(
     --use-mcore-models
     --num-layers $NUM_LAYERS
     --seq-length $SEQ_LENGTH
-    --hidden-size 2048  
-    --ffn-hidden-size 6144 
-    --num-attention-heads 32  
+    --hidden-size 4096  
+    --ffn-hidden-size 448 
+    --num-attention-heads 16  
     --group-query-attention
     --num-query-groups 4 
     --kv-channels 128 
@@ -78,7 +78,6 @@ MODEL_ARGS=(
     --normalization RMSNorm
     --max-position-embeddings $MAX_POSITION_EMBEDDINGS
     --untie-embeddings-and-output-weights
-    --make-vocab-size-divisible-by 1187
     --position-embedding-type rope
     --rotary-base 1000000  # Same as Qwen3 rope_theta
     --rotary-percent 1.0
@@ -90,10 +89,10 @@ MODEL_ARGS=(
 )
 
 MOE_ARGS=(
-    --num-experts 128 
-    --moe-ffn-hidden-size 768
+    --num-experts 16 
+    --moe-ffn-hidden-size 448
     --moe-router-load-balancing-type aux_loss
-    --moe-router-topk 8  # num_experts_per_tok
+    --moe-router-topk 2  # num_experts_per_tok
     --moe-grouped-gemm
     --moe-aux-loss-coeff 1e-3  # router_aux_loss_coef from config
     --moe-token-dispatcher-type alltoall

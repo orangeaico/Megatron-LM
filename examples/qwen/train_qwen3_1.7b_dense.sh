@@ -20,8 +20,8 @@ SAVE_CHECKPOINT_PATH="output/$MODEL_NAME/checkpoints"
 DATA_CACHE_PATH="output/$MODEL_NAME/benchmark_cache"
 TENSORBOARD_LOGS_PATH="output/$MODEL_NAME/tensorboard_logs"
 MEMORY_SNAPSHOT_PATH="output/$MODEL_NAME/memory_snapshots/memory_snapshot.pickle"
-TOKENIZER_ARG="MOCK" # Path to tokenizer model, or "MOCK"
-DATA_ARG="MOCK"     # Data prefix, or "MOCK"
+TOKENIZER_ARG="/workspace/data/qwen1_7_mg" # Path to tokenizer model, or "MOCK"
+DATA_ARG="/workspace/data/data/qwen_out_text_document"     # Data prefix, or "MOCK"
 
 WANDB_API_KEY=''
 
