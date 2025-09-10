@@ -1,7 +1,5 @@
 #!/bin/bash
 
-# Environment variables for performance tuning
-export CUDA_DEVICE_MAX_CONNECTIONS=${CUDA_DEVICE_MAX_CONNECTIONS:-1}
 #export LOG_LEVEL=${LOG_LEVEL:-INFO}
 #export NCCL_IB_TIMEOUT=${NCCL_IB_TIMEOUT:-19}
 #export NVTE_FWD_LAYERNORM_SM_MARGIN=${NVTE_FWD_LAYERNORM_SM_MARGIN:-16}
@@ -9,18 +7,29 @@ export CUDA_DEVICE_MAX_CONNECTIONS=${CUDA_DEVICE_MAX_CONNECTIONS:-1}
 #export NCCL_P2P_NET_CHUNKSIZE=${NCCL_P2P_NET_CHUNKSIZE:-2097152}
 #export NCCL_AVOID_RECORD_STREAMS=${NCCL_AVOID_RECORD_STREAMS:-1}
 
+# Environment variables for performance tuning
+export CUDA_DEVICE_MAX_CONNECTIONS=${CUDA_DEVICE_MAX_CONNECTIONS:-1}
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
-CHECKPOINT_PATH=${1:-"checkpoints/qwen3_1.7b_fp8"}
-TENSORBOARD_LOGS_PATH=${2:-"tensorboard_logs/qwen3_1.7b_fp8"}
-TENSORBOARD_LOGS_PATH_MEMORY=${2:-"tensorboard_logs/qwen3_1.7b_fp8/memory_snapshots/memory_snapshot.pickle"}
-TOKENIZER_ARG=${3:-"MOCK"} # Path to tokenizer model, or "MOCK"
-DATA_ARG=${4:-"MOCK"}     # Data prefix, or "MOCK"
-LOAD_CHECKPOINT_PATH=${5:-"/workspace/data/qwen1_7_mg"}
+export NVTE_ALLOW_NONDETERMINISTIC_ALGO=1
+export NCCL_NVLS_ENABLE=0
+
+MODEL_NAME="qwen3_1.7b"
+LOAD_CHECKPOINT_PATH="/workspace/data/qwen1_7_mg"
+SAVE_CHECKPOINT_PATH="checkpoints/$MODEL_NAME"
+# Data cache path (useful for both mock and real data)
+DATA_CACHE_PATH="${PWD}/benchmark_cache_$MODEL_NAME"
+TENSORBOARD_LOGS_PATH="tensorboard_logs/$MODEL_NAME"
+MEMORY_SNAPSHOT_PATH="$TENSORBOARD_LOGS_PATH/memory_snapshots/memory_snapshot.pickle"
+TOKENIZER_ARG="MOCK" # Path to tokenizer model, or "MOCK"
+DATA_ARG="MOCK"     # Data prefix, or "MOCK"
+
+WANDB_API_KEY=''
 
 # Create directories if they don't exist
-mkdir -p "$(dirname "$CHECKPOINT_PATH")"
+mkdir -p "$(dirname "$SAVE_CHECKPOINT_PATH")"
 mkdir -p "$(dirname "$TENSORBOARD_LOGS_PATH")"
-mkdir -p "$(dirname "$TENSORBOARD_LOGS_PATH_MEMORY")"
+mkdir -p "$(dirname "$MEMORY_SNAPSHOT_PATH")"
+mkdir -p "$DATA_CACHE_PATH"
 
 # Distributed training setup
 GPUS_PER_NODE=1
@@ -34,19 +43,15 @@ WORLD_SIZE=$(($GPUS_PER_NODE*$NUM_NODES))
 PRETRAIN_SCRIPT_PATH="pretrain_gpt.py"
 
 # Fixed model and training parameters for Qwen3-1.7B
-TP_SIZE=1    
+TP_SIZE=1 
 CP_SIZE=1     
 PP_SIZE=1     
-MICRO_BATCH_SIZE=1 # Increased from 1 due to smaller model size
-GLOBAL_BATCH_SIZE=1  # Increased from 128 for better efficiency with smaller model
-NUM_LAYERS=28  # Qwen3-1.7B has 28 layers
+MICRO_BATCH_SIZE=1 
+GLOBAL_BATCH_SIZE=1  
+NUM_LAYERS=28  
 DTYPE="bf16"
-SEQ_LENGTH=16384
-MAX_POSITION_EMBEDDINGS=40960  # Qwen3-1.7B supports up to 40960
-
-# Data cache path (useful for both mock and real data)
-DATA_CACHE_PATH="${PWD}/benchmark_cache_qwen3_1.7b_fp8"
-mkdir -p "$DATA_CACHE_PATH"
+SEQ_LENGTH=8192
+MAX_POSITION_EMBEDDINGS=40960 
 
 DISTRIBUTED_ARGS=(
     --nproc_per_node $GPUS_PER_NODE
@@ -60,22 +65,22 @@ MODEL_ARGS=(
     --use-mcore-models
     --num-layers $NUM_LAYERS
     --seq-length $SEQ_LENGTH
-    --hidden-size 2048  # Qwen3-1.7B hidden size
-    --ffn-hidden-size 6144  # Qwen3-1.7B intermediate size
-    --num-attention-heads 16  # Qwen3-1.7B attention heads
+    --hidden-size 2048  
+    --ffn-hidden-size 6144 
+    --num-attention-heads 16  
     --group-query-attention
-    --num-query-groups 8  # Qwen3-1.7B KV heads
-    --kv-channels 128  # 2048 / 16 = 128
+    --num-query-groups 8 
+    --kv-channels 128 
+    --qk-layernorm
     --normalization RMSNorm
     --max-position-embeddings $MAX_POSITION_EMBEDDINGS
     --position-embedding-type rope
     --rotary-base 1000000  # Same as Qwen3 rope_theta
     --rotary-percent 1.0
-    --attention-dropout 0.0
-    --hidden-dropout 0.0
-    --swiglu  # Qwen3 uses silu activation, compatible with swiglu
-    --init-method-std 0.02  # Standard initialization for smaller model
-    --transformer-impl transformer_engine  # Use local implementation to avoid TE's fused layernorm
+    --rotary-seq-len-interpolation-factor 1
+    --swiglu
+    --norm-epsilon 1e-06
+    --init-method-std 0.02 
     --attention-backend fused 
     --disable-bias-linear
 )
@@ -84,33 +89,52 @@ TRAINING_ARGS=(
     --micro-batch-size $MICRO_BATCH_SIZE
     --global-batch-size $GLOBAL_BATCH_SIZE
     --train-samples 20
+    --exit-duration-in-mins 235
+
+    # Learning rate args
     --lr-decay-samples 10
     --lr-warmup-samples 5
-    --lr 0.0003  # Higher learning rate for smaller model
-    --min-lr 0.00003  # Adjusted min learning rate
-    --decoupled-lr 8.0e-4  # Adjusted for smaller model
-    --decoupled-min-lr 8.0e-5  # Adjusted for smaller model
+    --lr 1.2e-4 
+    --min-lr 1.2e-5  
+    # --decoupled-lr 8.0e-4  # Adjusted for smaller model
+    # --decoupled-min-lr 8.0e-5  # Adjusted for smaller model
     --lr-decay-style cosine
-    --clip-grad 1.0
-    --weight-decay 0.1
     --adam-beta1 0.9
     --adam-beta2 0.95
-    --cross-entropy-loss-fusion
-    --cross-entropy-fusion-impl te
-    --calculate-per-token-loss 
-    --manual-gc 
-    --exit-duration-in-mins 235 
+
+    # Regularization args
+    --attention-dropout 0.0
+    --hidden-dropout 0.0
+    --clip-grad 1.0
+    --weight-decay 0.1
+ 
+    # Memory cleanup args
+    --manual-gc
+    --manual-gc-interval 5  
+
+    # Computation optimisation and recomputation args
+    --transformer-impl transformer_engine
+    --enable-experimental
+    --use-flash-attn
+    --fused-linear-cross-entropy
+    # --cross-entropy-loss-fusion
+    # --cross-entropy-fusion-impl te
     --recompute-granularity full
     --recompute-method uniform
     --recompute-num-layers 1
-    --use-flash-attn
+    --calculate-per-token-loss
+
+    # data type arguments
     --bf16
+    --use-distributed-optimizer
     --use-precision-aware-optimizer
+    --overlap-grad-reduce
+    --overlap-param-gather
     --main-params-dtype fp16
     --main-grads-dtype bf16
+    --grad-reduce-in-bf16
     --exp-avg-dtype fp16
     --exp-avg-sq-dtype fp16
-    --grad-reduce-in-bf16
 )
 
 # Conditional arguments based on DTYPE (FP8)
@@ -172,11 +196,21 @@ else
     )
 fi
 
+CHECKPOINT_ARGS=(
+    --finetune
+    --auto-detect-ckpt-format
+    --dist-ckpt-strictness log_all
+    --distributed-timeout-minutes 60
+    --load "$LOAD_CHECKPOINT_PATH"
+    --save "$SAVE_CHECKPOINT_PATH"
+    --save-interval 1000
+    --exit-on-missing-checkpoint
+)
+
 EVAL_AND_LOGGING_ARGS=(
-    --log-interval 1
     --eval-iters 32
     --eval-interval 100
-    --save-interval 1000
+    --log-interval 1
     --log-throughput
     --profile
     --profile-step-start 2
@@ -184,23 +218,23 @@ EVAL_AND_LOGGING_ARGS=(
     --profile-ranks 0
     --use-pytorch-profiler
     --tensorboard-dir "$TENSORBOARD_LOGS_PATH"
+    --log-timers-to-tensorboard
+    --log-num-zeros-in-grad
+    --log-params-norm
+    --log-validation-ppl-to-tensorboard
     --log-memory-to-tensorboard
     --record-memory-history
-    --memory-snapshot-path "$TENSORBOARD_LOGS_PATH_MEMORY"
+    --memory-snapshot-path "$MEMORY_SNAPSHOT_PATH"
 )
 
-CHECKPOINT_ARGS=(
-    --ckpt-format torch_dist 
-    --distributed-timeout-minutes 60
-    --save "$CHECKPOINT_PATH"
-    --load "$LOAD_CHECKPOINT_PATH"
-    --finetune
-    --no-load-optim
-    --no-load-rng
-    --pretrained-checkpoint "$LOAD_CHECKPOINT_PATH"
-    --no-initialization
-    --exit-on-missing-checkpoint
-)
+if [ -n "${WANDB_API_KEY}" ]; then
+    LOGGING_ARGS+=(
+        --wandb-project ${WANDB_PROJECT:-$MODEL_NAME}
+        --wandb-exp-name ${WANDB_NAME:-$MODEL_NAME}
+    )
+fi
+
+
 
 # Ensure pretrain_gpt.py is found
 if [ ! -f "$PRETRAIN_SCRIPT_PATH" ]; then
