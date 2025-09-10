@@ -15,11 +15,11 @@ export NCCL_NVLS_ENABLE=0
 
 MODEL_NAME="qwen3_30b_a3b"
 LOAD_CHECKPOINT_PATH="/workspace/data/qwen1_7_mg"
-SAVE_CHECKPOINT_PATH="checkpoints/$MODEL_NAME"
+SAVE_CHECKPOINT_PATH="output/$MODEL_NAME/checkpoints"
 # Data cache path (useful for both mock and real data)
-DATA_CACHE_PATH="${PWD}/benchmark_cache_$MODEL_NAME"
-TENSORBOARD_LOGS_PATH="tensorboard_logs/$MODEL_NAME"
-MEMORY_SNAPSHOT_PATH="$TENSORBOARD_LOGS_PATH/memory_snapshots/memory_snapshot.pickle"
+DATA_CACHE_PATH="output/$MODEL_NAME/benchmark_cache"
+TENSORBOARD_LOGS_PATH="output/$MODEL_NAME/tensorboard_logs"
+MEMORY_SNAPSHOT_PATH="output/$MODEL_NAME/memory_snapshots/memory_snapshot.pickle"
 TOKENIZER_ARG="MOCK" # Path to tokenizer model, or "MOCK"
 DATA_ARG="MOCK"     # Data prefix, or "MOCK"
 
