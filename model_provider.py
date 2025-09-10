@@ -58,10 +58,13 @@ def model_provider(
             print('saving allocated state during OOM')
             snapshot = torch.cuda.memory._snapshot()
             from pickle import dump
+            import os
 
+            file_name, file_extension = os.path.splitext(args.memory_snapshot_path)
+            snapshot_file_name = f"{file_name}_oom_rank-{torch.distributed.get_rank()}" + file_extension
             dump(
                 snapshot,
-                open(f"oom_rank-{torch.distributed.get_rank()}_{args.memory_snapshot_path}", 'wb'),
+                open(f"{snapshot_file_name}", 'wb'),
             )
 
         torch._C._cuda_attach_out_of_memory_observer(oom_observer)
