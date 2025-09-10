@@ -80,8 +80,7 @@ MODEL_ARGS=(
     --rotary-seq-len-interpolation-factor 1
     --swiglu
     --norm-epsilon 1e-06
-    --init-method-std 0.02 
-    --attention-backend fused 
+    --init-method-std 0.02  
     --disable-bias-linear
 )
 
