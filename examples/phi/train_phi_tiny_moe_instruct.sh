@@ -14,7 +14,7 @@ export NVTE_ALLOW_NONDETERMINISTIC_ALGO=1
 export NCCL_NVLS_ENABLE=0
 
 MODEL_NAME="phi_tiny_moe_instruct"
-LOAD_CHECKPOINT_PATH="/workspace/data/qwen1_7_mg"
+# LOAD_CHECKPOINT_PATH="/workspace/data/qwen1_7_mg"  # Add the correct path and uncomment it
 SAVE_CHECKPOINT_PATH="output/$MODEL_NAME/checkpoints"
 # Data cache path (useful for both mock and real data)
 DATA_CACHE_PATH="output/$MODEL_NAME/benchmark_cache"
@@ -181,7 +181,7 @@ if [[ "$TOKENIZER_ARG" == "MOCK" ]] || [[ "$DATA_ARG" == "MOCK" ]] || [[ -z "$TO
     DATA_ARGS_LIST+=(
         "--mock-data"
         "--tokenizer-type NullTokenizer"
-        "--vocab-size 151936"  # Qwen3-1.7B vocab size
+        "--vocab-size 32064"  # Qwen3-1.7B vocab size
         "--data-cache-path ${DATA_CACHE_PATH}"
         "--tiktoken-pattern v2" 
         "--split '99,1,0'"
@@ -201,7 +201,7 @@ else
         "--no-mmap-bin-files"
         "--num-workers 1"
         # Note: --vocab-size might be inferred by HuggingFaceTokenizer or might need to be explicit.
-        "--vocab-size 151936"  # Qwen3-1.7B vocab size
+        "--vocab-size 32064"  # Qwen3-1.7B vocab size
     )
 fi
 

@@ -8,13 +8,14 @@ PHASE_LAYER_LOGGER=1
 
 export CUDA_DEVICE_MAX_CONNECTIONS=1
 
-GPUS_PER_NODE=2
+GPUS_PER_NODE=1
 # Change for multinode config
 MASTER_ADDR=${MASTER_ADDR:-"localhost"}
 MASTER_PORT=${MASTER_PORT:-"6000"}
 NNODES=${SLURM_NNODES:-"1"}
 NODE_RANK=${RANK:-"0"}
 WORLD_SIZE=$(($GPUS_PER_NODE*$NNODES))
+NUM_LAYERS=4
 
 CHECKPOINT_PATH=${1:-"checkpoints/phi_tiny_moe_instruct"}
 TOKENIZER_MODEL=${2:-"MOCK"}
@@ -37,7 +38,7 @@ MODEL_ARGS=(
     --disable-bias-linear
     --seq-length 32768
     --max-position-embeddings 40960
-    --num-layers 4
+    --num-layers $NUM_LAYERS
     --hidden-size 4096
     --ffn-hidden-size 448
     --num-attention-heads 16  # Phi-tiny-MoE attention heads
@@ -54,6 +55,7 @@ MODEL_ARGS=(
     --no-masked-softmax-fusion
     --no-position-embedding
     --rotary-base 10000  # Standard RoPE base for Phi
+    --transformer-impl transformer_engine  # Use local implementation instead of Transformer Engine
 )
 
 MOE_ARGS=(
@@ -109,8 +111,12 @@ TRAINING_ARGS=(
     --clip-grad 1.0
     --adam-beta1 0.9
     --adam-beta2 0.95
-    --cross-entropy-loss-fusion
-    --cross-entropy-fusion-impl te
+    --fused-linear-cross-entropy
+    #--cross-entropy-loss-fusion
+    #--cross-entropy-fusion-impl te
+    --recompute-granularity full
+    --recompute-method uniform
+    --recompute-num-layers 1
     --exit-duration-in-mins 235
     --use-flash-attn
     --bf16
@@ -123,7 +129,7 @@ TRAINING_ARGS=(
 )
 
 MODEL_PARALLEL_ARGS=(
-    --tensor-model-parallel-size 2
+    --tensor-model-parallel-size 1
     --pipeline-model-parallel-size 1
     --expert-model-parallel-size 1
     --expert-tensor-parallel-size 1
@@ -132,18 +138,6 @@ MODEL_PARALLEL_ARGS=(
     --use-distributed-optimizer
     --overlap-grad-reduce 
     --overlap-param-gather
-)
-
-EVAL_AND_LOGGING_ARGS=(
-    --log-interval 1 \
-    --save-interval 10000 \
-    --eval-interval 1000 \
-    --eval-iters 10 \
-    --save $CHECKPOINT_PATH \
-    --load $CHECKPOINT_PATH \
-    --tensorboard-dir "${CHECKPOINT_PATH}/tensorboard" \
-    --no-load-optim \
-    --no-load-rng
 )
 
 LOGGING_ARGS=(
@@ -157,11 +151,8 @@ LOGGING_ARGS=(
     --profile-step-end 6
     --ckpt-format torch_dist 
     --distributed-timeout-minutes 60
-    --save "$CHECKPOINT_PATH"
-    --load "$CHECKPOINT_PATH" 
+    --save "$CHECKPOINT_PATH" 
     --tensorboard-dir "${CHECKPOINT_PATH}/tensorboard"
-    --no-load-optim
-    --no-load-rng
 )
 
 if [ -n "${WANDB_API_KEY}" ]; then

@@ -14,7 +14,7 @@ export NVTE_ALLOW_NONDETERMINISTIC_ALGO=1
 export NCCL_NVLS_ENABLE=0
 
 MODEL_NAME="qwen3_30b_a3b"
-LOAD_CHECKPOINT_PATH="/workspace/data/qwen1_7_mg"
+# LOAD_CHECKPOINT_PATH="/workspace/data/qwen1_7_mg"  # Add the correct path and uncomment it
 SAVE_CHECKPOINT_PATH="output/$MODEL_NAME/checkpoints"
 # Data cache path (useful for both mock and real data)
 DATA_CACHE_PATH="output/$MODEL_NAME/benchmark_cache"
