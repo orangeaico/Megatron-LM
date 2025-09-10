@@ -133,9 +133,9 @@ TRAINING_ARGS=(
     --transformer-impl transformer_engine
     --enable-experimental
     --use-flash-attn
-    # --fused-linear-cross-entropy
-    --cross-entropy-loss-fusion
-    --cross-entropy-fusion-impl te
+    --fused-linear-cross-entropy
+    # --cross-entropy-loss-fusion
+    # --cross-entropy-fusion-impl te
     --recompute-granularity full
     --recompute-method uniform
     --recompute-num-layers 1

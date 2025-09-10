@@ -485,6 +485,40 @@ class GPTModel(LanguageModule):
             else:
                 classifier_weight = output_weight
 
+
+            # If embeddings and output weights are UNTIED, Megatron's DDP expects the
+            # output layer module to be invoked so its param-gather hooks run.
+            # Trigger hooks with a *minimal*, zero-grad probe that does NOT stash activations.
+            if not self.share_embeddings_and_output_weights:
+                # Build a fresh 1-token probe in [S, B, H] layout to avoid aliasing hidden_states.
+                B = hidden_states.size(1)
+                H = hidden_states.size(2)
+                probe = torch.empty(
+                    (1, B, H),
+                    device=hidden_states.device,
+                    dtype=hidden_states.dtype,
+                )
+                # Temporarily disable any activation/grad buffers on the output layer
+                # to avoid storing probe activations (important for defer_embedding_wgrad_compute).
+                _old_eab = getattr(self.output_layer, "embedding_activation_buffer", None)
+                _old_gob = getattr(self.output_layer, "grad_output_buffer", None)
+                try:
+                    if hasattr(self.output_layer, "embedding_activation_buffer"):
+                        self.output_layer.embedding_activation_buffer = None
+                    if hasattr(self.output_layer, "grad_output_buffer"):
+                        self.output_layer.grad_output_buffer = None
+                    with torch.no_grad():
+                        # Call without overriding 'weight' so module uses its own params.
+                        # runtime_gather_output=False prevents TP gather for the probe.
+                        _probe_logits, _ = self.output_layer(
+                            probe, runtime_gather_output=False
+                        )
+                finally:
+                    if hasattr(self.output_layer, "embedding_activation_buffer"):
+                        self.output_layer.embedding_activation_buffer = _old_eab
+                    if hasattr(self.output_layer, "grad_output_buffer"):
+                        self.output_layer.grad_output_buffer = _old_gob
+
             # Global (padded) vocab size if present; else actual weight rows.
             vocab_size = getattr(self, "padded_vocab_size", None) or \
                          getattr(self, "vocab_size", classifier_weight.size(0))
