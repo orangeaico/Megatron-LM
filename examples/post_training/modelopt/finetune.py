@@ -34,6 +34,7 @@ REMOVE_THINK_CHAT_TEMPLATE = (
     "{% if '</think>' in content %}{% set content = content.split('</think>')[-1] %}{% endif %}"
 )
 
+DEBUG = True
 
 def get_eos_id():
     tokenizer = get_tokenizer()
@@ -47,6 +48,11 @@ def get_eos_id():
         return 151643
 
     return hf_tokenizer.eos_token_id
+
+def get_pad_id():
+    tokenizer = get_tokenizer()
+    hf_tokenizer = tokenizer._tokenizer
+    return hf_tokenizer.pad_token_id
 
 
 class SFTDataset(torch.utils.data.Dataset):
@@ -127,6 +133,8 @@ class SFTDataset(torch.utils.data.Dataset):
                     self._raw_samples = [obj for obj in reader]
             else:
                 raise ValueError("data_path must be json or jsonl")
+            print (f"Number of raw samples: {len(self._raw_samples)}")
+            print (f"Raw samples: {self._raw_samples[0]["conversations"][0]}")
         elif self.hf_dataset is not None:
             hf_dataset_kwargs = SFTDataset.hf_dataset_to_kwargs.get(
                 self.hf_dataset, {"split": "train"}
@@ -225,49 +233,52 @@ class SFTDataset(torch.utils.data.Dataset):
 
         return packed_samples
 
-    def _process_example(self, example: Dict[str, Any]):
-        """Apply the chat template and compute the answer-only loss mask."""
+    def _process_example(self, example: Dict[str, Any]):        
         if not isinstance(example, Dict):
-            raise ValueError("The sample must be a Dict but got {}".format(type(example)))
+            raise ValueError(f"The sample must be a Dict but got {type(example)}")
 
-        # Several things can happen here after the transformation is applied:
-        #
-        # 1. If the transformation is identity transformation, then either the chat data
-        #    is already in OpenAI chat format or there is a custom prompt template used.
-        # 2. Otherwise, the tokenizer must have a default chat template and we are either
-        #    converting the ShareGPT chat data or standard SFT data to OpenAI chat data.
         example = self.data_transformation(example)
 
-        # Check if this is OpenAI chat data?
-        conversations = example.get("conversations", None)
-        if conversations is None:
-            conversations = example.get("messages", None)
-
-        # We don't use the data if there is no assistant reply or the conversation that
-        # starts with the assistant.
+        conversations = example.get("conversations", None) or example.get("messages", None)
         if conversations is not None:
-            example = conversations
-            if len(conversations) < 2 or example[0]["role"] == "assistant":
+            msgs = conversations
+            if len(msgs) < 2 or msgs[0]["role"] == "assistant":
                 return None
 
-        # We always add eos between samples for training purpose.
-        input_ids = self.tokenizer.apply_chat_template(example)
-        current_loss_mask = [1] * len(input_ids)
+            input_ids = []
+            loss_mask = []
+
+            # Tokenize message-by-message using the chat template so formatting stays consistent
+            for i, m in enumerate(msgs):
+                seg_ids = self.tokenizer.apply_chat_template(
+                    [m], tokenize=True, add_generation_prompt=False
+                )
+                input_ids.extend(seg_ids)
+                if m["role"] == "assistant":
+                    loss_mask.extend([1] * len(seg_ids))
+                else:
+                    loss_mask.extend([0] * len(seg_ids))
+        else:
+            # Fallback: non-chat data → old behavior (train on all tokens)
+            input_ids = self.tokenizer.apply_chat_template(example)
+            loss_mask = [1] * len(input_ids)
+
+        # Always add EOS between samples, but don’t train on it
         input_ids = input_ids + [get_eos_id()]
-        current_loss_mask += [0]
+        loss_mask += [0]
 
-        assert len(input_ids) == len(current_loss_mask)
+        assert len(input_ids) == len(loss_mask)
 
+        # Truncate to seq_length
         if len(input_ids) > self.seq_length:
             input_ids = input_ids[: self.seq_length]
-            current_loss_mask = current_loss_mask[: self.seq_length]
+            loss_mask = loss_mask[: self.seq_length]
 
-        processed_example = {
-            'input_ids': input_ids,
-            'loss_mask': current_loss_mask,
-            'token_count': len(input_ids),
+        return {
+            "input_ids": input_ids,
+            "loss_mask":  loss_mask,
+            "token_count": len(input_ids),
         }
-        return processed_example
 
     @classmethod
     def _to_conversation(cls, question, response):
@@ -326,6 +337,10 @@ def train_valid_test_sft_datasets_provider(train_val_test_num_samples):
         "shard_index": mpu.get_expert_data_parallel_rank(),
     }
 
+    print ("Train data path: ", args.train_data_path)
+    print ("Valid data path: ", args.valid_data_path)
+    print ("Test data path: ", args.test_data_path)
+
     data_path = [
         args.train_data_path[0] if args.train_data_path else None,
         args.valid_data_path[0] if args.valid_data_path else None,
@@ -368,7 +383,7 @@ def get_batch(data_iterator):
 
     # Get the masks and postition ids.
     attention_mask, loss_mask, position_ids = get_ltor_masks_and_position_ids(
-        tokens, get_eos_id(), args.reset_position_ids, args.reset_attention_mask, args.eod_mask_loss
+        tokens, get_eos_id(), get_pad_id(), args.reset_position_ids, args.reset_attention_mask, args.eod_mask_loss, True
     )
     loss_mask = loss_mask * answer_only_loss_mask.to(dtype=loss_mask.dtype)
 
@@ -469,6 +484,35 @@ def forward_step(data_iterator, model: GPTModel):
     timers("batch-generator", log_level=2).start()
     tokens, labels, loss_mask, attention_mask, position_ids = get_batch(data_iterator)
     timers("batch-generator").stop()
+
+    if DEBUG and torch.distributed.get_rank() == 0:
+        B, S = labels.shape
+        trainable = int(loss_mask.sum().item())
+
+        # Prefer deriving padding from the attention mask (robust when pad token == eos, or packed data)
+        pad_tokens = 0
+        nonpad_lengths = [S] * B  # default: assume fully non-padded
+
+        if attention_mask is not None and attention_mask.dim() == 4:
+            # attention_mask: [B, 1, S, S]; a "valid" token row typically has any True in its row
+            vis = attention_mask.squeeze(1).any(dim=-1)  # [B, S] boolean
+            nonpad_lengths = vis.sum(dim=1).tolist()     # per-sample non-padded token counts
+            pad_tokens = int((S - vis.sum(dim=1)).sum().item())
+        else:
+            # Fallback: count pad tokens by id (only if pad_token_id is defined)
+            pad_id = get_pad_id()
+            pad_mask = (tokens == pad_id)
+            nonpad_lengths = (S - pad_mask.sum(dim=1)).tolist()
+            pad_tokens = int(pad_mask.sum().item())
+
+        pad_ratio = pad_tokens / (B * S)
+
+        print(
+            "[debug] "
+            f"S={S} | trainable_tokens={trainable} ({trainable/(B*S):.2%}) "
+            f"| nonpad_len={nonpad_lengths} | pad_ratio={pad_ratio:.2%}"
+        )
+        
 
     output_tensor = model(tokens, position_ids, attention_mask, labels=labels)
 

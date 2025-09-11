@@ -22,7 +22,7 @@ DATA_CACHE_PATH="output/$MODEL_NAME/benchmark_cache"
 TENSORBOARD_LOGS_PATH="output/$MODEL_NAME/tensorboard_logs"
 MEMORY_SNAPSHOT_PATH="output/$MODEL_NAME/memory_snapshots/memory_snapshot.pickle"
 TOKENIZER_ARG="/workspace/data/qwen1_7_mg" # Path to tokenizer model, or "MOCK"
-DATA_ARG="/workspace/data/data/qwen_out_text_document"     # Data prefix, or "MOCK"
+DATA_ARG="/workspace/data/data/test_output.jsonl"     # Data prefix, or "MOCK"
 
 WANDB_API_KEY=''
 
@@ -49,9 +49,9 @@ CP_SIZE=1
 PP_SIZE=1     
 MICRO_BATCH_SIZE=1 
 GLOBAL_BATCH_SIZE=1  
-NUM_LAYERS=14  
+NUM_LAYERS=28  
 DTYPE="bf16"
-SEQ_LENGTH=50000
+SEQ_LENGTH=8192
 MAX_POSITION_EMBEDDINGS=65536 
 
 DISTRIBUTED_ARGS=(
@@ -82,21 +82,21 @@ MODEL_ARGS=(
     --rotary-seq-len-interpolation-factor 1
     --swiglu
     --norm-epsilon 1e-06
-    --init-method-std 0.02  
+    --init-method-std 0.01  
     --disable-bias-linear
 )
 
 TRAINING_ARGS=(
     --micro-batch-size $MICRO_BATCH_SIZE
-    --global-batch-size $GLOBAL_BATCH_SIZE
-    --train-samples 20
+    --global-batch-size $GLOBAL_BATCH_SIZE    
     --exit-duration-in-mins 235
 
-    # Learning rate args
-    --lr-decay-samples 10
-    --lr-warmup-samples 5
-    --lr 1.2e-4 
-    --min-lr 1.2e-5  
+    # Training samples and learning rate args
+    --train-samples 20
+    --lr-decay-samples 20
+    --lr-warmup-samples 0
+    --lr 5.0e-5
+    --min-lr 1.0e-7
     # --decoupled-lr 8.0e-4  # Adjusted for smaller model
     # --decoupled-min-lr 8.0e-5  # Adjusted for smaller model
     --lr-decay-style cosine
@@ -107,7 +107,7 @@ TRAINING_ARGS=(
     --attention-dropout 0.0
     --hidden-dropout 0.0
     --clip-grad 1.0
-    --weight-decay 0.1
+    --weight-decay 0.0
  
     # Memory cleanup args
     --manual-gc
@@ -124,6 +124,7 @@ TRAINING_ARGS=(
     --recompute-method uniform
     --recompute-num-layers 1
     --calculate-per-token-loss
+    --no-gradient-accumulation-fusion
 
     # data type arguments
     --bf16
@@ -158,48 +159,56 @@ MODEL_PARALLEL_ARGS=(
 )
 
 # Data arguments (conditional for mock vs real data)
-DATA_ARGS_LIST=()
+DATA_ARGS_LIST=(
+        "--vocab-size 151936"  # Qwen3-1.7B vocab size
+        "--split '100,0,0'"
+        "--no-create-attention-mask-in-dataloader"
+        "--no-mmap-bin-files"
+        "--num-workers 1"
+        "--reset-position-ids"
+        "--reset-attention-mask"
+        "--eod-mask-loss"
+        "--no-check-for-nan-in-loss-and-grad"
+)
+
 if [[ "$TOKENIZER_ARG" == "MOCK" ]] || [[ "$DATA_ARG" == "MOCK" ]] || [[ -z "$TOKENIZER_ARG" ]]; then
     DATA_ARGS_LIST+=(
         "--mock-data"
         "--tokenizer-type NullTokenizer"
-        "--vocab-size 151936"  # Qwen3-1.7B vocab size
         "--data-cache-path ${DATA_CACHE_PATH}"
         "--tiktoken-pattern v2" 
-        "--split '99,1,0'"
-        "--no-create-attention-mask-in-dataloader"
-        "--no-mmap-bin-files"
-        "--num-workers 1"
+                
     )
 else
     # Settings for real data
     DATA_ARGS_LIST+=(
-        "--data-path $DATA_ARG"
+        # "--finetune-hf-dataset Magpie-Align/Magpie-Llama-3.1-Pro-MT-300K-Filtered"
+        # "--data-path $DATA_ARG"
+        "--train-data-path $DATA_ARG"
+        "--valid-data-path $DATA_ARG"
+        "--test-data-path $DATA_ARG"
         "--tokenizer-type HuggingFaceTokenizer" 
         "--tokenizer-model $TOKENIZER_ARG"
-        # "--data-cache-path ${DATA_CACHE_PATH}"
-        "--split '80,10,10'"
-        "--no-create-attention-mask-in-dataloader"
-        "--no-mmap-bin-files"
-        "--num-workers 1"
-        # Note: --vocab-size might be inferred by HuggingFaceTokenizer or might need to be explicit.
-        "--vocab-size 151936"  # Qwen3-1.7B vocab size
+        # "--data-cache-path ${DATA_CACHE_PATH}"        
     )
 fi
 
 CHECKPOINT_ARGS=(
     --finetune
     --auto-detect-ckpt-format
+    --export-te-mcore-model
     --dist-ckpt-strictness log_all
     --distributed-timeout-minutes 60
-    # --load "$LOAD_CHECKPOINT_PATH"
+    --load "$LOAD_CHECKPOINT_PATH"
     --save "$SAVE_CHECKPOINT_PATH"
+    --no-save-optim
+    --no-save-rng
     --save-interval 1000
-    --exit-on-missing-checkpoint
+    --exit-on-missing-checkpoint    
 )
 
 EVAL_AND_LOGGING_ARGS=(
-    --eval-iters 32
+    --eval-iters 1
     --eval-interval 100
     --log-interval 1
     --log-throughput
