@@ -1,9 +1,11 @@
 # Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
 
 """Supervised Finetuning GPT."""
+import contextlib
 import itertools
 import os
 import sys
+import time
 from functools import partial
 from typing import Any, Dict, Optional
 
@@ -34,7 +36,74 @@ REMOVE_THINK_CHAT_TEMPLATE = (
     "{% if '</think>' in content %}{% set content = content.split('</think>')[-1] %}{% endif %}"
 )
 
+# Memory profiling flags (from pretrain_gpt.py)
+PHASE_LOGGER = False
 DEBUG = True
+
+# Memory profiling helper functions (from pretrain_gpt.py)
+def _is_rank0():
+    """Check if we're on rank 0."""
+    return torch.distributed.is_initialized() and torch.distributed.get_rank() == 0 or \
+           not torch.distributed.is_initialized()
+
+
+def _bytes(n: int) -> str:
+    """Convert bytes to a human-readable format."""
+    for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
+        if n < 1024.0:
+            return f"{n:.2f}{unit}"
+        n /= 1024.0
+    return f"{n:.2f}PB"
+
+
+def _barrier():
+    """Synchronize all ranks."""
+    if torch.distributed.is_initialized():
+        torch.distributed.barrier()
+
+
+def _mem_stats(device=None):
+    """Get CUDA memory statistics."""
+    if device is None:
+        device = torch.cuda.current_device()
+    torch.cuda.synchronize(device)
+    alloc    = torch.cuda.memory_allocated(device)
+    reserved = torch.cuda.memory_reserved(device)
+    peak_a   = torch.cuda.max_memory_allocated(device)
+    peak_r   = torch.cuda.max_memory_reserved(device)
+    return {
+        "allocated": _bytes(alloc),
+        "reserved":  _bytes(reserved),
+        "peak_allocated": _bytes(peak_a),
+        "peak_reserved":  _bytes(peak_r),
+    }
+
+
+@contextlib.contextmanager
+def mem_phase(name: str, do_barrier: bool = False):
+    """Emit per-phase CUDA memory stats (allocated/reserved + peaks)."""
+    if not PHASE_LOGGER or not torch.cuda.is_available():
+        yield
+        return
+    device = torch.cuda.current_device()
+    if do_barrier:
+        _barrier()
+    torch.cuda.reset_peak_memory_stats(device)
+    t0 = time.time()
+    try:
+        yield
+    finally:
+        torch.cuda.synchronize(device)
+        dt = time.time() - t0
+        stats = _mem_stats(device)
+        if _is_rank0():
+            print(
+                f"[MEM][{name}] dt={dt:.3f}s | "
+                f"alloc={stats['allocated']} res={stats['reserved']} "
+                f"peak_alloc={stats['peak_allocated']} peak_res={stats['peak_reserved']}",
+                flush=True,
+            )
+
 
 def get_eos_id():
     tokenizer = get_tokenizer()
@@ -134,7 +203,8 @@ class SFTDataset(torch.utils.data.Dataset):
             else:
                 raise ValueError("data_path must be json or jsonl")
             print (f"Number of raw samples: {len(self._raw_samples)}")
-            print (f"Raw samples: {self._raw_samples[0]["conversations"][0]}")
+            if DEBUG:
+                print (f"Raw samples: {self._raw_samples[0]["conversations"][0]}")
         elif self.hf_dataset is not None:
             hf_dataset_kwargs = SFTDataset.hf_dataset_to_kwargs.get(
                 self.hf_dataset, {"split": "train"}
@@ -464,12 +534,38 @@ def loss_func(loss_mask: torch.Tensor, model: GPTModel, output_tensor: torch.Ten
 
     return loss, report
 
+def _all_params(mod):
+    if isinstance(mod, (list, tuple)):
+        for m in mod: yield from _all_params(m)
+    else:
+        yield from mod.parameters()
 
-def non_loss_data_func(model: GPTModel):
-    """Callback to compute the acceptance length."""
+
+def non_loss_data_func(model):
     report_draft_acceptance_length(model)
 
+    if not DEBUG:
+        return
+    # Print every 50 steps
+    # from megatron.training import get_args
+    # args = get_args()
+    # if (args.iteration % 50) != 0:
+    #     return
 
+    m = unwrap_model(model)
+    params = [p for p in _all_params(m) if p is not None and p.requires_grad]
+    if not params:
+        return
+
+    dev = params[0].device
+    p2 = torch.zeros((), device=dev)
+    for p in params:
+        p2 += p.data.float().norm(2)**2
+    torch.distributed.all_reduce(p2, op=torch.distributed.ReduceOp.SUM, group=mpu.get_data_parallel_group())
+
+    if torch.distributed.get_rank() == 0:
+        print(f"[debug] params_norm={p2.sqrt().item():.6f} ")
+        
 
 def forward_step(data_iterator, model: GPTModel):
     """Forward training step.
@@ -482,7 +578,8 @@ def forward_step(data_iterator, model: GPTModel):
 
     # Get the batch.
     timers("batch-generator", log_level=2).start()
-    tokens, labels, loss_mask, attention_mask, position_ids = get_batch(data_iterator)
+    with mem_phase("LOAD_BATCH", do_barrier=True):
+        tokens, labels, loss_mask, attention_mask, position_ids = get_batch(data_iterator)
     timers("batch-generator").stop()
 
     if DEBUG and torch.distributed.get_rank() == 0:
@@ -513,8 +610,9 @@ def forward_step(data_iterator, model: GPTModel):
             f"| nonpad_len={nonpad_lengths} | pad_ratio={pad_ratio:.2%}"
         )
         
-
-    output_tensor = model(tokens, position_ids, attention_mask, labels=labels)
+    # Forward pass with memory profiling
+    with mem_phase("FORWARD", do_barrier=True):
+        output_tensor = model(tokens, position_ids, attention_mask, labels=labels)
 
     return output_tensor, partial(loss_func, loss_mask, model)
 

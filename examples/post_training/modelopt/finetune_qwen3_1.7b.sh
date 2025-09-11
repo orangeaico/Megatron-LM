@@ -92,8 +92,8 @@ TRAINING_ARGS=(
     --exit-duration-in-mins 235
 
     # Training samples and learning rate args
-    --train-samples 20
-    --lr-decay-samples 20
+    --train-samples 300
+    --lr-decay-samples 300
     --lr-warmup-samples 0
     --lr 5.0e-5
     --min-lr 1.0e-7
@@ -208,7 +208,7 @@ CHECKPOINT_ARGS=(
 )
 
 EVAL_AND_LOGGING_ARGS=(
-    --eval-iters 1
+    --eval-iters 60
     --eval-interval 100
     --log-interval 1
     --log-throughput
