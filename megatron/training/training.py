@@ -2077,6 +2077,7 @@ def train(
         and args.use_pytorch_profiler
     ):
         prof = torch.profiler.profile(
+            activities=[torch.profiler.ProfilerActivity.CPU, torch.profiler.ProfilerActivity.CUDA],
             schedule=torch.profiler.schedule(
                 wait=max(args.profile_step_start - 1, 0),
                 warmup=1 if args.profile_step_start > 0 else 0,
@@ -2085,6 +2086,7 @@ def train(
             ),
             on_trace_ready=torch.profiler.tensorboard_trace_handler(args.tensorboard_dir),
             record_shapes=True,
+            profile_memory=True,
             with_stack=True,
         )
         prof.start()
@@ -2795,12 +2797,12 @@ def build_train_valid_test_data_iterators(build_train_valid_test_datasets_provid
             valid_data_iterators = [
                 _get_iterator(valid_dl_type, dl) for dl in valid_dataloaders
             ]
-    elif valid_dataloaders[0] is not None:
+    elif valid_dataloaders and len(valid_dataloaders) > 0 and valid_dataloaders[0] is not None:
         valid_data_iterators = _get_iterator(dl_type, valid_dataloaders[0])
     else:
         valid_data_iterators = None
 
-    if test_dataloader is not None:
+    if test_dataloader and len(test_dataloader) > 0 and test_dataloader is not None:
         test_data_iterator = _get_iterator(dl_type, test_dataloader)
     else:
         test_data_iterator = None
