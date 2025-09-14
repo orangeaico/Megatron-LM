@@ -18,13 +18,16 @@ export PYTHONPATH=/workspace/megatron:$PYTHONPATH
 # Navigate to megatron directory
 cd /workspace/megatron
 
+MODEL_PATH="/workspace/data/mega-models/Qwen3-1.7B"
+TOKENIZER_STATIC_PATH="/workspace/data/mega-models/Qwen3-1.7B"
+
 echo "✓ Environment configured"
 echo "✓ Working directory: $(pwd)"
-echo "✓ Model path: /workspace/checkpoints/Qwen3-1.7B_1gpu"
+echo "✓ Model path: $MODEL_PATH"
 
 # Verify model exists
-if [ ! -f "/workspace/checkpoints/Qwen3-1.7B_1gpu/config.json" ]; then
-    echo "❌ ERROR: Model not found at /workspace/checkpoints/Qwen3-1.7B_1gpu/"
+if [ ! -f "$MODEL_PATH/config.json" ]; then
+    echo "❌ ERROR: Model not found at $MODEL_PATH"
     echo "Please ensure the model is available"
     exit 1
 fi
@@ -35,9 +38,9 @@ echo "🧪 Running inference..."
 
 # Run inference with correct arguments for Qwen1-7B
 python examples/inference/gpt/gpt_static_inference.py \
-  --load /workspace/checkpoints/Qwen3-1.7B_1gpu \
+  --load $MODEL_PATH \
   --tokenizer-type HuggingFaceTokenizer \
-  --tokenizer-model /workspace/checkpoints/Qwen3-1.7B_1gpu \
+  --tokenizer-model $TOKENIZER_STATIC_PATH \
   --vocab-size 151936 \
   --hidden-size 2048 \
   --num-layers 28 \
