@@ -36,10 +36,9 @@ echo "🧪 Running inference..."
 # Run inference with correct arguments for Qwen1-7B
 python examples/inference/gpt/gpt_static_inference.py \
   --load /workspace/checkpoints/Qwen3-1.7B_1gpu \
-  --tokenizer-type Qwen2Tokenizer \
+  --tokenizer-type HuggingFaceTokenizer \
   --tokenizer-model /workspace/checkpoints/Qwen3-1.7B_1gpu \
   --vocab-size 151936 \
-  --padded-vocab-size 151936 \
   --hidden-size 2048 \
   --num-layers 28 \
   --num-attention-heads 16 \
