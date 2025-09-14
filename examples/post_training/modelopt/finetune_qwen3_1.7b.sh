@@ -16,13 +16,15 @@ export NCCL_NVLS_ENABLE=0
 
 MODEL_NAME="qwen3_1.7b"
 LOAD_CHECKPOINT_PATH="/workspace/data/mega-models/Qwen3-1.7B"
-SAVE_CHECKPOINT_PATH="output/$MODEL_NAME/checkpoints"
-# Data cache path (useful for both mock and real data)
-DATA_CACHE_PATH="output/$MODEL_NAME/benchmark_cache"
-TENSORBOARD_LOGS_PATH="output/$MODEL_NAME/tensorboard_logs"
-MEMORY_SNAPSHOT_PATH="output/$MODEL_NAME/memory_snapshots/memory_snapshot.pickle"
 TOKENIZER_ARG="/workspace/data/mega-models/Qwen3-1.7B" # Path to tokenizer model, or "MOCK"
 DATA_ARG="/workspace/data/data/test_output.jsonl"     # Data prefix, or "MOCK"
+
+BASE_OUTPUT_DIR="/workspace/data/himanshu/output"
+SAVE_CHECKPOINT_PATH="$BASE_OUTPUT_DIR/$MODEL_NAME/checkpoints"
+# Data cache path (useful for both mock and real data)
+DATA_CACHE_PATH="$BASE_OUTPUT_DIR/$MODEL_NAME/benchmark_cache"
+TENSORBOARD_LOGS_PATH="$BASE_OUTPUT_DIR/$MODEL_NAME/tensorboard_logs"
+MEMORY_SNAPSHOT_PATH="$BASE_OUTPUT_DIR/$MODEL_NAME/memory_snapshots/memory_snapshot.pickle"
 
 WANDB_API_KEY=''
 
