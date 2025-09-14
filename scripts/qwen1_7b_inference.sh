@@ -20,11 +20,11 @@ cd /workspace/megatron
 
 echo "✓ Environment configured"
 echo "✓ Working directory: $(pwd)"
-echo "✓ Model path: /workspace/checkpoints/qwen3_1p7_bridge"
+echo "✓ Model path: /workspace/checkpoints/Qwen3-1.7B_1gpu"
 
 # Verify model exists
-if [ ! -f "/workspace/checkpoints/qwen3_1p7_bridge/config.json" ]; then
-    echo "❌ ERROR: Model not found at /workspace/checkpoints/qwen3_1p7_bridge/"
+if [ ! -f "/workspace/checkpoints/Qwen3-1.7B_1gpu/config.json" ]; then
+    echo "❌ ERROR: Model not found at /workspace/checkpoints/Qwen3-1.7B_1gpu/"
     echo "Please ensure the model is available"
     exit 1
 fi
@@ -35,10 +35,9 @@ echo "🧪 Running inference..."
 
 # Run inference with correct arguments for Qwen1-7B
 python examples/inference/gpt/gpt_static_inference.py \
-  --load /workspace/checkpoints/qwen3_1p7_bridge \
-  --tokenizer-type HuggingFaceTokenizer \
-  --tokenizer-model /workspace/checkpoints/qwen3_1p7_bridge \
-  --trust-remote-code \
+  --load /workspace/checkpoints/Qwen3-1.7B_1gpu \
+  --tokenizer-type Qwen2Tokenizer \
+  --tokenizer-model /workspace/checkpoints/Qwen3-1.7B_1gpu \
   --vocab-size 151936 \
   --padded-vocab-size 151936 \
   --hidden-size 2048 \
@@ -51,22 +50,23 @@ python examples/inference/gpt/gpt_static_inference.py \
   --norm-epsilon 1e-06 \
   --use-rotary-position-embeddings \
   --swiglu \
+  --rotary-base 1000000 \
   --group-query-attention \
   --num-query-groups 8 \
-  --make-vocab-size-divisible-by 1 \
   --tensor-model-parallel-size 1 \
   --pipeline-model-parallel-size 1 \
   --bf16 \
   --disable-bias-linear \
+  --qk-layernorm \
+  --use-mcore-models \
   --prompts "<|im_start|>system
 You are a helpful assistant<|im_end|>
 <|im_start|>user
 Who are you?<|im_end|>
 <|im_start|>assistant
 " \
-  --temperature 0.7 \
-  --top_k 1 \
-  --top_p 0.0 \
+  --temperature 0.1 \
+  --top_k 10 \
   --num-tokens-to-generate 50
 
 echo ""
