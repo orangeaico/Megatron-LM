@@ -126,7 +126,7 @@ TRAINING_ARGS=(
     --recompute-method uniform
     --recompute-num-layers 1
     --calculate-per-token-loss
-    # --no-gradient-accumulation-fusion
+    --no-gradient-accumulation-fusion
 
     # data type arguments
     --bf16
@@ -232,6 +232,7 @@ EVAL_AND_LOGGING_ARGS=(
     --log-memory-to-tensorboard
     --record-memory-history
     --memory-snapshot-path "$MEMORY_SNAPSHOT_PATH"
+    # --dump-model-params-to-pickle
 )
 
 if [ -n "${WANDB_API_KEY}" ]; then

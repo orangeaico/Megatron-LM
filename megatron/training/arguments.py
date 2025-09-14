@@ -1935,6 +1935,8 @@ def _add_training_args(parser):
                        help='Record memory history in last rank.')
     group.add_argument('--memory-snapshot-path', type=str, default="snapshot.pickle",
                        help='Specifies where to dump the memory history pickle.')
+    group.add_argument('--dump-model-params-to-pickle', action='store_true', default=False,
+                       help='Dump model parameters to a pickle file just after loading the checkpoint')
     group.add_argument('--tp-comm-overlap', action='store_true', help='Enables the '
                        ' overlap of Tensor parallel communication and GEMM kernels.')
     group.add_argument('--tp-comm-overlap-cfg', type=str, default=None,
