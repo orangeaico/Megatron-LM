@@ -14,13 +14,13 @@ export NVTE_ALLOW_NONDETERMINISTIC_ALGO=1
 export NCCL_NVLS_ENABLE=0
 
 MODEL_NAME="qwen3_1.7b"
-LOAD_CHECKPOINT_PATH="/workspace/data/qwen1_7_mg"
+LOAD_CHECKPOINT_PATH="/workspace/data/mega-models/Qwen3-1.7B"
+TOKENIZER_ARG="/workspace/data/mega-models/Qwen3-1.7B" # Path to tokenizer model, or "MOCK"
 SAVE_CHECKPOINT_PATH="output/$MODEL_NAME/checkpoints"
 # Data cache path (useful for both mock and real data)
 DATA_CACHE_PATH="output/$MODEL_NAME/benchmark_cache"
 TENSORBOARD_LOGS_PATH="output/$MODEL_NAME/tensorboard_logs"
 MEMORY_SNAPSHOT_PATH="output/$MODEL_NAME/memory_snapshots/memory_snapshot.pickle"
-TOKENIZER_ARG="/workspace/data/qwen1_7_mg" # Path to tokenizer model, or "MOCK"
 DATA_ARG="/workspace/data/data/qwen_out_text_document"     # Data prefix, or "MOCK"
 
 WANDB_API_KEY=''
@@ -32,7 +32,7 @@ mkdir -p "$(dirname "$MEMORY_SNAPSHOT_PATH")"
 mkdir -p "$DATA_CACHE_PATH"
 
 # Distributed training setup
-GPUS_PER_NODE=1
+GPUS_PER_NODE=2
 NUM_NODES=1
 MASTER_ADDR=${MASTER_ADDR:-localhost}
 MASTER_PORT=${MASTER_PORT:-6000}
@@ -43,11 +43,11 @@ WORLD_SIZE=$(($GPUS_PER_NODE*$NUM_NODES))
 PRETRAIN_SCRIPT_PATH="pretrain_gpt.py"
 
 # Fixed model and training parameters for Qwen3-1.7B
-TP_SIZE=1 
+TP_SIZE=2 
 CP_SIZE=1     
 PP_SIZE=1     
 MICRO_BATCH_SIZE=1 
-GLOBAL_BATCH_SIZE=1  
+GLOBAL_BATCH_SIZE=8  
 NUM_LAYERS=28  
 DTYPE="bf16"
 SEQ_LENGTH=8192
@@ -88,14 +88,14 @@ MODEL_ARGS=(
 TRAINING_ARGS=(
     --micro-batch-size $MICRO_BATCH_SIZE
     --global-batch-size $GLOBAL_BATCH_SIZE
-    --train-samples 20
+    --train-samples 300
+    --lr-decay-samples 300
     --exit-duration-in-mins 235
 
     # Learning rate args
-    --lr-decay-samples 10
-    --lr-warmup-samples 5
-    --lr 1.2e-4 
-    --min-lr 1.2e-5  
+    --lr-warmup-samples 0
+    --lr 5.0e-5
+    --min-lr 1.0e-7
     # --decoupled-lr 8.0e-4  # Adjusted for smaller model
     # --decoupled-min-lr 8.0e-5  # Adjusted for smaller model
     --lr-decay-style cosine
@@ -116,9 +116,9 @@ TRAINING_ARGS=(
     --transformer-impl transformer_engine
     --enable-experimental
     --use-flash-attn
-    --fused-linear-cross-entropy
-    # --cross-entropy-loss-fusion
-    # --cross-entropy-fusion-impl te
+    # --fused-linear-cross-entropy
+    --cross-entropy-loss-fusion
+    --cross-entropy-fusion-impl native
     --recompute-granularity full
     --recompute-method uniform
     --recompute-num-layers 1
@@ -193,13 +193,15 @@ CHECKPOINT_ARGS=(
     --distributed-timeout-minutes 60
     --load "$LOAD_CHECKPOINT_PATH"
     --save "$SAVE_CHECKPOINT_PATH"
+    --no-save-optim
+    --no-save-rng
     --save-interval 1000
     --exit-on-missing-checkpoint
 )
 
 EVAL_AND_LOGGING_ARGS=(
-    --eval-iters 32
-    --eval-interval 100
+    --eval-iters 4
+    --eval-interval 5
     --log-interval 1
     --log-throughput
     --profile
