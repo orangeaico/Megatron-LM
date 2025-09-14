@@ -37,7 +37,7 @@ REMOVE_THINK_CHAT_TEMPLATE = (
 )
 
 # Memory profiling flags (from pretrain_gpt.py)
-PHASE_LOGGER = False
+PHASE_LOGGER = True
 DEBUG = True
 
 # Memory profiling helper functions (from pretrain_gpt.py)

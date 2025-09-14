@@ -7,21 +7,21 @@
 #export NCCL_P2P_NET_CHUNKSIZE=${NCCL_P2P_NET_CHUNKSIZE:-2097152}
 #export NCCL_AVOID_RECORD_STREAMS=${NCCL_AVOID_RECORD_STREAMS:-1}
 
-# export CUDA_VISIBLE_DEVICES=1
 # Environment variables for performance tuning
+# export CUDA_VISIBLE_DEVICES=1
 export CUDA_DEVICE_MAX_CONNECTIONS=${CUDA_DEVICE_MAX_CONNECTIONS:-1}
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 export NVTE_ALLOW_NONDETERMINISTIC_ALGO=1
 export NCCL_NVLS_ENABLE=0
 
 MODEL_NAME="qwen3_1.7b"
-LOAD_CHECKPOINT_PATH="/workspace/data/qwen1_7_mg"
+LOAD_CHECKPOINT_PATH="/workspace/data/mega-models/Qwen3-1.7B"
 SAVE_CHECKPOINT_PATH="output/$MODEL_NAME/checkpoints"
 # Data cache path (useful for both mock and real data)
 DATA_CACHE_PATH="output/$MODEL_NAME/benchmark_cache"
 TENSORBOARD_LOGS_PATH="output/$MODEL_NAME/tensorboard_logs"
 MEMORY_SNAPSHOT_PATH="output/$MODEL_NAME/memory_snapshots/memory_snapshot.pickle"
-TOKENIZER_ARG="/workspace/data/qwen1_7_mg" # Path to tokenizer model, or "MOCK"
+TOKENIZER_ARG="/workspace/data/mega-models/Qwen3-1.7B" # Path to tokenizer model, or "MOCK"
 DATA_ARG="/workspace/data/data/test_output.jsonl"     # Data prefix, or "MOCK"
 
 WANDB_API_KEY=''
@@ -48,11 +48,11 @@ TP_SIZE=2
 CP_SIZE=1     
 PP_SIZE=1     
 MICRO_BATCH_SIZE=1 
-GLOBAL_BATCH_SIZE=1  
+GLOBAL_BATCH_SIZE=8
 NUM_LAYERS=28  
 DTYPE="bf16"
 SEQ_LENGTH=8192
-MAX_POSITION_EMBEDDINGS=65536 
+MAX_POSITION_EMBEDDINGS=40960 
 
 DISTRIBUTED_ARGS=(
     --nproc_per_node $GPUS_PER_NODE
@@ -82,18 +82,20 @@ MODEL_ARGS=(
     --rotary-seq-len-interpolation-factor 1
     --swiglu
     --norm-epsilon 1e-06
-    --init-method-std 0.01  
+    --init-method-std 0.02  
     --disable-bias-linear
+    --no-initialization
 )
 
 TRAINING_ARGS=(
     --micro-batch-size $MICRO_BATCH_SIZE
-    --global-batch-size $GLOBAL_BATCH_SIZE    
+    --global-batch-size $GLOBAL_BATCH_SIZE
+    --train-samples 300
+    --lr-decay-samples 300   
     --exit-duration-in-mins 235
 
-    # Training samples and learning rate args
-    --train-samples 300
-    --lr-decay-samples 300
+    # Learning rate args
+
     --lr-warmup-samples 0
     --lr 5.0e-5
     --min-lr 1.0e-7
@@ -117,14 +119,14 @@ TRAINING_ARGS=(
     --transformer-impl transformer_engine
     --enable-experimental
     --use-flash-attn
-    --fused-linear-cross-entropy
-    # --cross-entropy-loss-fusion
-    # --cross-entropy-fusion-impl te
+    # --fused-linear-cross-entropy
+    --cross-entropy-loss-fusion
+    --cross-entropy-fusion-impl native
     --recompute-granularity full
     --recompute-method uniform
     --recompute-num-layers 1
     --calculate-per-token-loss
-    --no-gradient-accumulation-fusion
+    # --no-gradient-accumulation-fusion
 
     # data type arguments
     --bf16
@@ -168,7 +170,7 @@ DATA_ARGS_LIST=(
         "--reset-position-ids"
         "--reset-attention-mask"
         "--eod-mask-loss"
-        "--no-check-for-nan-in-loss-and-grad"
+        # "--no-check-for-nan-in-loss-and-grad"
 )
 
 if [[ "$TOKENIZER_ARG" == "MOCK" ]] || [[ "$DATA_ARG" == "MOCK" ]] || [[ -z "$TOKENIZER_ARG" ]]; then
@@ -203,13 +205,18 @@ CHECKPOINT_ARGS=(
     --save "$SAVE_CHECKPOINT_PATH"
     --no-save-optim
     --no-save-rng
+    --no-load-rng
+    --no-load-optim
     --save-interval 1000
-    --exit-on-missing-checkpoint    
+    --exit-on-missing-checkpoint
+    # --ckpt-convert-format torch_dist    
+    # --ckpt-convert-save "/workspace/data/mega-models/Qwen3-1.7B_converted5"
 )
 
 EVAL_AND_LOGGING_ARGS=(
-    --eval-iters 60
-    --eval-interval 100
+    --eval-iters 4
+    --eval-interval 5
+    # --full-validation
     --log-interval 1
     --log-throughput
     --profile
