@@ -7,7 +7,7 @@ BASE_MODEL_PATH="/home/shared/megatron_dir/base-models/Qwen3-1.7B"
 
 TUNED_MODEL="/home/shared/megatron_dir/himanshu/output/hf_models_converted/qwen3_1.7b/300_iters"
 
-MODEL=$TUNED_MODEL
+MODEL=$BASE_MODEL_PATH
 
 export CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-0,1}
 
@@ -15,9 +15,9 @@ DTYPE="auto"
 MAX_MODEL_LEN=32768
 BATCH_SIZE=2        
 
-TASKS="hellaswag" # "hellaswag,gsm8k,mmlu"
+TASKS="hellaswag,gsm8k,mmlu" # "hellaswag,gsm8k,mmlu"
 FEWSHOT=0 # no need since we are doing relative comparison
-LIMIT=1000
+LIMIT=100
 SEED=0  
 
 OUTDIR="eval_runs/$(date +%Y%m%d_%H%M%S)"
@@ -32,6 +32,7 @@ lm-eval \
   --num_fewshot "$FEWSHOT" \
   --batch_size "$BATCH_SIZE" \
   --limit "$LIMIT" \
-  --output_path "$OUTDIR"
+  --output_path "$OUTDIR" \
+  --seed "$SEED"
 
 echo "Done. Results at: $OUTDIR/results.json"
