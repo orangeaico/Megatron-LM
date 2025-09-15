@@ -11,13 +11,13 @@ MODEL=$BASE_MODEL_PATH
 
 export CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-0,1}
 
-DTYPE="auto"
-MAX_MODEL_LEN=32768
-BATCH_SIZE=2        
+DTYPE="bfloat16"
+MAX_MODEL_LEN=4096 
+BATCH_SIZE="auto" # "auto" will use max possible batch size that fits in GPU memory      
 
-TASKS="hellaswag,gsm8k,mmlu" # "hellaswag,gsm8k,mmlu"
+TASKS="gsm8k" # "hellaswag,gsm8k,mmlu"
 FEWSHOT=0 # no need since we are doing relative comparison
-LIMIT=100
+LIMIT=1000
 SEED=0  
 
 OUTDIR="eval_runs/$(date +%Y%m%d_%H%M%S)"
@@ -28,6 +28,7 @@ echo "GPUs: $CUDA_VISIBLE_DEVICES | dtype=$DTYPE | max_len=$MAX_MODEL_LEN | batc
 lm-eval \
   --model vllm \
   --model_args "pretrained=$MODEL,dtype=$DTYPE,max_model_len=$MAX_MODEL_LEN,tensor_parallel_size=2" \
+  --gen_kwargs "temperature=0,top_p=0.05,top_k=0" \
   --tasks "$TASKS" \
   --num_fewshot "$FEWSHOT" \
   --batch_size "$BATCH_SIZE" \
