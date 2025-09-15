@@ -485,6 +485,13 @@ class GPTModel(LanguageModule):
             else:
                 classifier_weight = output_weight
 
+            if self.config.debug_cce_loss:
+            # Reference loss implementation
+                reference_logits, _ = self.output_layer(
+                    hidden_states, weight=output_weight, runtime_gather_output=runtime_gather_output
+                )
+                reference_loss = self.compute_language_model_loss(labels, reference_logits)
+                print (f"Reference cross entropy loss: {reference_loss}")
 
             # If embeddings and output weights are UNTIED, Megatron's DDP expects the
             # output layer module to be invoked so its param-gather hooks run.
@@ -533,6 +540,100 @@ class GPTModel(LanguageModule):
                 shift=self.config.linear_ce_shift,
                 ignore_index=self.config.linear_ce_ignore_index,
             )
+
+            if self.config.debug_cce_loss:
+                if parallel_state.get_tensor_model_parallel_world_size() > 1:
+                    tp_rank_local = parallel_state.get_tensor_model_parallel_rank()
+                else:
+                    tp_rank_local = 0
+                # Debug: Print CCE loss and compare with reference loss
+                print("\n=== CCE vs Reference Loss Comparison ===")
+                print(f"[Rank {tp_rank_local}] Reference loss shape: {reference_loss.shape}, CCE loss shape: {token_losses.shape}")
+                print(f"[Rank {tp_rank_local}] Loss mask shape: {loss_mask.shape if loss_mask is not None else 'None'}")
+
+                print(f"[Rank {tp_rank_local}] Reference loss stats - Min: {reference_loss.min().item()}, Max: {reference_loss.max().item()}, Mean: {reference_loss.mean().item()}")
+                print(f"[Rank {tp_rank_local}] CCE loss stats - Min: {token_losses.min().item()}, Max: {token_losses.max().item()}, Mean: {token_losses.mean().item()}")
+                
+                # Check first 10 values
+                print(f"\n[Rank {tp_rank_local}] First 10 reference losses: {reference_loss.flatten()[:10].tolist()}")
+                print(f"[Rank {tp_rank_local}] First 10 CCE losses: {token_losses.flatten()[:10].tolist()}")
+                print(f"[Rank {tp_rank_local}] First 10 labels: {labels.flatten()[:10].tolist()}")
+
+                print(f"\n[Rank {tp_rank_local}] Last 10 reference losses: {reference_loss.flatten()[-10:].tolist()}")
+                print(f"[Rank {tp_rank_local}] Last 10 CCE losses: {token_losses.flatten()[-10:].tolist()}")
+                print(f"[Rank {tp_rank_local}] Last 10 labels: {labels.flatten()[-10:].tolist()}")
+                
+                # Check for shape mismatch - CCE might be returning [B, T] while reference is [T, B]
+                if reference_loss.shape != token_losses.shape:
+                    print(f"\n[Rank {tp_rank_local}] WARNING: Shape mismatch! Attempting to compare after transpose...")
+                    if token_losses.shape == (reference_loss.shape[1], reference_loss.shape[0]):
+                        token_losses_transposed = token_losses.transpose(0, 1)
+                        diff = (reference_loss - token_losses_transposed).abs()
+                        print(f"[Rank {tp_rank_local}] Difference after transpose - Min: {diff.min().item():.6f}, Max: {diff.max().item():.6f}, Mean: {diff.mean().item():.6f}")
+                else:
+                    # Direct comparison
+                    diff = (reference_loss - token_losses).abs()
+                    print(f"\n[Rank {tp_rank_local}] Difference between reference and CCE - Min: {diff.min().item()}, Max: {diff.max().item()}, Mean: {diff.mean().item()}")
+                
+                # Check if CCE is returning negative values
+                neg_count = (token_losses < 0).sum().item()
+                if neg_count > 0:
+                    print(f"\n[Rank {tp_rank_local}] WARNING: CCE returned {neg_count} negative values!")
+                    print(f"[Rank {tp_rank_local}] Negative values: {token_losses[token_losses < 0].flatten()[:10].tolist()}")
+                    
+                    # Find indices where CCE returned negative values
+                    neg_mask = token_losses < 0
+                    neg_indices = torch.where(neg_mask)
+                    
+                    # Print reference loss and labels at those indices
+                    print(f"\n[Rank {tp_rank_local}] Analyzing negative CCE values:")
+                    num_to_analyze = min(10, len(neg_indices[0])) 
+                    for i in range(num_to_analyze):
+                        batch_idx = neg_indices[0][i].item()
+                        seq_idx = neg_indices[1][i].item()
+                        cce_val = token_losses[batch_idx, seq_idx].item()
+                        ref_val = reference_loss[batch_idx, seq_idx].item() if reference_loss.shape == token_losses.shape else reference_loss[seq_idx, batch_idx].item()
+                        label_val = labels[batch_idx, seq_idx].item()
+                        
+                        # Get loss_mask value at this position
+                        if loss_mask is not None:
+                            mask_val = loss_mask[batch_idx, seq_idx].item() if loss_mask.shape == labels.shape else loss_mask[seq_idx, batch_idx].item()
+                        else:
+                            mask_val = "No mask"
+                        
+                        # Check if label is in local vocab range
+                        if parallel_state.get_tensor_model_parallel_world_size() > 1:
+                            from megatron.core.tensor_parallel.utils import VocabUtility
+                            tp_rank_local = parallel_state.get_tensor_model_parallel_rank()
+                            tp_world_local = parallel_state.get_tensor_model_parallel_world_size()
+                            start, end = VocabUtility.vocab_range_from_global_vocab_size(vocab_size, tp_rank_local, tp_world_local)
+                            in_range = start <= label_val < end if label_val >= 0 else False
+                            print(f"  Index [{batch_idx}, {seq_idx}]: CCE={cce_val}, Reference={ref_val}, Label={label_val}, Mask={mask_val}, InLocalVocab={in_range}")
+                        else:
+                            print(f"  Index [{batch_idx}, {seq_idx}]: CCE={cce_val}, Reference={ref_val}, Label={label_val}, Mask={mask_val}")
+                    
+                    # Analyze which labels tend to produce negative values
+                    print(f"\n[Rank {tp_rank_local}] Analyzing labels that produce negative CCE values:")
+                    neg_labels = []
+                    for i in range(len(neg_indices[0])):
+                        batch_idx = neg_indices[0][i].item()
+                        seq_idx = neg_indices[1][i].item()
+                        neg_labels.append(labels[batch_idx, seq_idx].item())
+                    
+                    from collections import Counter
+                    label_counts = Counter(neg_labels)
+                    print(f"[Rank {tp_rank_local}] Top 10 labels with negative CCE values: {label_counts.most_common(10)}")
+                        
+                else:
+                    print(f"\n[Rank {tp_rank_local}] CCE returned no negative values!")
+                
+                # Check if reference loss is returning negative values
+                neg_count = (reference_loss < 0).sum().item()
+                if neg_count > 0:
+                    print(f"\n[Rank {tp_rank_local}] WARNING: Reference loss returned {neg_count} negative values!")
+                    print(f"[Rank {tp_rank_local}]    Negative values: {reference_loss[reference_loss < 0].flatten()[:10].tolist()}")
+                else:
+                    print(f"\n[Rank {tp_rank_local}] Reference loss returned no negative values!")
 
             if self.config.return_logits_when_using_cce:
                 # Compute logits after the fact only if explicitly requested.

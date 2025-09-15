@@ -37,8 +37,8 @@ REMOVE_THINK_CHAT_TEMPLATE = (
 )
 
 # Memory profiling flags (from pretrain_gpt.py)
-PHASE_LOGGER = True
-DEBUG = True
+PHASE_LOGGER = False
+DEBUG = False
 
 # Memory profiling helper functions (from pretrain_gpt.py)
 def _is_rank0():
@@ -460,6 +460,10 @@ def get_batch(data_iterator):
 
     labels = labels.contiguous()
     loss_mask = loss_mask.contiguous()
+    
+    # Set labels to -100 where loss_mask is 0 (for ignore_index in CCE)
+    labels = labels.clone()  # Clone to avoid modifying original tensor
+    labels[loss_mask == 0] = -100
 
     batch = {
         "tokens": tokens,
