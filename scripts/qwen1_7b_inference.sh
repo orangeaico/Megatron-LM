@@ -69,7 +69,8 @@ Who are you?<|im_end|>
 " \
   --temperature 0.1 \
   --top_k 10 \
-  --num-tokens-to-generate 50
+  --num-tokens-to-generate 50 \
+  --dist-ckpt-strictness ignore_all
 
 echo ""
 echo "🎯 Inference completed!"
