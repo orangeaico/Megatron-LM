@@ -207,8 +207,8 @@ CHECKPOINT_ARGS=(
     --distributed-timeout-minutes 60
     --load "$LOAD_CHECKPOINT_PATH"
     --save "$SAVE_CHECKPOINT_PATH"
-    # --no-save-optim
-    # --no-save-rng
+    --no-save-optim
+    --no-save-rng
     --no-load-rng
     --no-load-optim
     --save-interval 10
