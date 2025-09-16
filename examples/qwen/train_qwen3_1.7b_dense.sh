@@ -18,7 +18,8 @@ MODEL_NAME="qwen3_1.7b"
 
 LOAD_CHECKPOINT_PATH="/workspace/data/mega-models/Qwen3-1.7B"
 TOKENIZER_ARG="/workspace/data/mega-models/Qwen3-1.7B" # Path to tokenizer model, or "MOCK"
-DATA_ARG="/workspace/data/data/qwen_out_text_document"     # Data prefix, or "MOCK"
+# DATA_ARG="/workspace/data/data/qwen_out_text_document"     # Data prefix, or "MOCK"
+DATA_ARG="/workspace/data/data/test_output.jsonl"
 
 BASE_OUTPUT_DIR="/workspace/data/himanshu/output"
 SAVE_CHECKPOINT_PATH="$BASE_OUTPUT_DIR/$MODEL_NAME/checkpoints"
@@ -51,7 +52,7 @@ TP_SIZE=2
 CP_SIZE=1     
 PP_SIZE=1     
 MICRO_BATCH_SIZE=1 
-GLOBAL_BATCH_SIZE=8  
+GLOBAL_BATCH_SIZE=1  
 NUM_LAYERS=28  
 DTYPE="bf16"
 SEQ_LENGTH=8192
@@ -92,8 +93,8 @@ MODEL_ARGS=(
 TRAINING_ARGS=(
     --micro-batch-size $MICRO_BATCH_SIZE
     --global-batch-size $GLOBAL_BATCH_SIZE
-    --train-samples 300
-    --lr-decay-samples 300
+    --train-samples 30
+    --lr-decay-samples 30
     --exit-duration-in-mins 235
 
     # Learning rate args
@@ -120,9 +121,9 @@ TRAINING_ARGS=(
     --transformer-impl transformer_engine
     --enable-experimental
     --use-flash-attn
-    # --fused-linear-cross-entropy
-    --cross-entropy-loss-fusion
-    --cross-entropy-fusion-impl native
+    --fused-linear-cross-entropy
+    # --cross-entropy-loss-fusion
+    # --cross-entropy-fusion-impl native
     --recompute-granularity full
     --recompute-method uniform
     --recompute-num-layers 1
@@ -157,7 +158,7 @@ MODEL_PARALLEL_ARGS=(
     --tensor-model-parallel-size $TP_SIZE
     --context-parallel-size $CP_SIZE
     # --pipeline-model-parallel-size $PP_SIZE # Not explicitly set in llama script options, assume 1 if not multi-node PP
-    --sequence-parallel  # Always enable sequence parallelism with TP_SIZE=2
+    # --sequence-parallel  # Always enable sequence parallelism with TP_SIZE=2
 )
 
 # Data arguments (conditional for mock vs real data)
@@ -187,6 +188,7 @@ else
         "--num-workers 1"
         # Note: --vocab-size might be inferred by HuggingFaceTokenizer or might need to be explicit.
         "--vocab-size 151936"  # Qwen3-1.7B vocab size
+        "--sft"
     )
 fi
 
