@@ -15,6 +15,7 @@ export NVTE_ALLOW_NONDETERMINISTIC_ALGO=1
 export NCCL_NVLS_ENABLE=0
 
 MODEL_NAME="qwen3_1.7b"
+
 LOAD_CHECKPOINT_PATH="/workspace/data/mega-models/Qwen3-1.7B"
 TOKENIZER_ARG="/workspace/data/mega-models/Qwen3-1.7B" # Path to tokenizer model, or "MOCK"
 DATA_ARG="/workspace/data/data/test_output.jsonl"     # Data prefix, or "MOCK"
@@ -50,7 +51,7 @@ TP_SIZE=2
 CP_SIZE=1     
 PP_SIZE=1     
 MICRO_BATCH_SIZE=1 
-GLOBAL_BATCH_SIZE=8
+GLOBAL_BATCH_SIZE=1
 NUM_LAYERS=28  
 DTYPE="bf16"
 SEQ_LENGTH=8192
@@ -92,12 +93,11 @@ MODEL_ARGS=(
 TRAINING_ARGS=(
     --micro-batch-size $MICRO_BATCH_SIZE
     --global-batch-size $GLOBAL_BATCH_SIZE
-    --train-samples 300
-    --lr-decay-samples 300   
+    --train-samples 100
+    --lr-decay-samples 100   
     --exit-duration-in-mins 235
 
     # Learning rate args
-
     --lr-warmup-samples 0
     --lr 5.0e-5
     --min-lr 1.0e-7
@@ -121,9 +121,9 @@ TRAINING_ARGS=(
     --transformer-impl transformer_engine
     --enable-experimental
     --use-flash-attn
-    # --fused-linear-cross-entropy
-    --cross-entropy-loss-fusion
-    --cross-entropy-fusion-impl native
+    --fused-linear-cross-entropy
+    # --cross-entropy-loss-fusion
+    # --cross-entropy-fusion-impl native
     --recompute-granularity full
     --recompute-method uniform
     --recompute-num-layers 1
@@ -159,7 +159,7 @@ MODEL_PARALLEL_ARGS=(
     --tensor-model-parallel-size $TP_SIZE
     --context-parallel-size $CP_SIZE
     # --pipeline-model-parallel-size $PP_SIZE # Not explicitly set in llama script options, assume 1 if not multi-node PP
-    --sequence-parallel  # Always enable sequence parallelism with TP_SIZE=2
+    # --sequence-parallel  # Always enable sequence parallelism with TP_SIZE=2
 )
 
 # Data arguments (conditional for mock vs real data)
@@ -217,7 +217,7 @@ CHECKPOINT_ARGS=(
 
 EVAL_AND_LOGGING_ARGS=(
     --eval-iters 4
-    --eval-interval 5
+    --eval-interval 3
     # --full-validation
     --log-interval 1
     --log-throughput

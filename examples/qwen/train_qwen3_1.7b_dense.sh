@@ -13,7 +13,6 @@ export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 export NVTE_ALLOW_NONDETERMINISTIC_ALGO=1
 export NCCL_NVLS_ENABLE=0
 
-
 MODEL_NAME="qwen3_1.7b"
 
 LOAD_CHECKPOINT_PATH="/workspace/data/mega-models/Qwen3-1.7B"
@@ -48,11 +47,11 @@ WORLD_SIZE=$(($GPUS_PER_NODE*$NUM_NODES))
 PRETRAIN_SCRIPT_PATH="pretrain_gpt.py"
 
 # Fixed model and training parameters for Qwen3-1.7B
-TP_SIZE=2 
+TP_SIZE=1 
 CP_SIZE=1     
 PP_SIZE=1     
-MICRO_BATCH_SIZE=1 
-GLOBAL_BATCH_SIZE=1  
+MICRO_BATCH_SIZE=4 
+GLOBAL_BATCH_SIZE=8  
 NUM_LAYERS=28  
 DTYPE="bf16"
 SEQ_LENGTH=8192
@@ -93,8 +92,8 @@ MODEL_ARGS=(
 TRAINING_ARGS=(
     --micro-batch-size $MICRO_BATCH_SIZE
     --global-batch-size $GLOBAL_BATCH_SIZE
-    --train-samples 30
-    --lr-decay-samples 30
+    --train-samples 2000
+    --lr-decay-samples 2000
     --exit-duration-in-mins 235
 
     # Learning rate args
@@ -111,7 +110,7 @@ TRAINING_ARGS=(
     --attention-dropout 0.0
     --hidden-dropout 0.0
     --clip-grad 1.0
-    --weight-decay 0.1
+    --weight-decay 0.0
  
     # Memory cleanup args
     --manual-gc
@@ -128,6 +127,7 @@ TRAINING_ARGS=(
     --recompute-method uniform
     --recompute-num-layers 1
     --calculate-per-token-loss
+    # --no-gradient-accumulation-fusion
 
     # data type arguments
     --bf16
@@ -189,6 +189,10 @@ else
         # Note: --vocab-size might be inferred by HuggingFaceTokenizer or might need to be explicit.
         "--vocab-size 151936"  # Qwen3-1.7B vocab size
         "--sft"
+        # "--reset-position-ids"
+        # "--reset-attention-mask"
+        # "--eod-mask-loss"
+        # "--no-check-for-nan-in-loss-and-grad"
     )
 fi
 
@@ -201,13 +205,16 @@ CHECKPOINT_ARGS=(
     --save "$SAVE_CHECKPOINT_PATH"
     --no-save-optim
     --no-save-rng
+    --no-load-rng
+    --no-load-optim
     --save-interval 1000
     --exit-on-missing-checkpoint
 )
 
 EVAL_AND_LOGGING_ARGS=(
-    --eval-iters 4
+    --eval-iters 1
     --eval-interval 5
+    # "--full-validation"
     --log-interval 1
     --log-throughput
     --profile
@@ -223,6 +230,7 @@ EVAL_AND_LOGGING_ARGS=(
     --log-memory-to-tensorboard
     --record-memory-history
     --memory-snapshot-path "$MEMORY_SNAPSHOT_PATH"
+    # --dump-model-params-to-pickle
 )
 
 if [ -n "${WANDB_API_KEY}" ]; then
