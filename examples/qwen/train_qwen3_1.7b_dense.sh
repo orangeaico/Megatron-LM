@@ -15,12 +15,14 @@ export NCCL_NVLS_ENABLE=0
 
 MODEL_NAME="qwen3_1.7b"
 
-LOAD_CHECKPOINT_PATH="/workspace/data/mega-models/Qwen3-1.7B"
-TOKENIZER_ARG="/workspace/data/mega-models/Qwen3-1.7B" # Path to tokenizer model, or "MOCK"
-# DATA_ARG="/workspace/data/data/qwen_out_text_document"     # Data prefix, or "MOCK"
-DATA_ARG="/workspace/data/data/test_output.jsonl"
+BASE_DIR="/workspace/data/"
 
-BASE_OUTPUT_DIR="/workspace/data/himanshu/output"
+LOAD_CHECKPOINT_PATH="$BASE_DIR/mega-models/Qwen3-1.7B"
+TOKENIZER_ARG="$BASE_DIR/mega-models/Qwen3-1.7B" # Path to tokenizer model, or "MOCK"
+# DATA_ARG="$BASE_DIR/data/qwen_out_text_document"     # Data prefix, or "MOCK"
+DATA_ARG="$BASE_DIR/data/test_output.jsonl"
+
+BASE_OUTPUT_DIR="$BASE_DIR/himanshu/output"
 SAVE_CHECKPOINT_PATH="$BASE_OUTPUT_DIR/$MODEL_NAME/checkpoints"
 # Data cache path (useful for both mock and real data)
 DATA_CACHE_PATH="$BASE_OUTPUT_DIR/$MODEL_NAME/benchmark_cache"
@@ -50,12 +52,12 @@ PRETRAIN_SCRIPT_PATH="pretrain_gpt.py"
 TP_SIZE=1 
 CP_SIZE=1     
 PP_SIZE=1     
-MICRO_BATCH_SIZE=4 
+MICRO_BATCH_SIZE=4
 GLOBAL_BATCH_SIZE=8  
 NUM_LAYERS=28  
 DTYPE="bf16"
-SEQ_LENGTH=8192
-MAX_POSITION_EMBEDDINGS=40960 
+SEQ_LENGTH=8192 # 65000
+MAX_POSITION_EMBEDDINGS=40960 # 65000
 
 DISTRIBUTED_ARGS=(
     --nproc_per_node $GPUS_PER_NODE
@@ -83,6 +85,8 @@ MODEL_ARGS=(
     --rotary-base 1000000  # Same as Qwen3 rope_theta
     --rotary-percent 1.0
     --rotary-seq-len-interpolation-factor 1
+    # --use-rope-scaling
+    # --rope-scaling-factor 2
     --swiglu
     --norm-epsilon 1e-06
     --init-method-std 0.02  
@@ -92,8 +96,8 @@ MODEL_ARGS=(
 TRAINING_ARGS=(
     --micro-batch-size $MICRO_BATCH_SIZE
     --global-batch-size $GLOBAL_BATCH_SIZE
-    --train-samples 2000
-    --lr-decay-samples 2000
+    --train-samples 300
+    --lr-decay-samples 300
     --exit-duration-in-mins 235
 
     # Learning rate args
@@ -203,17 +207,17 @@ CHECKPOINT_ARGS=(
     --distributed-timeout-minutes 60
     --load "$LOAD_CHECKPOINT_PATH"
     --save "$SAVE_CHECKPOINT_PATH"
-    --no-save-optim
-    --no-save-rng
+    # --no-save-optim
+    # --no-save-rng
     --no-load-rng
     --no-load-optim
-    --save-interval 1000
+    --save-interval 10
     --exit-on-missing-checkpoint
 )
 
 EVAL_AND_LOGGING_ARGS=(
     --eval-iters 1
-    --eval-interval 5
+    --eval-interval 100
     # "--full-validation"
     --log-interval 1
     --log-throughput
