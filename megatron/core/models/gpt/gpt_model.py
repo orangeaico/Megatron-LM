@@ -4,6 +4,7 @@ from collections import OrderedDict
 from typing import Dict, Literal, Optional
 
 import torch
+import torch.nn.functional as F
 from torch import Tensor
 
 from megatron.core import parallel_state, tensor_parallel
@@ -20,7 +21,7 @@ from megatron.core.fusions.cce_loss import cce_per_token_loss
 from megatron.core.packed_seq_params import PackedSeqParams
 from megatron.core.process_groups_config import ProcessGroupCollection
 from megatron.core.quantization.utils import get_quant_config_or_none
-from megatron.core.tensor_parallel import gather_from_sequence_parallel_region
+from megatron.core.tensor_parallel import gather_from_sequence_parallel_region, gather_from_tensor_model_parallel_region
 from megatron.core.transformer.enums import ModelType
 from megatron.core.transformer.multi_token_prediction import (
     MTPLossAutoScaler,
@@ -466,6 +467,9 @@ class GPTModel(LanguageModule):
         if not self.post_process:
             return hidden_states
 
+        # Initialize token_losses to None - will be set if CCE fast path is used
+        token_losses = None
+
         # -------- Cut Cross-Entropy fast path (no logits materialization) -------
         # Only compute loss on the LAST PP stage; others take the default path.
         if (
@@ -523,7 +527,7 @@ class GPTModel(LanguageModule):
             vocab_size = getattr(self, "padded_vocab_size", None) or \
                          getattr(self, "vocab_size", classifier_weight.size(0))
 
-            token_losses = cce_per_token_loss(
+            token_losses, teacher_data = cce_per_token_loss(
                 embeddings=hidden_states,             # [B, T, H]
                 classifier_weight=classifier_weight,  # [V, H] (or [V_local, H])
                 labels=labels,                        # [B, T]
@@ -542,7 +546,7 @@ class GPTModel(LanguageModule):
                 return token_losses, logits
 
             # Default: return per-token losses for Megatron's loss masking/reduction.
-            return token_losses
+            # return token_losses
 
         if self.mtp_process:
             mtp_labels = labels.clone()
@@ -639,6 +643,47 @@ class GPTModel(LanguageModule):
             return logits.transpose(0, 1).contiguous()
 
         loss = self.compute_language_model_loss(labels, logits)
+        logits = gather_from_tensor_model_parallel_region(logits, group=self.pg_collection.tp)
+        traditional_distillation_loss(logits, teacher_data, labels, T=1, ignore_index=self.config.linear_ce_ignore_index, embedding=hidden_states, lm_weights=output_weight)
+        print(f"logits shape: {logits.shape}, labels shape: {labels.shape}")
+
+        # Compare token_losses (from CCE fast path) with traditional loss if available
+        if token_losses is not None:
+            print(f"=== COMPARING CCE TOKEN_LOSSES vs TRADITIONAL LOSS ===")
+            print(f"token_losses shape: {token_losses.shape}")
+            print(f"loss shape: {loss.shape}")
+            print(f"token_losses mean: {token_losses.mean().item()}")
+            print(f"loss (traditional) mean: {loss.mean().item()}")
+            print(f"token_losses sum: {token_losses.sum().item()}")
+            print(f"loss (traditional) sum: {loss.sum().item()}")
+            
+            if token_losses.shape == loss.shape:
+                diff = torch.abs(token_losses - loss)
+                max_diff = torch.max(diff).item()
+                mean_diff = torch.mean(diff).item()
+                are_close = torch.allclose(token_losses, loss, atol=1e-6, rtol=1e-5)
+                print(f"Max absolute difference: {max_diff}")
+                print(f"Mean absolute difference: {mean_diff}")
+                print(f"Are token_losses and loss close? {are_close}")
+                
+                # Count values with differences above various thresholds
+                thresholds = [1e-1, 1e-2, 1e-3, 1e-4, 1e-5]
+                total_elements = diff.numel()
+                print(f"Total elements: {total_elements}")
+                print("Threshold analysis:")
+                for threshold in thresholds:
+                    count_above_threshold = (diff > threshold).sum().item()
+                    percentage = (count_above_threshold / total_elements) * 100
+                    print(f"  Values with |diff| > {threshold:.0e}: {count_above_threshold} ({percentage:.2f}%)")
+                
+            else:
+                print("Shapes don't match - cannot compare element-wise")
+            print("=" * 50)
+        else:
+            print("token_losses is None - CCE fast path was not used")
+        
+        print(f"loss: {loss}")
+        print(f"token_losses: {token_losses}")
 
         return loss
 
@@ -771,3 +816,110 @@ class GPTModel(LanguageModule):
                 )
 
         return sharded_state_dict
+
+
+def traditional_distillation_loss(
+    student_logits: torch.Tensor,      # (B, T, V) unnormalized logits
+    teacher_data: list,                # List of teacher data dictionaries, one per batch element
+    labels: torch.Tensor,              # (B, T) integer class ids, with ignore_index masked out
+    T: float = 1.0,                    # temperature (a.k.a. tau)
+    ignore_index: int = -100,
+    embedding: Optional[torch.nn.Module] = None,
+    lm_weights: Optional[torch.nn.Module] = None,
+):
+    """
+    Knowledge Distillation (Hinton et al., 2015) using teacher logits.
+
+    We compute KL(P_teacher || Q_student) where:
+      - P_teacher is a softmax over the teacher-provided logits at temperature T
+      - Q_student is the student's log-softmax over the FULL vocab at temperature T,
+        gathered at the teacher indices (so normalization is still over V).
+    The KD term is scaled by T**2 as recommended.
+
+    Args:
+        student_logits: (B, T, V) unnormalized logits from student model
+        teacher_data: List of teacher data dictionaries, one per batch element.
+                     Each dict has 'positions', 'indices', 'values' keys where:
+                     - positions: list of sequence positions with teacher data
+                     - indices: list of teacher token indices for each position
+                     - values: list of teacher logit values for each position
+        labels: (B, T) integer class ids, with ignore_index masked out
+        T: temperature for softmax
+        ignore_index: index to ignore in loss computation
+
+    Returns:
+        KL divergence loss value
+    """
+    student_logits=student_logits.transpose(0, 1).contiguous()
+    embedding=embedding.transpose(0, 1).contiguous()
+    device = student_logits.device
+    B, Tseq, V = student_logits.shape
+    
+    if len(teacher_data) != B:
+        raise ValueError(f"teacher_data length {len(teacher_data)} must match batch size {B}")
+
+    total_kl_loss = torch.zeros((), device=device, dtype=student_logits.dtype)
+    total_valid_positions = 0
+
+    # Process each batch element
+    for batch_idx in range(B):
+        batch_teacher = teacher_data[batch_idx]
+        batch_labels = labels[batch_idx]  # (T,)
+        batch_student_logits = student_logits[batch_idx]  # (T, V)
+        
+        # Get teacher data for this batch element
+        positions = batch_teacher.get('positions', [])
+        indices_list = batch_teacher.get('indices', [])
+        values_list = batch_teacher.get('values', [])
+        
+        if not positions or not indices_list or not values_list:
+            continue  # No teacher data for this batch element
+            
+        batch_kl_sum = torch.zeros((), device=device, dtype=student_logits.dtype)
+        valid_positions_in_batch = 0
+        
+        # Process each position with teacher data
+        for pos, teacher_indices, teacher_values in zip(positions, indices_list, values_list):
+            pos_idx = int(pos.item() if isinstance(pos, torch.Tensor) else pos)
+            
+            # Skip if position is out of bounds or should be ignored
+            if batch_labels[pos_idx].item() == ignore_index:
+                continue
+                
+            # Convert teacher data to tensors
+            teacher_indices = torch.as_tensor(teacher_indices, dtype=torch.long, device=device)
+            teacher_values = torch.as_tensor(teacher_values, dtype=student_logits.dtype, device=device)
+                
+            # Get student logits for this position
+            student_logits_pos = batch_student_logits[pos_idx]  # (V,)
+            
+            # Student log-probabilities at temperature T (normalized over full vocab)
+            student_log_probs_full = F.log_softmax(student_logits_pos / T, dim=-1)  # (V,)
+            student_log_probs_teacher = student_log_probs_full[teacher_indices]  # (K,)
+            
+            # Teacher probabilities at temperature T (normalized over teacher indices only)
+            teacher_probs = F.softmax(teacher_values / T, dim=-1)  # (K,)
+            # KL divergence: KL(P_teacher || Q_student)
+            # F.kl_div expects log-probs as input and probs as target
+            kl_loss_pos = F.kl_div(student_log_probs_teacher, teacher_probs, reduction='sum')
+            if pos==6000:
+                print(f"batch {batch_idx} traditional pos 6000 student_log_probs_teacher: {student_logits_pos[teacher_indices]} lse student: {torch.logsumexp(student_logits_pos / T, dim=-1)}")
+                print(f"batch {batch_idx} traditional kl loss {kl_loss_pos}")
+                x=embedding[batch_idx, pos]
+                gather_from_tensor_model_parallel_region(lm_weights, group=parallel_state.get_tensor_model_parallel_group())
+                print(f"shape of lm_weights: {lm_weights.shape}")
+                print(f"shape of embedding: {embedding[batch_idx, pos].shape}")
+            batch_kl_sum += kl_loss_pos
+            valid_positions_in_batch += 1
+            
+        total_kl_loss += batch_kl_sum
+        total_valid_positions += valid_positions_in_batch
+
+    # Average over all valid positions and apply temperature scaling
+    if total_valid_positions > 0:
+        kd_loss = (total_kl_loss / total_valid_positions) * (T ** 2)
+    else:
+        kd_loss = torch.zeros_like(total_kl_loss)
+
+    print(f"KD loss: {kd_loss}, valid positions: {total_valid_positions}")
+    return kd_loss

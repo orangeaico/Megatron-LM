@@ -673,7 +673,7 @@ class TransformerConfig(ModelParallelConfig):
 
     # Implementation selector (see apple/ml-cross-entropy README):
     # "cce" (default), "torch_compile", "cce_kahan", etc.
-    linear_ce_impl: str = "cce"
+    linear_ce_impl: str = "torch_compile"
 
     # Return per-token losses ("none") so Megatron's loss mask / reduction still apply.
     # You may set "mean"/"sum" if you want CCE to reduce internally.

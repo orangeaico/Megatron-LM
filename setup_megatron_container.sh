@@ -12,12 +12,7 @@ assert v.split(".")[0:2] >= ["3","3"]
 print("triton ok:", v)
 PY
 
-# Install CCE if missing
-python - <<'PY' || pip install --no-deps "cut-cross-entropy @ git+https://github.com/apple/ml-cross-entropy.git"
-import importlib
-import cut_cross_entropy  # noqa
-print("cce ok")
-PY
+pip install transformers
 
 # Clear old JIT caches (optional)
 rm -rf ~/.cache/torch/inductor ~/.triton || true
