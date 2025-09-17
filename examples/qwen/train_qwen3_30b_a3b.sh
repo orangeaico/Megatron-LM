@@ -14,14 +14,19 @@ export NVTE_ALLOW_NONDETERMINISTIC_ALGO=1
 export NCCL_NVLS_ENABLE=0
 
 MODEL_NAME="qwen3_30b_a3b"
-# LOAD_CHECKPOINT_PATH="/workspace/data/qwen1_7_mg"  # Add the correct path and uncomment it
-SAVE_CHECKPOINT_PATH="output/$MODEL_NAME/checkpoints"
+
+BASE_DIR="/workspace/data/"
+LOAD_CHECKPOINT_PATH="$BASE_DIR/mega-models/Qwen3-1.7B"
+TOKENIZER_ARG="$BASE_DIR/mega-models/Qwen3-1.7B" # Path to tokenizer model, or "MOCK"
+# DATA_ARG="$BASE_DIR/data/qwen_out_text_document"     # Data prefix, or "MOCK"
+DATA_ARG="$BASE_DIR/data/test_output.jsonl"
+
+BASE_OUTPUT_DIR="$BASE_DIR/himanshu/output"
+SAVE_CHECKPOINT_PATH="$BASE_OUTPUT_DIR/$MODEL_NAME/checkpoints"
 # Data cache path (useful for both mock and real data)
-DATA_CACHE_PATH="output/$MODEL_NAME/benchmark_cache"
-TENSORBOARD_LOGS_PATH="output/$MODEL_NAME/tensorboard_logs"
-MEMORY_SNAPSHOT_PATH="output/$MODEL_NAME/memory_snapshots/memory_snapshot.pickle"
-TOKENIZER_ARG="MOCK" # Path to tokenizer model, or "MOCK"
-DATA_ARG="MOCK"     # Data prefix, or "MOCK"
+DATA_CACHE_PATH="$BASE_OUTPUT_DIR/$MODEL_NAME/benchmark_cache"
+TENSORBOARD_LOGS_PATH="$BASE_OUTPUT_DIR/$MODEL_NAME/tensorboard_logs"
+MEMORY_SNAPSHOT_PATH="$BASE_OUTPUT_DIR/$MODEL_NAME/memory_snapshots/memory_snapshot.pickle"
 
 WANDB_API_KEY=''
 
@@ -83,6 +88,8 @@ MODEL_ARGS=(
     --rotary-base 1000000  # Same as Qwen3 rope_theta
     --rotary-percent 1.0
     --rotary-seq-len-interpolation-factor 1
+    # --use-rope-scaling
+    # --rope-scaling-factor 2
     --swiglu
     --norm-epsilon 1e-06
     --init-method-std 0.02 
@@ -105,14 +112,14 @@ MOE_ARGS=(
 TRAINING_ARGS=(
     --micro-batch-size $MICRO_BATCH_SIZE
     --global-batch-size $GLOBAL_BATCH_SIZE
-    --train-samples 20
+    --train-samples 300
+    --lr-decay-samples 300
     --exit-duration-in-mins 235
 
     # Learning rate args
-    --lr-decay-samples 10
-    --lr-warmup-samples 5
-    --lr 1.2e-4 
-    --min-lr 1.2e-5  
+    --lr-warmup-samples 0
+    --lr 5.0e-5
+    --min-lr 1.0e-7
     # --decoupled-lr 8.0e-4  # Adjusted for smaller model
     # --decoupled-min-lr 8.0e-5  # Adjusted for smaller model
     --lr-decay-style cosine
@@ -123,7 +130,7 @@ TRAINING_ARGS=(
     --attention-dropout 0.0
     --hidden-dropout 0.0
     --clip-grad 1.0
-    --weight-decay 0.1
+    --weight-decay 0.0
  
     # Memory cleanup args
     --manual-gc
@@ -135,11 +142,12 @@ TRAINING_ARGS=(
     --use-flash-attn
     --fused-linear-cross-entropy
     # --cross-entropy-loss-fusion
-    # --cross-entropy-fusion-impl te
+    # --cross-entropy-fusion-impl native
     --recompute-granularity full
     --recompute-method uniform
     --recompute-num-layers 1
     --calculate-per-token-loss
+    # --no-gradient-accumulation-fusion
 
     # data type arguments
     --bf16
@@ -168,7 +176,7 @@ fi
 # Model parallelism arguments
 MODEL_PARALLEL_ARGS=(
     --tensor-model-parallel-size $TP_SIZE
-    --sequence-parallel  # Always enable sequence parallelism with TP_SIZE=2
+    # --sequence-parallel  # Always enable sequence parallelism with TP_SIZE=2
     --context-parallel-size $CP_SIZE
     --expert-model-parallel-size $EP_SIZE
     --expert-tensor-parallel-size $EXPERT_TP_SIZE
@@ -203,6 +211,11 @@ else
         "--num-workers 1"
         # Note: --vocab-size might be inferred by HuggingFaceTokenizer or might need to be explicit.
         "--vocab-size 151936"  # Qwen3-1.7B vocab size
+        "--sft"
+        # "--reset-position-ids"
+        # "--reset-attention-mask"
+        # "--eod-mask-loss"
+        # "--no-check-for-nan-in-loss-and-grad"
     )
 fi
 
@@ -211,15 +224,20 @@ CHECKPOINT_ARGS=(
     --auto-detect-ckpt-format
     --dist-ckpt-strictness log_all
     --distributed-timeout-minutes 60
-    # --load "$LOAD_CHECKPOINT_PATH"
+    --load "$LOAD_CHECKPOINT_PATH"
     --save "$SAVE_CHECKPOINT_PATH"
-    --save-interval 1000
+    --no-save-optim
+    --no-save-rng
+    --no-load-rng
+    --no-load-optim
+    --save-interval 50
     --exit-on-missing-checkpoint
 )
 
 EVAL_AND_LOGGING_ARGS=(
-    --eval-iters 32
+    --eval-iters 1
     --eval-interval 100
+    # "--full-validation"
     --log-interval 1
     --log-throughput
     --profile
@@ -235,6 +253,7 @@ EVAL_AND_LOGGING_ARGS=(
     --log-memory-to-tensorboard
     --record-memory-history
     --memory-snapshot-path "$MEMORY_SNAPSHOT_PATH"
+    # --dump-model-params-to-pickle
 )
 
 if [ -n "${WANDB_API_KEY}" ]; then
@@ -243,6 +262,8 @@ if [ -n "${WANDB_API_KEY}" ]; then
         --wandb-exp-name ${WANDB_NAME:-$MODEL_NAME}
     )
 fi
+
+
 
 # Ensure pretrain_gpt.py is found
 if [ ! -f "$PRETRAIN_SCRIPT_PATH" ]; then
