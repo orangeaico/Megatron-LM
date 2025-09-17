@@ -689,7 +689,7 @@ class TransformerConfig(ModelParallelConfig):
     return_logits_when_using_cce: bool = False
     
     # For debugging CCE loss issues: enable verbose logging
-    debug_cce_loss: bool = False
+    debug_cce_loss: bool = True
 
     def __post_init__(self):
         """Python dataclass method that is used to modify attributes after initialization.

@@ -13,14 +13,13 @@ export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 export NVTE_ALLOW_NONDETERMINISTIC_ALGO=1
 export NCCL_NVLS_ENABLE=0
 
-
 MODEL_NAME="qwen3_1.7b"
 
-LOAD_CHECKPOINT_PATH="/workspace/data/mega-models/Qwen3-1.7B"
-TOKENIZER_ARG="/workspace/data/mega-models/Qwen3-1.7B" # Path to tokenizer model, or "MOCK"
-DATA_ARG="/workspace/data/data/qwen_out_text_document"     # Data prefix, or "MOCK"
+LOAD_CHECKPOINT_PATH="/workspace/checkpoints/Qwen3-1.7B_1gpu"
+TOKENIZER_ARG="/workspace/checkpoints/Qwen3-1.7B_1gpu" # Path to tokenizer model, or "MOCK"
+DATA_ARG="/workspace/dataset/mock_data_mcore/_text_document"     # Data prefix, or "MOCK"
 
-BASE_OUTPUT_DIR="/workspace/data/himanshu/output"
+BASE_OUTPUT_DIR="/workspace/artifacts"
 SAVE_CHECKPOINT_PATH="$BASE_OUTPUT_DIR/$MODEL_NAME/checkpoints"
 # Data cache path (useful for both mock and real data)
 DATA_CACHE_PATH="$BASE_OUTPUT_DIR/$MODEL_NAME/benchmark_cache"
@@ -92,7 +91,7 @@ MODEL_ARGS=(
 TRAINING_ARGS=(
     --micro-batch-size $MICRO_BATCH_SIZE
     --global-batch-size $GLOBAL_BATCH_SIZE
-    --train-samples 300
+    --train-samples 50
     --lr-decay-samples 300
     --exit-duration-in-mins 235
 
@@ -120,9 +119,9 @@ TRAINING_ARGS=(
     --transformer-impl transformer_engine
     --enable-experimental
     --use-flash-attn
-    # --fused-linear-cross-entropy
-    --cross-entropy-loss-fusion
-    --cross-entropy-fusion-impl native
+    --fused-linear-cross-entropy
+    # --cross-entropy-loss-fusion
+    # --cross-entropy-fusion-impl native
     --recompute-granularity full
     --recompute-method uniform
     --recompute-num-layers 1
@@ -204,13 +203,13 @@ CHECKPOINT_ARGS=(
 )
 
 EVAL_AND_LOGGING_ARGS=(
-    --eval-iters 4
-    --eval-interval 5
+    --eval-iters 1
+    --eval-interval 1
     --log-interval 1
     --log-throughput
     --profile
-    --profile-step-start 2
-    --profile-step-end 3
+    --profile-step-start 1
+    --profile-step-end 5
     --profile-ranks 0
     --use-pytorch-profiler
     --tensorboard-dir "$TENSORBOARD_LOGS_PATH"

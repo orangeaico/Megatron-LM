@@ -473,6 +473,19 @@ class GPTModel(LanguageModule):
             and self.config.use_linear_cross_entropy
             and parallel_state.is_pipeline_last_stage()
         ):
+            sequence_parallel_override = False
+            if self.config.sequence_parallel:
+                tp_group = self.pg_collection.tp if self.pg_collection is not None else None
+                hidden_states = gather_from_sequence_parallel_region(
+                    hidden_states, group=tp_group
+                )
+                if self.config.debug_cce_loss and self.output_layer.sequence_parallel:
+                    self.output_layer.sequence_parallel = False
+                    sequence_parallel_override = True
+                if self.config.debug_cce_loss and parallel_state.get_tensor_model_parallel_rank() == 0:
+                    print(
+                        f"[CCE debug] gathered hidden_states {hidden_states.shape}, labels {labels.shape}"
+                    )
 
             # Choose classifier weights (tied vs. untied).
             if self.share_embeddings_and_output_weights:
@@ -529,6 +542,13 @@ class GPTModel(LanguageModule):
             # Global (padded) vocab size if present; else actual weight rows.
             vocab_size = getattr(self, "padded_vocab_size", None) or \
                          getattr(self, "vocab_size", classifier_weight.size(0))
+
+            if self.config.debug_cce_loss:
+                tp_rank = parallel_state.get_tensor_model_parallel_rank()
+                world_rank = torch.distributed.get_rank()
+                print(
+                    f"[CCE debug] rank={world_rank} tp_rank={tp_rank} vocab_size={vocab_size}"
+                )
 
             token_losses = cce_per_token_loss(
                 embeddings=hidden_states,             # [B, T, H]
@@ -640,9 +660,13 @@ class GPTModel(LanguageModule):
                 logits, _ = self.output_layer(
                     hidden_states, weight=output_weight, runtime_gather_output=runtime_gather_output
                 )
+                if sequence_parallel_override:
+                    self.output_layer.sequence_parallel = True
                 return token_losses, logits
 
             # Default: return per-token losses for Megatron's loss masking/reduction.
+            if sequence_parallel_override:
+                self.output_layer.sequence_parallel = True
             return token_losses
 
         if self.mtp_process:
