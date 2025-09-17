@@ -36,7 +36,6 @@ from megatron.core.transformer.transformer_block import TransformerBlock
 from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.core.utils import WrappedTensor, deprecate_inference_params
 
-
 class GPTModel(LanguageModule):
     """GPT Transformer language model.
 
@@ -644,7 +643,7 @@ class GPTModel(LanguageModule):
 
         loss = self.compute_language_model_loss(labels, logits)
         logits = gather_from_tensor_model_parallel_region(logits, group=self.pg_collection.tp)
-        traditional_distillation_loss(logits, teacher_data, labels, T=1, ignore_index=self.config.linear_ce_ignore_index, embedding=hidden_states, lm_weights=output_weight)
+        traditional_distillation_loss(logits, teacher_data, labels, T=1, ignore_index=self.config.linear_ce_ignore_index, embedding=hidden_states, lm_weights=output_weight, vocab_size=vocab_size)
         print(f"logits shape: {logits.shape}, labels shape: {labels.shape}")
 
         # Compare token_losses (from CCE fast path) with traditional loss if available
@@ -826,6 +825,7 @@ def traditional_distillation_loss(
     ignore_index: int = -100,
     embedding: Optional[torch.nn.Module] = None,
     lm_weights: Optional[torch.nn.Module] = None,
+    vocab_size: Optional[int] = None,
 ):
     """
     Knowledge Distillation (Hinton et al., 2015) using teacher logits.
@@ -875,7 +875,7 @@ def traditional_distillation_loss(
         if not positions or not indices_list or not values_list:
             continue  # No teacher data for this batch element
             
-        batch_kl_sum = torch.zeros((), device=device, dtype=student_logits.dtype)
+        batch_kl_sum = 0
         valid_positions_in_batch = 0
         
         # Process each position with teacher data
@@ -894,26 +894,26 @@ def traditional_distillation_loss(
             student_logits_pos = batch_student_logits[pos_idx]  # (V,)
             
             # Student log-probabilities at temperature T (normalized over full vocab)
-            student_log_probs_full = F.log_softmax(student_logits_pos / T, dim=-1)  # (V,)
+            student_log_probs_full = F.log_softmax(student_logits_pos / T, dim=-1, dtype=torch.float32)  # (V,)
             student_log_probs_teacher = student_log_probs_full[teacher_indices]  # (K,)
             
             # Teacher probabilities at temperature T (normalized over teacher indices only)
-            teacher_probs = F.softmax(teacher_values / T, dim=-1)  # (K,)
+            teacher_probs = F.log_softmax(teacher_values / T, dim=-1, dtype=torch.float32)  # (K,)
             # KL divergence: KL(P_teacher || Q_student)
             # F.kl_div expects log-probs as input and probs as target
-            kl_loss_pos = F.kl_div(student_log_probs_teacher, teacher_probs, reduction='sum')
-            if pos==6000:
-                print(f"batch {batch_idx} traditional pos 6000 student_log_probs_teacher: {student_logits_pos[teacher_indices]} lse student: {torch.logsumexp(student_logits_pos / T, dim=-1)}")
+            kl_loss_pos = teacher_values * (teacher_values - student_log_probs_teacher)
+            kl_loss_pos = kl_loss_pos.sum()  # scalar
+            if pos==5123:
+                print(f"batch {batch_idx} traditional pos 5123 teacher_probs: {teacher_values}")
+                print(f"batch {batch_idx} traditional pos 6000 student_log_probs_teacher: {student_log_probs_teacher} lse student: {torch.logsumexp(student_logits_pos.float() / T, dim=-1)}")
                 print(f"batch {batch_idx} traditional kl loss {kl_loss_pos}")
-                x=embedding[batch_idx, pos]
-                gather_from_tensor_model_parallel_region(lm_weights, group=parallel_state.get_tensor_model_parallel_group())
-                print(f"shape of lm_weights: {lm_weights.shape}")
-                print(f"shape of embedding: {embedding[batch_idx, pos].shape}")
+
             batch_kl_sum += kl_loss_pos
             valid_positions_in_batch += 1
             
         total_kl_loss += batch_kl_sum
         total_valid_positions += valid_positions_in_batch
+        print(f"batch {batch_idx} traditional valid positions: {valid_positions_in_batch}, batch_kl_sum: {batch_kl_sum}")
 
     # Average over all valid positions and apply temperature scaling
     if total_valid_positions > 0:

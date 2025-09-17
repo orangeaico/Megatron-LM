@@ -196,7 +196,7 @@ def cce_per_token_loss(
 
         batch_kl_sum = torch.zeros((), device=dev, dtype=dth)
         batch_kl_cnt = 0
-        chunk_size = 64
+        chunk_size = 4096
         T = 1
 
         for t0 in range(0, Tlen, chunk_size):
@@ -207,15 +207,12 @@ def cce_per_token_loss(
             chunk_teacher_indices = []
             chunk_teacher_values = []
             chunk_pos_in_chunk = []  # position within the chunk [0, chunk_length)
-            chunk_global_logsumexp = []  # store global logsumexp for each position
             
             for pos in range(t0, t1):
                 if pos in teacher_by_pos and labels_1d[pos].item() != ignore_index:
                     t_idx, t_val = teacher_by_pos[pos]
-                    
-                    # Calculate t_logsumexp for ALL teacher values first
-                    t_scaled_all = t_val / T
-                    t_logsumexp_all = torch.logsumexp(t_scaled_all, dim=0, keepdim=True)
+
+                    t_logK = F.log_softmax(t_val / T, dim=0, dtype=torch.float32)  # [K]  # teacher log-probs at temp T
 
                     # Now filter for local vocabulary partition
                     if tensor_parallel:
@@ -224,17 +221,16 @@ def cce_per_token_loss(
                         if not local_mask.any():
                             continue  # No relevant indices for this TP rank
                         t_idx_local = t_idx[local_mask] - start  # Convert to local indices
-                        t_val_local = t_val[local_mask]
+                        t_logK_local = t_logK[local_mask]
                     else:
                         t_idx_local = t_idx
-                        t_val_local = t_val
+                        t_logK_local = t_logK
                         local_mask = torch.ones_like(t_idx, dtype=torch.bool)
                     
                     chunk_positions.append(pos)
                     chunk_teacher_indices.append(t_idx_local)
-                    chunk_teacher_values.append(t_val_local)
+                    chunk_teacher_values.append(t_logK_local)
                     chunk_pos_in_chunk.append(pos - t0)
-                    chunk_global_logsumexp.append(t_logsumexp_all)
             
             if not chunk_positions:
                 continue
@@ -248,15 +244,15 @@ def cce_per_token_loss(
             # Stack teacher data - pad shorter sequences
             teacher_indices_batch = torch.full((len(chunk_positions), max_k), -1, 
                                              device=dev, dtype=torch.long)
-            teacher_values_batch = torch.zeros((len(chunk_positions), max_k), 
+            teacher_values_batch = torch.zeros((len(chunk_positions), max_k),
                                              device=dev, dtype=dth)
             teacher_mask = torch.zeros((len(chunk_positions), max_k), 
                                      device=dev, dtype=torch.bool)
-            
-            for i, (t_idx, t_val) in enumerate(zip(chunk_teacher_indices, chunk_teacher_values)):
+
+            for i, (t_idx, t_logK) in enumerate(zip(chunk_teacher_indices, chunk_teacher_values)):
                 k = len(t_idx)
                 teacher_indices_batch[i, :k] = t_idx
-                teacher_values_batch[i, :k] = t_val
+                teacher_values_batch[i, :k] = t_logK
                 teacher_mask[i, :k] = True
             
             # Get unique teacher indices for this chunk (for computing union)
@@ -269,9 +265,10 @@ def cce_per_token_loss(
             U_ids = torch.unique(valid_teacher_indices, sorted=True)
             
             # Compute logits for union 
-            W_U = classifier_weight.index_select(0, U_ids)              # [U_local, H]
-            x = hidden_1d[t0:t1].to(dtype=W_U.dtype).contiguous()           # [L, H]
-            logits_chunk_U  = torch.matmul(x, W_U.t().contiguous())
+            W_U = classifier_weight.index_select(0, U_ids)            # [U_local, H]
+            x = hidden_1d[t0:t1]                                      # [L, H]
+            #logits_chunk_U  = x @ W_U.t().contiguous()
+            logits_chunk_U = F.linear(x, W_U, bias=None)
 
             # KL COMPUTATION for all positions in chunk
             # Map teacher indices to positions in U_ids
@@ -288,25 +285,19 @@ def cce_per_token_loss(
             logZ_positions = logZ_full_T[chunk_positions].unsqueeze(1)  # [num_positions, 1]
             s_logpK = s_scaled - logZ_positions  # [num_positions, max_k]
             
-            # Teacher log-probs using global normalization
-            t_scaled = teacher_values_batch / T  # [num_positions, max_k]
-            
-            # Use the global logsumexp values calculated with all teacher tokens
-            t_logsumexp_global = torch.stack(chunk_global_logsumexp) # [num_positions, 1]
-            t_logpK = t_scaled - t_logsumexp_global  # [num_positions, max_k]
-            
             # Compute KL divergence using traditional manual method
             # KL(teacher || student) = sum(teacher_prob * (teacher_logprob - student_logprob))
             # Only sum over valid (non-masked) elements
-            kl_per_pos_per_k = t_logpK.exp() * (t_logpK - s_logpK)
+            kl_per_pos_per_k = teacher_values_batch.exp() * (teacher_values_batch - s_logpK)
             kl_per_pos_per_k = kl_per_pos_per_k * teacher_mask.float()  # zero out invalid positions
             kl_per_pos = kl_per_pos_per_k.sum(dim=1)  # [num_positions]
-            if 6000 in chunk_positions:
-                index = chunk_positions.index(6000)
-                print(f"batch {batch_idx} efficient pos 6000 s_logpK: {gathered_logits[index] * teacher_mask[index].float()} with logZ {logZ_positions[index]}")
+            if 5123 in chunk_positions:
+                index = chunk_positions.index(5123)
+                print(f"batch {batch_idx} efficient pos 5123 teacher_values_batch: {teacher_values_batch[index].exp()}")
+                print(f"batch {batch_idx} efficient pos 6000 s_logpK: {s_logpK[index] * teacher_mask[index].float()} with logZ {logZ_positions[index]}")
                 print(f"batch {batch_idx} efficient pos 6000 kl_per_pos: {kl_per_pos[index]}")
                 print(f"batch {batch_idx} size of kl_per_pos: {kl_per_pos.size()}")
-                print(f"batch {batch_idx} t_logsumexp_global: {t_logsumexp_global.shape}")
+                
             
             chunk_kl_sum = kl_per_pos.sum()
             batch_kl_sum += chunk_kl_sum
@@ -326,7 +317,7 @@ def cce_per_token_loss(
         kl_cnt_gathered = reduce_from_tensor_model_parallel_region(kl_cnt_tensor)
         
         if kl_cnt_gathered > 0:
-            kl_loss = (kl_sum_gathered / (kl_cnt_gathered * 10)) * (T * T)
+            kl_loss = (kl_sum_gathered / (kl_cnt_gathered /10)) * (T * T)
         else:
             kl_loss = torch.zeros_like(kl_sum_gathered)
             

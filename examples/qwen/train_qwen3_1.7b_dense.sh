@@ -20,8 +20,8 @@ SAVE_CHECKPOINT_PATH="output/$MODEL_NAME/checkpoints"
 DATA_CACHE_PATH="output/$MODEL_NAME/benchmark_cache"
 TENSORBOARD_LOGS_PATH="output/$MODEL_NAME/tensorboard_logs"
 MEMORY_SNAPSHOT_PATH="output/$MODEL_NAME/memory_snapshots/memory_snapshot.pickle"
-TOKENIZER_ARG="Qwen/Qwen3-1.7B" # Path to tokenizer model, or "MOCK"
-DATA_ARG="/workspace/training/data/_text_document"     # Data prefix, or "MOCK"
+TOKENIZER_ARG="MOCK" # Path to tokenizer model, or "MOCK"
+DATA_ARG="MOCK"     # Data prefix, or "MOCK"
 
 WANDB_API_KEY=''
 
@@ -50,7 +50,7 @@ MICRO_BATCH_SIZE=2
 GLOBAL_BATCH_SIZE=4
 NUM_LAYERS=14
 DTYPE="bf16"
-SEQ_LENGTH=8192
+SEQ_LENGTH=6400
 MAX_POSITION_EMBEDDINGS=40960 
 
 DISTRIBUTED_ARGS=(
