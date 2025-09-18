@@ -2077,6 +2077,7 @@ def train(
         and args.use_pytorch_profiler
     ):
         prof = torch.profiler.profile(
+            activities=[torch.profiler.ProfilerActivity.CPU, torch.profiler.ProfilerActivity.CUDA],
             schedule=torch.profiler.schedule(
                 wait=max(args.profile_step_start - 1, 0),
                 warmup=1 if args.profile_step_start > 0 else 0,
@@ -2085,6 +2086,7 @@ def train(
             ),
             on_trace_ready=torch.profiler.tensorboard_trace_handler(args.tensorboard_dir),
             record_shapes=True,
+            profile_memory=True,
             with_stack=True,
         )
         prof.start()

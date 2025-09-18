@@ -44,10 +44,10 @@ def distillation_loss(
 
     Returns a tuple ``(losses, kl_loss, teacher_data)`` where ``losses`` retains
     the per-token shape ([B, T-1] if ``shift`` else [B, T]) and ``kl_loss`` is a
-    scalar distillation term suitable for backpropagation.
+    tensor of shape [B, T] with per-token distillation losses.
     """
 
-    _, lse = cce_per_token_loss(
+    loss, lse = cce_per_token_loss(
         embeddings=embeddings,
         classifier_weight=classifier_weight,
         labels=labels,
@@ -67,12 +67,13 @@ def distillation_loss(
     start, end = VocabUtility.vocab_range_from_global_vocab_size(vocab_size, tp_rank, tp_world)
     dev = embeddings.device
     B, Tlen, H = embeddings.shape
-    total_kl_sum = torch.zeros((), device=dev, dtype=torch.float32)
-    total_kl_cnt = torch.zeros((), device=dev, dtype=torch.float32)
+    
+    # Initialize per-token KL loss tensor
+    kl_losses = torch.zeros((B, Tlen), device=dev, dtype=torch.float32)
 
-    # Generate fake teacher data if not provided (for debugging)
-    if teacher_data is None and debug:
-        print("No teacher data provided, generating fake teacher data for debugging...")
+    # Generate fake teacher data if not provided (for testing)
+    if teacher_data is None:
+        print("No teacher data provided, generating fake teacher data for testing...")
         # Infer batch size and sequence length from embeddings and labels
         seq_length = labels.size(1)
             
@@ -104,9 +105,6 @@ def distillation_loss(
         labels_1d = labels[batch_idx]          # [T]
         hidden_1d = embeddings[batch_idx]  # [T, H]
         logZ_full_T = lse[batch_idx].view(-1)  # [T]
-
-        batch_kl_sum = torch.zeros_like(total_kl_sum)
-        batch_kl_cnt = torch.zeros_like(total_kl_cnt)
 
         for t0 in range(0, Tlen, chunk_size):
             t1 = min(t0 + chunk_size, Tlen)
@@ -199,8 +197,13 @@ def distillation_loss(
             kl_per_pos_per_k = teacher_values_batch.exp() * (teacher_values_batch - s_logpK)
             kl_per_pos_per_k = kl_per_pos_per_k * teacher_mask.float()  # zero out invalid positions
             kl_per_pos = kl_per_pos_per_k.sum(dim=1)  # [num_positions]
-            batch_kl_sum = batch_kl_sum + kl_per_pos.sum()
-            batch_kl_cnt = batch_kl_cnt + teacher_mask.sum(dtype=torch.float32)
+            
+            # Store per-position KL losses in the output tensor
+            # Apply temperature scaling
+            kl_per_pos_scaled = kl_per_pos * (temp ** 2)
+            
+            # Assign to the correct positions in the output tensor
+            kl_losses[batch_idx, chunk_positions] = kl_per_pos_scaled
 
             if debug:
                 index_to_check = 320
@@ -210,29 +213,18 @@ def distillation_loss(
                     print(f"batch {batch_idx} efficient pos {index_to_check} s_logpK: {s_logpK[index] * teacher_mask[index].float()} with logZ {logZ_positions[index]}")
                     print(f"batch {batch_idx} efficient pos {index_to_check} kl_per_pos: {kl_per_pos[index]}")
 
-        total_kl_sum = total_kl_sum + batch_kl_sum
-        total_kl_cnt = total_kl_cnt + batch_kl_cnt
-
-    if debug:
-        print(f"For tp rank {tp_rank} Batch total KL sum before gathering: {total_kl_sum.item()}")
-        print(f"For tp rank {tp_rank} Batch total KL count before gathering: {total_kl_cnt.item()}")
-
-    # Final computation with parallelism handling
     # For tensor parallelism, we need to reduce KL loss across TP ranks
     # since each rank computed loss only for its vocabulary partition
     if tensor_parallel:
-        # Gather counts and losses from all TP ranks
-        total_kl_sum = reduce_from_tensor_model_parallel_region(total_kl_sum)
-        total_kl_cnt = reduce_from_tensor_model_parallel_region(total_kl_cnt)
-
-    kl_loss = (total_kl_sum / total_kl_cnt) * (temp ** 2)
+        # Gather losses from all TP ranks
+        kl_losses = reduce_from_tensor_model_parallel_region(kl_losses)
 
     if debug:
-        print(f"  Total KL sum after gathering: {total_kl_sum.item()}")
-        print(f"  Final KL loss: {kl_loss.item()} over {total_kl_cnt.item()} positions")
-        return kl_loss, teacher_data
+        print(f"  Number of elements: {kl_losses.shape}")
+        print(f"  KL losses: {kl_losses.sum()/(B*Tlen)}")
+        return loss, kl_losses, teacher_data
     
-    return kl_loss
+    return loss, kl_losses
 
 
 def generate_fake_teacher_data(
