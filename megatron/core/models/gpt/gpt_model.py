@@ -564,7 +564,7 @@ class GPTModel(LanguageModule):
             #     shift=self.config.linear_ce_shift,
             #     ignore_index=self.config.linear_ce_ignore_index,
             # )
-            token_losses, kl_loss = distillation_loss(embeddings=hidden_states,  # [B, T, H]
+            token_losses, kl_loss, teacher_data = distillation_loss(embeddings=hidden_states,  # [B, T, H]
                                                       classifier_weight=classifier_weight,  # [V, H] (or [V_local, H])
                                                       labels=labels,  # [B, T]
                                                       vocab_size=vocab_size,
