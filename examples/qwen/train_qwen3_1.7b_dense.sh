@@ -14,8 +14,16 @@ export NVTE_ALLOW_NONDETERMINISTIC_ALGO=1
 export NCCL_NVLS_ENABLE=0
 
 MODEL_NAME="qwen3_1.7b"
-LOAD_CHECKPOINT_PATH="/workspace/data/qwen1_7_mg"
-SAVE_CHECKPOINT_PATH="output/$MODEL_NAME/checkpoints"
+
+BASE_DIR="/workspace/data/"
+
+LOAD_CHECKPOINT_PATH="$BASE_DIR/mega-models/Qwen3-1.7B"
+TOKENIZER_ARG="$BASE_DIR/mega-models/Qwen3-1.7B" # Path to tokenizer model, or "MOCK"
+# DATA_ARG="$BASE_DIR/data/qwen_out_text_document"     # Data prefix, or "MOCK"
+DATA_ARG="$BASE_DIR/data/test_output.jsonl"
+
+BASE_OUTPUT_DIR="$BASE_DIR/himanshu/output"
+SAVE_CHECKPOINT_PATH="$BASE_OUTPUT_DIR/$MODEL_NAME/checkpoints"
 # Data cache path (useful for both mock and real data)
 DATA_CACHE_PATH="output/$MODEL_NAME/benchmark_cache"
 TENSORBOARD_LOGS_PATH="output/$MODEL_NAME/tensorboard_logs"
@@ -33,6 +41,7 @@ mkdir -p "$DATA_CACHE_PATH"
 
 # Distributed training setup
 GPUS_PER_NODE=2
+GPUS_PER_NODE=2
 NUM_NODES=1
 MASTER_ADDR=${MASTER_ADDR:-localhost}
 MASTER_PORT=${MASTER_PORT:-6000}
@@ -46,12 +55,15 @@ PRETRAIN_SCRIPT_PATH="pretrain_gpt.py"
 TP_SIZE=2
 CP_SIZE=1    
 PP_SIZE=1     
+MICRO_BATCH_SIZE=4
+GLOBAL_BATCH_SIZE=8  
+NUM_LAYERS=28  
 MICRO_BATCH_SIZE=2
 GLOBAL_BATCH_SIZE=4
 NUM_LAYERS=14
 DTYPE="bf16"
-SEQ_LENGTH=8192
-MAX_POSITION_EMBEDDINGS=40960 
+SEQ_LENGTH=8192 # 65000
+MAX_POSITION_EMBEDDINGS=40960 # 65000
 
 DISTRIBUTED_ARGS=(
     --nproc_per_node $GPUS_PER_NODE
@@ -79,6 +91,8 @@ MODEL_ARGS=(
     --rotary-base 1000000  # Same as Qwen3 rope_theta
     --rotary-percent 1.0
     --rotary-seq-len-interpolation-factor 1
+    # --use-rope-scaling
+    # --rope-scaling-factor 2
     --swiglu
     --norm-epsilon 1e-06
     --init-method-std 0.02  
@@ -88,14 +102,14 @@ MODEL_ARGS=(
 TRAINING_ARGS=(
     --micro-batch-size $MICRO_BATCH_SIZE
     --global-batch-size $GLOBAL_BATCH_SIZE
-    --train-samples 20
+    --train-samples 300
+    --lr-decay-samples 300
     --exit-duration-in-mins 235
 
     # Learning rate args
-    --lr-decay-samples 10
-    --lr-warmup-samples 5
-    --lr 1.2e-4 
-    --min-lr 1.2e-5  
+    --lr-warmup-samples 0
+    --lr 5.0e-5
+    --min-lr 1.0e-7
     # --decoupled-lr 8.0e-4  # Adjusted for smaller model
     # --decoupled-min-lr 8.0e-5  # Adjusted for smaller model
     --lr-decay-style cosine
@@ -106,7 +120,7 @@ TRAINING_ARGS=(
     --attention-dropout 0.0
     --hidden-dropout 0.0
     --clip-grad 1.0
-    --weight-decay 0.1
+    --weight-decay 0.0
  
     # Memory cleanup args
     --manual-gc
@@ -118,11 +132,12 @@ TRAINING_ARGS=(
     --use-flash-attn
     --fused-linear-cross-entropy
     # --cross-entropy-loss-fusion
-    # --cross-entropy-fusion-impl te
+    # --cross-entropy-fusion-impl native
     --recompute-granularity full
     --recompute-method uniform
     --recompute-num-layers 1
     --calculate-per-token-loss
+    # --no-gradient-accumulation-fusion
 
     # data type arguments
     --bf16
@@ -153,7 +168,7 @@ MODEL_PARALLEL_ARGS=(
     --tensor-model-parallel-size $TP_SIZE
     --context-parallel-size $CP_SIZE
     # --pipeline-model-parallel-size $PP_SIZE # Not explicitly set in llama script options, assume 1 if not multi-node PP
-    --sequence-parallel  # Always enable sequence parallelism with TP_SIZE=2
+    # --sequence-parallel  # Always enable sequence parallelism with TP_SIZE=2
 )
 
 # Data arguments (conditional for mock vs real data)
@@ -183,6 +198,11 @@ else
         "--num-workers 1"
         # Note: --vocab-size might be inferred by HuggingFaceTokenizer or might need to be explicit.
         "--vocab-size 151936"  # Qwen3-1.7B vocab size
+        "--sft"
+        # "--reset-position-ids"
+        # "--reset-attention-mask"
+        # "--eod-mask-loss"
+        # "--no-check-for-nan-in-loss-and-grad"
     )
 fi
 
@@ -203,6 +223,7 @@ CHECKPOINT_ARGS=(
 EVAL_AND_LOGGING_ARGS=(
     --eval-iters 3
     --eval-interval 100
+    # "--full-validation"
     --log-interval 1
     --log-throughput
     --profile
@@ -218,6 +239,7 @@ EVAL_AND_LOGGING_ARGS=(
     --log-memory-to-tensorboard
     --record-memory-history
     --memory-snapshot-path "$MEMORY_SNAPSHOT_PATH"
+    # --dump-model-params-to-pickle
 )
 
 if [ -n "${WANDB_API_KEY}" ]; then

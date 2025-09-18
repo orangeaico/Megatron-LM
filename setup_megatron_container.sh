@@ -14,6 +14,21 @@ PY
 
 pip install transformers
 
+# Install Transformers if missing
+python - <<'PY' || pip install -U "transformers"
+import importlib
+import transformers  # noqa
+try:
+    from transformers import __version__ as v
+except Exception:
+    v = "unknown"
+print("transformers ok:", v)
+PY
+
 # Clear old JIT caches (optional)
 rm -rf ~/.cache/torch/inductor ~/.triton || true
 
+unset PIP_CONSTRAINT
+pip install --upgrade --no-cache-dir   "dill<0.3.9,>=0.3.0"   "datasets>=2.20.0"   "fsspec>=2024.6.1"   "huggingface_hub>=0.24.0"   "pyarrow>=12"
+pip install jsonlines
+pip install simpy

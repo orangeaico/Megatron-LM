@@ -8,6 +8,8 @@ import gc
 import logging
 import math
 import os
+import re
+import pickle
 import sys
 from typing import List, Optional
 
@@ -1050,6 +1052,46 @@ def get_optimizer_param_scheduler(optimizer):
 
     return opt_param_scheduler
 
+def _iter_unwrapped_models(model_or_list):
+    ms = model_or_list if isinstance(model_or_list, (list, tuple)) else [model_or_list]
+    for m in ms:
+        yield unwrap_model(m)
+
+@torch.no_grad()
+def dump_all_params_to_pickle(model, out_dir, name_prefix="weights_after_load",
+                              filter_regex=None, cast_to_fp32=False):
+    """Dumps ALL model parameters (per rank) into a pickle file.
+       One file per rank: {out_dir}/{name_prefix}_rank{R}.pkl
+    """
+    if torch.distributed.is_available() and torch.distributed.is_initialized():
+        rank = torch.distributed.get_rank()
+    else:
+        rank = 0
+
+    os.makedirs(out_dir, exist_ok=True)
+    patt = re.compile(filter_regex) if filter_regex else None
+
+    dump = {}
+    for mod in _iter_unwrapped_models(model):
+        for n, p in mod.named_parameters(recurse=True):
+            if patt and not patt.search(n):
+                continue
+            t = p.detach().cpu()
+            if cast_to_fp32:
+                t = t.float()
+            dump[n] = t  # keep original dtype unless cast_to_fp32=True
+
+    out_path = os.path.join(out_dir, f"{name_prefix}_rank{rank}.pkl")
+    with open(out_path, "wb") as f:
+        pickle.dump(dump, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+    if rank == 0:
+        print(f"[dump] wrote {len(dump)} tensors to {out_path}")
+
+    if torch.distributed.is_available() and torch.distributed.is_initialized():
+        torch.distributed.barrier()
+        if rank == 0:
+            print("[dump] all ranks finished writing.")
 
 def setup_model_and_optimizer(
     model_provider_func,
@@ -1152,6 +1194,17 @@ def setup_model_and_optimizer(
             and getattr(args, "use_torch_fsdp2", False)
             and args.ckpt_format == "torch_dist",
         )
+
+        if args.dump_model_params_to_pickle and not hasattr(dump_all_params_to_pickle, "_did_dump"):
+            dump_all_params_to_pickle(
+                model,
+                out_dir="output/dumps",                # change if you like
+                name_prefix="after_load",              # appears in filename
+                filter_regex=None,                     # or e.g. r"(layernorm|q_norm|k_norm)"
+                cast_to_fp32=False                     # keep original dtype by default
+            )
+            dump_all_params_to_pickle._did_dump = True
+            
         timers('load-checkpoint').stop(barrier=True)
         timers.log(['load-checkpoint'])
         one_logger and one_logger.log_metrics(
@@ -2797,12 +2850,12 @@ def build_train_valid_test_data_iterators(build_train_valid_test_datasets_provid
             valid_data_iterators = [
                 _get_iterator(valid_dl_type, dl) for dl in valid_dataloaders
             ]
-    elif valid_dataloaders[0] is not None:
+    elif valid_dataloaders and len(valid_dataloaders) > 0 and valid_dataloaders[0] is not None:
         valid_data_iterators = _get_iterator(dl_type, valid_dataloaders[0])
     else:
         valid_data_iterators = None
 
-    if test_dataloader is not None:
+    if test_dataloader and len(test_dataloader) > 0 and test_dataloader is not None:
         test_data_iterator = _get_iterator(dl_type, test_dataloader)
     else:
         test_data_iterator = None

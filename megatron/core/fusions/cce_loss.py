@@ -36,6 +36,8 @@ def _maybe_build_vp_opts(vocab_size: int) -> Optional["VocabParallelOptions"]:
     group = get_tensor_model_parallel_group()
     return VocabParallelOptions.from_vocab(vocab_size, group=group)
     # return VocabParallelOptions(start, end, group=group)
+    return VocabParallelOptions.from_vocab(vocab_size, group=group)
+    # return VocabParallelOptions(start, end, group=group)
 
 
 def cce_per_token_loss(

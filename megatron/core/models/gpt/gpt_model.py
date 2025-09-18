@@ -477,6 +477,7 @@ class GPTModel(LanguageModule):
             and self.config.use_linear_cross_entropy
             and parallel_state.is_pipeline_last_stage()
         ):
+            
             sequence_parallel_override = False
             if self.config.sequence_parallel:
                 tp_group = self.pg_collection.tp if self.pg_collection is not None else None

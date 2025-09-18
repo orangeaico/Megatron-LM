@@ -18,13 +18,16 @@ export PYTHONPATH=/workspace/megatron:$PYTHONPATH
 # Navigate to megatron directory
 cd /workspace/megatron
 
+MODEL_PATH="/workspace/data/mega-models/Qwen3-1.7B"
+TOKENIZER_STATIC_PATH="/workspace/data/mega-models/Qwen3-1.7B"
+
 echo "✓ Environment configured"
 echo "✓ Working directory: $(pwd)"
-echo "✓ Model path: /workspace/checkpoints/qwen3_1p7_bridge"
+echo "✓ Model path: $MODEL_PATH"
 
 # Verify model exists
-if [ ! -f "/workspace/checkpoints/qwen3_1p7_bridge/config.json" ]; then
-    echo "❌ ERROR: Model not found at /workspace/checkpoints/qwen3_1p7_bridge/"
+if [ ! -f "$MODEL_PATH/config.json" ]; then
+    echo "❌ ERROR: Model not found at $MODEL_PATH"
     echo "Please ensure the model is available"
     exit 1
 fi
@@ -35,12 +38,10 @@ echo "🧪 Running inference..."
 
 # Run inference with correct arguments for Qwen1-7B
 python examples/inference/gpt/gpt_static_inference.py \
-  --load /workspace/checkpoints/qwen3_1p7_bridge \
+  --load $MODEL_PATH \
   --tokenizer-type HuggingFaceTokenizer \
-  --tokenizer-model /workspace/checkpoints/qwen3_1p7_bridge \
-  --trust-remote-code \
+  --tokenizer-model $TOKENIZER_STATIC_PATH \
   --vocab-size 151936 \
-  --padded-vocab-size 151936 \
   --hidden-size 2048 \
   --num-layers 28 \
   --num-attention-heads 16 \
@@ -51,23 +52,25 @@ python examples/inference/gpt/gpt_static_inference.py \
   --norm-epsilon 1e-06 \
   --use-rotary-position-embeddings \
   --swiglu \
+  --rotary-base 1000000 \
   --group-query-attention \
   --num-query-groups 8 \
-  --make-vocab-size-divisible-by 1 \
   --tensor-model-parallel-size 1 \
   --pipeline-model-parallel-size 1 \
   --bf16 \
   --disable-bias-linear \
+  --qk-layernorm \
+  --use-mcore-models \
   --prompts "<|im_start|>system
 You are a helpful assistant<|im_end|>
 <|im_start|>user
 Who are you?<|im_end|>
 <|im_start|>assistant
 " \
-  --temperature 0.7 \
-  --top_k 1 \
-  --top_p 0.0 \
-  --num-tokens-to-generate 50
+  --temperature 0.1 \
+  --top_k 10 \
+  --num-tokens-to-generate 50 \
+  --dist-ckpt-strictness ignore_all
 
 echo ""
 echo "🎯 Inference completed!"

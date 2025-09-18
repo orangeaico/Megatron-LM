@@ -8,20 +8,19 @@
 #export NCCL_AVOID_RECORD_STREAMS=${NCCL_AVOID_RECORD_STREAMS:-1}
 
 # Environment variables for performance tuning
+# export CUDA_VISIBLE_DEVICES=1
 export CUDA_DEVICE_MAX_CONNECTIONS=${CUDA_DEVICE_MAX_CONNECTIONS:-1}
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 export NVTE_ALLOW_NONDETERMINISTIC_ALGO=1
 export NCCL_NVLS_ENABLE=0
 
-MODEL_NAME="qwen3_30b_a3b"
+MODEL_NAME="qwen3_1.7b"
 
-BASE_DIR="/workspace/data/"
-LOAD_CHECKPOINT_PATH="$BASE_DIR/mega-models/Qwen3-1.7B"
-TOKENIZER_ARG="$BASE_DIR/mega-models/Qwen3-1.7B" # Path to tokenizer model, or "MOCK"
-# DATA_ARG="$BASE_DIR/data/qwen_out_text_document"     # Data prefix, or "MOCK"
-DATA_ARG="$BASE_DIR/data/test_output.jsonl"
+LOAD_CHECKPOINT_PATH="/workspace/data/mega-models/Qwen3-1.7B"
+TOKENIZER_ARG="/workspace/data/mega-models/Qwen3-1.7B" # Path to tokenizer model, or "MOCK"
+DATA_ARG="/workspace/data/data/test_output.jsonl"     # Data prefix, or "MOCK"
 
-BASE_OUTPUT_DIR="$BASE_DIR/himanshu/output"
+BASE_OUTPUT_DIR="/workspace/data/himanshu/output"
 SAVE_CHECKPOINT_PATH="$BASE_OUTPUT_DIR/$MODEL_NAME/checkpoints"
 # Data cache path (useful for both mock and real data)
 DATA_CACHE_PATH="$BASE_OUTPUT_DIR/$MODEL_NAME/benchmark_cache"
@@ -45,21 +44,18 @@ NODE_RANK=${NODE_RANK:-0}
 WORLD_SIZE=$(($GPUS_PER_NODE*$NUM_NODES))
 
 # Path to the pretrain_gpt.py script, assuming this script is run from the root of the Megatron-LM repository
-PRETRAIN_SCRIPT_PATH="pretrain_gpt.py"
+PRETRAIN_SCRIPT_PATH="examples/post_training/modelopt/finetune.py"
 
 # Fixed model and training parameters for Qwen3-1.7B
 TP_SIZE=2 
-CP_SIZE=1
-EP_SIZE=1
-EXPERT_TP_SIZE=1
-PP_SIZE=1
-LAYERS_PER_VP=1
+CP_SIZE=1     
+PP_SIZE=1     
 MICRO_BATCH_SIZE=1 
-GLOBAL_BATCH_SIZE=1  
-NUM_LAYERS=48  
+GLOBAL_BATCH_SIZE=1
+NUM_LAYERS=28  
 DTYPE="bf16"
-SEQ_LENGTH=65536
-MAX_POSITION_EMBEDDINGS=262144 
+SEQ_LENGTH=8192
+MAX_POSITION_EMBEDDINGS=40960 
 
 DISTRIBUTED_ARGS=(
     --nproc_per_node $GPUS_PER_NODE
@@ -74,44 +70,31 @@ MODEL_ARGS=(
     --num-layers $NUM_LAYERS
     --seq-length $SEQ_LENGTH
     --hidden-size 2048  
-    --ffn-hidden-size 5472 
-    --num-attention-heads 32  
+    --ffn-hidden-size 6144 
+    --num-attention-heads 16  
     --group-query-attention
-    --num-query-groups 4 
+    --num-query-groups 8 
     --kv-channels 128 
     --qk-layernorm
     --normalization RMSNorm
     --max-position-embeddings $MAX_POSITION_EMBEDDINGS
-    --untie-embeddings-and-output-weights
     --make-vocab-size-divisible-by 1187
     --position-embedding-type rope
-    --rotary-base 10000000  # Same as Qwen3 rope_theta
+    --rotary-base 1000000  # Same as Qwen3 rope_theta
     --rotary-percent 1.0
     --rotary-seq-len-interpolation-factor 1
     --swiglu
     --norm-epsilon 1e-06
-    --init-method-std 0.02 
+    --init-method-std 0.02  
     --disable-bias-linear
-)
-
-MOE_ARGS=(
-    --num-experts 128 
-    --moe-ffn-hidden-size 768
-    --moe-router-load-balancing-type aux_loss
-    --moe-router-topk 8  # num_experts_per_tok
-    --moe-grouped-gemm
-    --moe-aux-loss-coeff 0  # router_aux_loss_coef from config
-    --moe-token-dispatcher-type alltoall
-    --moe-permute-fusion
-    # --moe-router-dtype fp32
-    # --moe-router-fusion # This is only supported in TransformerEngine 2.7.0 and above. Current installed TE is 2.2
+    --no-initialization
 )
 
 TRAINING_ARGS=(
     --micro-batch-size $MICRO_BATCH_SIZE
     --global-batch-size $GLOBAL_BATCH_SIZE
-    --train-samples 300
-    --lr-decay-samples 300
+    --train-samples 100
+    --lr-decay-samples 100   
     --exit-duration-in-mins 235
 
     # Learning rate args
@@ -145,7 +128,7 @@ TRAINING_ARGS=(
     --recompute-method uniform
     --recompute-num-layers 1
     --calculate-per-token-loss
-    # --no-gradient-accumulation-fusion
+    --no-gradient-accumulation-fusion
 
     # data type arguments
     --bf16
@@ -174,52 +157,50 @@ fi
 # Model parallelism arguments
 MODEL_PARALLEL_ARGS=(
     --tensor-model-parallel-size $TP_SIZE
-    # --sequence-parallel  # Always enable sequence parallelism with TP_SIZE=2
     --context-parallel-size $CP_SIZE
-    --expert-model-parallel-size $EP_SIZE
-    --expert-tensor-parallel-size $EXPERT_TP_SIZE
     # --pipeline-model-parallel-size $PP_SIZE # Not explicitly set in llama script options, assume 1 if not multi-node PP
-    # --num-layers-per-virtual-pipeline-stage $LAYERS_PER_VP  # interleaved PP; needs PP_SIZE>1
+    # --sequence-parallel  # Always enable sequence parallelism with TP_SIZE=2
 )
 
 # Data arguments (conditional for mock vs real data)
-DATA_ARGS_LIST=()
+DATA_ARGS_LIST=(
+        "--vocab-size 151936"  # Qwen3-1.7B vocab size
+        "--split '100,0,0'"
+        "--no-create-attention-mask-in-dataloader"
+        "--no-mmap-bin-files"
+        "--num-workers 1"
+        "--reset-position-ids"
+        "--reset-attention-mask"
+        "--eod-mask-loss"
+        # "--no-check-for-nan-in-loss-and-grad"
+)
+
 if [[ "$TOKENIZER_ARG" == "MOCK" ]] || [[ "$DATA_ARG" == "MOCK" ]] || [[ -z "$TOKENIZER_ARG" ]]; then
     DATA_ARGS_LIST+=(
         "--mock-data"
         "--tokenizer-type NullTokenizer"
-        "--vocab-size 151936"  # Qwen3-1.7B vocab size
         "--data-cache-path ${DATA_CACHE_PATH}"
         "--tiktoken-pattern v2" 
-        "--split '99,1,0'"
-        "--no-create-attention-mask-in-dataloader"
-        "--no-mmap-bin-files"
-        "--num-workers 1"
+                
     )
 else
     # Settings for real data
     DATA_ARGS_LIST+=(
-        "--data-path $DATA_ARG"
+        # "--finetune-hf-dataset Magpie-Align/Magpie-Llama-3.1-Pro-MT-300K-Filtered"
+        # "--data-path $DATA_ARG"
+        "--train-data-path $DATA_ARG"
+        "--valid-data-path $DATA_ARG"
+        "--test-data-path $DATA_ARG"
         "--tokenizer-type HuggingFaceTokenizer" 
         "--tokenizer-model $TOKENIZER_ARG"
-        "--data-cache-path ${DATA_CACHE_PATH}"
-        "--split '99,1,0'"
-        "--no-create-attention-mask-in-dataloader"
-        "--no-mmap-bin-files"
-        "--num-workers 1"
-        # Note: --vocab-size might be inferred by HuggingFaceTokenizer or might need to be explicit.
-        "--vocab-size 151936"  # Qwen3-1.7B vocab size
-        "--sft"
-        # "--reset-position-ids"
-        # "--reset-attention-mask"
-        # "--eod-mask-loss"
-        # "--no-check-for-nan-in-loss-and-grad"
+        # "--data-cache-path ${DATA_CACHE_PATH}"        
     )
 fi
 
 CHECKPOINT_ARGS=(
     --finetune
     --auto-detect-ckpt-format
+    --export-te-mcore-model
     --dist-ckpt-strictness log_all
     --distributed-timeout-minutes 60
     --load "$LOAD_CHECKPOINT_PATH"
@@ -228,14 +209,16 @@ CHECKPOINT_ARGS=(
     --no-save-rng
     --no-load-rng
     --no-load-optim
-    --save-interval 50
+    --save-interval 1000
     --exit-on-missing-checkpoint
+    # --ckpt-convert-format torch_dist    
+    # --ckpt-convert-save "/workspace/data/mega-models/Qwen3-1.7B_converted5"
 )
 
 EVAL_AND_LOGGING_ARGS=(
-    --eval-iters 1
-    --eval-interval 100
-    # "--full-validation"
+    --eval-iters 4
+    --eval-interval 3
+    # --full-validation
     --log-interval 1
     --log-throughput
     --profile
@@ -274,7 +257,6 @@ fi
 torchrun ${DISTRIBUTED_ARGS[@]} \
     "$PRETRAIN_SCRIPT_PATH" \
     ${MODEL_ARGS[@]} \
-    ${MOE_ARGS[@]} \
     ${TRAINING_ARGS[@]} \
     ${DTYPE_ARGS[@]} \
     ${MODEL_PARALLEL_ARGS[@]} \
