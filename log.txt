@@ -1,8 +1,8 @@
+> setting tensorboard ...
 using world size: 2, data-parallel size: 1, context-parallel size: 1, hierarchical context-parallel sizes: None, tensor-model-parallel size: 2, pipeline-model-parallel size: 1
 WARNING: overriding default arguments for tokenizer_type:GPT2BPETokenizer                        with tokenizer_type:NullTokenizer
 Number of virtual stages per pipeline stage: None
 using torch.bfloat16 for parameters ...
-> setting tensorboard ...
 ------------------------ arguments ------------------------
   account_for_embedding_in_pipeline_split ......... False
   account_for_loss_in_pipeline_split .............. False
@@ -122,7 +122,7 @@ using torch.bfloat16 for parameters ...
   enable_msc ...................................... True
   enable_one_logger ............................... True
   encoder_num_layers .............................. 14
-  encoder_seq_length .............................. 6400
+  encoder_seq_length .............................. 8192
   end_weight_decay ................................ 0.1
   eod_mask_loss ................................... False
   error_injection_rate ............................ 0
@@ -462,7 +462,7 @@ using torch.bfloat16 for parameters ...
   save_retain_interval ............................ None
   scatter_gather_tensors_in_pipeline .............. True
   seed ............................................ 1234
-  seq_length ...................................... 6400
+  seq_length ...................................... 8192
   sequence_parallel ............................... True
   sft ............................................. False
   sft_tokenizer_prompt_format ..................... nemotron-h-aligned
@@ -565,9 +565,9 @@ using torch.bfloat16 for parameters ...
 INFO:megatron.core.num_microbatches_calculator:setting number of microbatches to constant 2
 > building NullTokenizer tokenizer ...
  > padded vocab (size: 151937) with 2373 dummy tokens (new size: 154310)
-WARNING: one_logger package is required to enable e2e metrics tracking. please go to https://confluence.nvidia.com/display/MLWFO/Package+Repositories for details to install it
 WARNING:megatron.core.rerun_state_machine:RerunStateMachine initialized in mode RerunMode.VALIDATE_RESULTS
 > initializing torch distributed ...
+WARNING: one_logger package is required to enable e2e metrics tracking. please go to https://confluence.nvidia.com/display/MLWFO/Package+Repositories for details to install it
 > initialized tensor model parallel with size 2
 > initialized pipeline model parallel with size 1
 > setting random seeds to 1234 ...
@@ -575,20 +575,20 @@ WARNING:megatron.core.rerun_state_machine:RerunStateMachine initialized in mode 
 make: Entering directory '/workspace/training/Megatron-LM/megatron/core/datasets'
 make: Nothing to be done for 'default'.
 make: Leaving directory '/workspace/training/Megatron-LM/megatron/core/datasets'
->>> done with dataset index builder. Compilation time: 0.013 seconds
+>>> done with dataset index builder. Compilation time: 0.015 seconds
 > compiling and loading fused kernels ...
->>> done with compiling and loading fused kernels. Compilation time: 0.215 seconds
-time to initialize megatron (seconds): 0.942
-[after megatron is initialized] datetime: 2025-09-18 11:39:00 
+>>> done with compiling and loading fused kernels. Compilation time: 0.276 seconds
+time to initialize megatron (seconds): 1.021
+[after megatron is initialized] datetime: 2025-09-18 12:18:52 
 building GPT model ...
  > number of parameters on (tensor, pipeline) model parallel rank (0, 0): 510397952
-INFO:megatron.core.distributed.distributed_data_parallel:Setting up DistributedDataParallel with config DistributedDataParallelConfig(grad_reduce_in_fp32=False, overlap_grad_reduce=True, overlap_param_gather=True, align_param_gather=False, use_distributed_optimizer=True, num_distributed_optimizer_instances=1, check_for_nan_in_grad=True, check_for_large_grads=False, bucket_size=40000000, pad_buckets_for_high_nccl_busbw=False, average_in_collective=False, fp8_param_gather=False, reuse_grad_buf_for_mxfp8_param_ag=False, use_megatron_fsdp=False, use_custom_fsdp=False, data_parallel_sharding_strategy='no_shard', gradient_reduce_div_fusion=True, suggested_communication_unit_size=None, preserve_fp32_weights=True, keep_fp8_transpose_cache=False, nccl_ub=False, fsdp_double_buffer=False, outer_dp_sharding_strategy='no_shard', disable_symmetric_registration=False, delay_wgrad_compute=False)
  > number of parameters on (tensor, pipeline) model parallel rank (1, 0): 510397952
+INFO:megatron.core.distributed.distributed_data_parallel:Setting up DistributedDataParallel with config DistributedDataParallelConfig(grad_reduce_in_fp32=False, overlap_grad_reduce=True, overlap_param_gather=True, align_param_gather=False, use_distributed_optimizer=True, num_distributed_optimizer_instances=1, check_for_nan_in_grad=True, check_for_large_grads=False, bucket_size=40000000, pad_buckets_for_high_nccl_busbw=False, average_in_collective=False, fp8_param_gather=False, reuse_grad_buf_for_mxfp8_param_ag=False, use_megatron_fsdp=False, use_custom_fsdp=False, data_parallel_sharding_strategy='no_shard', gradient_reduce_div_fusion=True, suggested_communication_unit_size=None, preserve_fp32_weights=True, keep_fp8_transpose_cache=False, nccl_ub=False, fsdp_double_buffer=False, outer_dp_sharding_strategy='no_shard', disable_symmetric_registration=False, delay_wgrad_compute=False)
 INFO:megatron.core.distributed.param_and_grad_buffer:Number of buckets for gradient all-reduce / reduce-scatter: 8
 Params for bucket 1 (44046592 elements, 44046592 padded size):
+	module.decoder.layers.13.self_attention.k_layernorm.weight
 	module.decoder.layers.13.mlp.linear_fc1.weight
 	module.decoder.layers.13.mlp.linear_fc1.layer_norm_weight
-	module.decoder.layers.13.self_attention.k_layernorm.weight
 	module.decoder.layers.13.self_attention.q_layernorm.weight
 	module.decoder.layers.13.self_attention.linear_proj.weight
 	module.decoder.layers.12.mlp.linear_fc1.weight
@@ -599,8 +599,8 @@ Params for bucket 1 (44046592 elements, 44046592 padded size):
 	module.decoder.layers.12.mlp.linear_fc2.weight
 Params for bucket 2 (50340352 elements, 50340352 padded size):
 	module.decoder.layers.12.mlp.linear_fc1.layer_norm_weight
-	module.decoder.layers.12.self_attention.q_layernorm.weight
 	module.decoder.layers.12.self_attention.k_layernorm.weight
+	module.decoder.layers.12.self_attention.q_layernorm.weight
 	module.decoder.layers.12.self_attention.linear_proj.weight
 	module.decoder.layers.11.mlp.linear_fc1.weight
 	module.decoder.layers.11.mlp.linear_fc1.layer_norm_weight
@@ -608,16 +608,16 @@ Params for bucket 2 (50340352 elements, 50340352 padded size):
 	module.decoder.layers.11.self_attention.q_layernorm.weight
 	module.decoder.layers.11.self_attention.linear_proj.weight
 	module.decoder.layers.10.mlp.linear_fc1.weight
-	module.decoder.layers.12.self_attention.linear_qkv.weight
 	module.decoder.layers.12.self_attention.linear_qkv.layer_norm_weight
+	module.decoder.layers.12.self_attention.linear_qkv.weight
 	module.decoder.layers.11.mlp.linear_fc2.weight
 	module.decoder.layers.11.self_attention.linear_qkv.weight
 	module.decoder.layers.11.self_attention.linear_qkv.layer_norm_weight
 	module.decoder.layers.10.mlp.linear_fc2.weight
 Params for bucket 3 (50340352 elements, 50340352 padded size):
 	module.decoder.layers.10.mlp.linear_fc1.layer_norm_weight
-	module.decoder.layers.10.self_attention.q_layernorm.weight
 	module.decoder.layers.10.self_attention.k_layernorm.weight
+	module.decoder.layers.10.self_attention.q_layernorm.weight
 	module.decoder.layers.10.self_attention.linear_proj.weight
 	module.decoder.layers.9.mlp.linear_fc1.weight
 	module.decoder.layers.9.mlp.linear_fc1.layer_norm_weight
@@ -633,88 +633,88 @@ Params for bucket 3 (50340352 elements, 50340352 padded size):
 	module.decoder.layers.8.mlp.linear_fc2.weight
 Params for bucket 4 (50340352 elements, 50340352 padded size):
 	module.decoder.layers.8.mlp.linear_fc1.layer_norm_weight
-	module.decoder.layers.8.self_attention.q_layernorm.weight
 	module.decoder.layers.8.self_attention.k_layernorm.weight
 	module.decoder.layers.8.self_attention.linear_proj.weight
-	module.decoder.layers.7.self_attention.k_layernorm.weight
-	module.decoder.layers.7.self_attention.q_layernorm.weight
-	module.decoder.layers.6.mlp.linear_fc1.weight
-	module.decoder.layers.8.self_attention.linear_qkv.weight
-	module.decoder.layers.8.self_attention.linear_qkv.layer_norm_weight
 	module.decoder.layers.7.mlp.linear_fc2.weight
 	module.decoder.layers.7.mlp.linear_fc1.weight
+	module.decoder.layers.7.self_attention.k_layernorm.weight
+	module.decoder.layers.7.self_attention.q_layernorm.weight
+	module.decoder.layers.6.mlp.linear_fc2.weight
+	module.decoder.layers.8.self_attention.linear_qkv.weight
+	module.decoder.layers.8.self_attention.linear_qkv.layer_norm_weight
+	module.decoder.layers.8.self_attention.q_layernorm.weight
 	module.decoder.layers.7.mlp.linear_fc1.layer_norm_weight
 	module.decoder.layers.7.self_attention.linear_qkv.weight
 	module.decoder.layers.7.self_attention.linear_qkv.layer_norm_weight
 	module.decoder.layers.7.self_attention.linear_proj.weight
-	module.decoder.layers.6.mlp.linear_fc2.weight
+	module.decoder.layers.6.mlp.linear_fc1.weight
 Params for bucket 5 (50340352 elements, 50340352 padded size):
+	module.decoder.layers.6.mlp.linear_fc1.layer_norm_weight
 	module.decoder.layers.6.self_attention.k_layernorm.weight
+	module.decoder.layers.5.self_attention.k_layernorm.weight
+	module.decoder.layers.5.self_attention.linear_proj.weight
+	module.decoder.layers.4.mlp.linear_fc2.weight
+	module.decoder.layers.4.mlp.linear_fc1.weight
+	module.decoder.layers.6.self_attention.q_layernorm.weight
 	module.decoder.layers.6.self_attention.linear_qkv.layer_norm_weight
+	module.decoder.layers.6.self_attention.linear_qkv.weight
+	module.decoder.layers.6.self_attention.linear_proj.weight
+	module.decoder.layers.5.mlp.linear_fc2.weight
 	module.decoder.layers.5.mlp.linear_fc1.weight
 	module.decoder.layers.5.mlp.linear_fc1.layer_norm_weight
 	module.decoder.layers.5.self_attention.q_layernorm.weight
 	module.decoder.layers.5.self_attention.linear_qkv.weight
-	module.decoder.layers.4.mlp.linear_fc2.weight
-	module.decoder.layers.4.mlp.linear_fc1.weight
-	module.decoder.layers.6.mlp.linear_fc1.layer_norm_weight
-	module.decoder.layers.6.self_attention.linear_qkv.weight
-	module.decoder.layers.6.self_attention.q_layernorm.weight
-	module.decoder.layers.6.self_attention.linear_proj.weight
-	module.decoder.layers.5.mlp.linear_fc2.weight
-	module.decoder.layers.5.self_attention.k_layernorm.weight
 	module.decoder.layers.5.self_attention.linear_qkv.layer_norm_weight
-	module.decoder.layers.5.self_attention.linear_proj.weight
 Params for bucket 6 (50340352 elements, 50340352 padded size):
 	module.decoder.layers.4.self_attention.linear_qkv.layer_norm_weight
-	module.decoder.layers.4.self_attention.linear_qkv.weight
-	module.decoder.layers.3.mlp.linear_fc1.layer_norm_weight
-	module.decoder.layers.3.self_attention.linear_qkv.weight
-	module.decoder.layers.3.self_attention.linear_qkv.layer_norm_weight
-	module.decoder.layers.3.self_attention.linear_proj.weight
-	module.decoder.layers.2.mlp.linear_fc2.weight
-	module.decoder.layers.2.mlp.linear_fc1.weight
-	module.decoder.layers.4.mlp.linear_fc1.layer_norm_weight
 	module.decoder.layers.4.self_attention.k_layernorm.weight
 	module.decoder.layers.4.self_attention.q_layernorm.weight
 	module.decoder.layers.4.self_attention.linear_proj.weight
 	module.decoder.layers.3.mlp.linear_fc2.weight
+	module.decoder.layers.3.mlp.linear_fc1.layer_norm_weight
+	module.decoder.layers.3.self_attention.q_layernorm.weight
+	module.decoder.layers.3.self_attention.linear_qkv.layer_norm_weight
+	module.decoder.layers.3.self_attention.linear_proj.weight
+	module.decoder.layers.2.mlp.linear_fc1.weight
+	module.decoder.layers.4.mlp.linear_fc1.layer_norm_weight
+	module.decoder.layers.4.self_attention.linear_qkv.weight
 	module.decoder.layers.3.mlp.linear_fc1.weight
 	module.decoder.layers.3.self_attention.k_layernorm.weight
-	module.decoder.layers.3.self_attention.q_layernorm.weight
+	module.decoder.layers.3.self_attention.linear_qkv.weight
+	module.decoder.layers.2.mlp.linear_fc2.weight
 Params for bucket 7 (50340352 elements, 50340352 padded size):
-	module.decoder.layers.2.self_attention.k_layernorm.weight
-	module.decoder.layers.2.self_attention.q_layernorm.weight
+	module.decoder.layers.2.self_attention.linear_qkv.layer_norm_weight
 	module.decoder.layers.2.self_attention.linear_qkv.weight
-	module.decoder.layers.2.self_attention.linear_proj.weight
-	module.decoder.layers.1.self_attention.k_layernorm.weight
-	module.decoder.layers.1.self_attention.linear_qkv.weight
+	module.decoder.layers.2.self_attention.k_layernorm.weight
+	module.decoder.layers.1.mlp.linear_fc2.weight
+	module.decoder.layers.1.mlp.linear_fc1.weight
+	module.decoder.layers.1.mlp.linear_fc1.layer_norm_weight
 	module.decoder.layers.1.self_attention.linear_proj.weight
 	module.decoder.layers.0.mlp.linear_fc2.weight
 	module.decoder.layers.0.mlp.linear_fc1.weight
 	module.decoder.layers.2.mlp.linear_fc1.layer_norm_weight
-	module.decoder.layers.2.self_attention.linear_qkv.layer_norm_weight
-	module.decoder.layers.1.mlp.linear_fc2.weight
-	module.decoder.layers.1.mlp.linear_fc1.weight
-	module.decoder.layers.1.mlp.linear_fc1.layer_norm_weight
+	module.decoder.layers.2.self_attention.q_layernorm.weight
+	module.decoder.layers.2.self_attention.linear_proj.weight
+	module.decoder.layers.1.self_attention.k_layernorm.weight
 	module.decoder.layers.1.self_attention.q_layernorm.weight
+	module.decoder.layers.1.self_attention.linear_qkv.weight
 	module.decoder.layers.1.self_attention.linear_qkv.layer_norm_weight
 Params for bucket 8 (164309248 elements, 164309248 padded size):
 	module.decoder.layers.0.mlp.linear_fc1.layer_norm_weight
-	module.decoder.layers.0.self_attention.k_layernorm.weight
-	module.decoder.layers.0.self_attention.q_layernorm.weight
-	module.embedding.word_embeddings.weight
 	module.decoder.layers.0.self_attention.linear_qkv.weight
+	module.decoder.layers.0.self_attention.q_layernorm.weight
 	module.decoder.layers.0.self_attention.linear_qkv.layer_norm_weight
+	module.decoder.layers.0.self_attention.k_layernorm.weight
 	module.decoder.layers.0.self_attention.linear_proj.weight
-INFO:megatron.core.optimizer:Setting up optimizer with config OptimizerConfig(optimizer='adam', lr=0.00012, min_lr=1.2e-05, decoupled_lr=None, decoupled_min_lr=None, weight_decay=0.1, fp8_recipe='delayed', fp16=False, bf16=True, reuse_grad_buf_for_mxfp8_param_ag=False, params_dtype=torch.bfloat16, use_precision_aware_optimizer=True, store_param_remainders=True, main_grads_dtype=torch.bfloat16, main_params_dtype=torch.float16, exp_avg_dtype=torch.float16, exp_avg_sq_dtype=torch.float16, loss_scale=None, initial_loss_scale=4294967296, min_loss_scale=1.0, loss_scale_window=1000, hysteresis=2, adam_beta1=0.9, adam_beta2=0.95, adam_eps=1e-08, sgd_momentum=0.9, use_distributed_optimizer=True, overlap_param_gather=True, overlap_param_gather_with_optimizer_step=False, use_megatron_fsdp=False, optimizer_cpu_offload=False, optimizer_offload_fraction=1.0, use_torch_optimizer_for_cpu_offload=False, overlap_cpu_optimizer_d2h_h2d=False, pin_cpu_grads=True, pin_cpu_params=True, clip_grad=1.0, log_num_zeros_in_grad=True, barrier_with_L1_time=True, timers=<megatron.core.timers.Timers object at 0x76dab241c8c0>, config_logger_dir='')
+	module.embedding.word_embeddings.weight
+INFO:megatron.core.optimizer:Setting up optimizer with config OptimizerConfig(optimizer='adam', lr=0.00012, min_lr=1.2e-05, decoupled_lr=None, decoupled_min_lr=None, weight_decay=0.1, fp8_recipe='delayed', fp16=False, bf16=True, reuse_grad_buf_for_mxfp8_param_ag=False, params_dtype=torch.bfloat16, use_precision_aware_optimizer=True, store_param_remainders=True, main_grads_dtype=torch.bfloat16, main_params_dtype=torch.float16, exp_avg_dtype=torch.float16, exp_avg_sq_dtype=torch.float16, loss_scale=None, initial_loss_scale=4294967296, min_loss_scale=1.0, loss_scale_window=1000, hysteresis=2, adam_beta1=0.9, adam_beta2=0.95, adam_eps=1e-08, sgd_momentum=0.9, use_distributed_optimizer=True, overlap_param_gather=True, overlap_param_gather_with_optimizer_step=False, use_megatron_fsdp=False, optimizer_cpu_offload=False, optimizer_offload_fraction=1.0, use_torch_optimizer_for_cpu_offload=False, overlap_cpu_optimizer_d2h_h2d=False, pin_cpu_grads=True, pin_cpu_params=True, clip_grad=1.0, log_num_zeros_in_grad=True, barrier_with_L1_time=True, timers=<megatron.core.timers.Timers object at 0x73339b1e4830>, config_logger_dir='')
 setting training iterations to 5
 INFO:megatron.core.optimizer_param_scheduler:> learning rate decay style: cosine
 WARNING: could not find the metadata file /workspace/data/qwen1_7_mg/latest_checkpointed_iteration.txt
     will not load any checkpoints and will start from random
 (min, max) time across ranks (ms):
-    load-checkpoint ................................: (0.57, 0.57)
-[after model, optimizer, and learning rate scheduler are built] datetime: 2025-09-18 11:39:00 
+    load-checkpoint ................................: (0.55, 0.55)
+[after model, optimizer, and learning rate scheduler are built] datetime: 2025-09-18 12:18:52 
 > building train, validation, and test datasets ...
  > datasets target sizes (minimum size):
     train:      20
@@ -724,99 +724,683 @@ INFO:megatron.core.datasets.blended_megatron_dataset_config:Let mock = True, as 
 INFO:megatron.core.datasets.blended_megatron_dataset_config:Let split = 1,1,1, an arbitrarily even split, as mock is True
 INFO:megatron.core.datasets.blended_megatron_dataset_config:Let split_matrix = [(0, 0.3333333333333333), (0.3333333333333333, 0.6666666666666666), (0.6666666666666666, 1.0)]
 > building train, validation, and test datasets for GPT ...
-INFO:megatron.core.datasets.blended_megatron_dataset_builder:Building MockGPTDataset splits with sizes=(20, 128, 128) and config=GPTDatasetConfig(random_seed=1234, sequence_length=6400, blend=None, blend_per_split=None, multiple_validation_sets=False, full_validation=False, split='1,1,1', split_matrix=[(0, 0.3333333333333333), (0.3333333333333333, 0.6666666666666666), (0.6666666666666666, 1.0)], num_dataset_builder_threads=1, path_to_cache='output/qwen3_1.7b/benchmark_cache', mmap_bin_files=False, mock=True, tokenizer=<megatron.training.tokenizer.tokenizer._NullTokenizer object at 0x76dab26d0170>, mid_level_dataset_surplus=0.005, reset_position_ids=False, reset_attention_mask=False, eod_mask_loss=False, create_attention_mask=False, drop_last_partial_validation_sequence=True, add_extra_token_to_sequence=True, object_storage_cache_path=None)
+INFO:megatron.core.datasets.blended_megatron_dataset_builder:Building MockGPTDataset splits with sizes=(20, 128, 128) and config=GPTDatasetConfig(random_seed=1234, sequence_length=8192, blend=None, blend_per_split=None, multiple_validation_sets=False, full_validation=False, split='1,1,1', split_matrix=[(0, 0.3333333333333333), (0.3333333333333333, 0.6666666666666666), (0.6666666666666666, 1.0)], num_dataset_builder_threads=1, path_to_cache='output/qwen3_1.7b/benchmark_cache', mmap_bin_files=False, mock=True, tokenizer=<megatron.training.tokenizer.tokenizer._NullTokenizer object at 0x73339b2a5f40>, mid_level_dataset_surplus=0.005, reset_position_ids=False, reset_attention_mask=False, eod_mask_loss=False, create_attention_mask=False, drop_last_partial_validation_sequence=True, add_extra_token_to_sequence=True, object_storage_cache_path=None)
 INFO:megatron.core.datasets.gpt_dataset:Load the MockGPTDataset train indices
-INFO:megatron.core.datasets.gpt_dataset:	Load the document index from 6bb96ea3a46ea8fbb0217c3c2bc571bb-MockGPTDataset-train-document_index.npy
-INFO:megatron.core.datasets.gpt_dataset:	Load the sample index from 6bb96ea3a46ea8fbb0217c3c2bc571bb-MockGPTDataset-train-sample_index.npy
-INFO:megatron.core.datasets.gpt_dataset:	Load the shuffle index from 6bb96ea3a46ea8fbb0217c3c2bc571bb-MockGPTDataset-train-shuffle_index.npy
-INFO:megatron.core.datasets.gpt_dataset:> total number of samples: 10654
+INFO:megatron.core.datasets.gpt_dataset:	Load the document index from e16c9f50ae8c34742a8acb47cec067d2-MockGPTDataset-train-document_index.npy
+INFO:megatron.core.datasets.gpt_dataset:	Load the sample index from e16c9f50ae8c34742a8acb47cec067d2-MockGPTDataset-train-sample_index.npy
+INFO:megatron.core.datasets.gpt_dataset:	Load the shuffle index from e16c9f50ae8c34742a8acb47cec067d2-MockGPTDataset-train-shuffle_index.npy
+INFO:megatron.core.datasets.gpt_dataset:> total number of samples: 8324
 INFO:megatron.core.datasets.gpt_dataset:Load the MockGPTDataset valid indices
-INFO:megatron.core.datasets.gpt_dataset:	Load the document index from a4583eaa278c4354b255ce74cd7516cb-MockGPTDataset-valid-document_index.npy
-INFO:megatron.core.datasets.gpt_dataset:	Load the sample index from a4583eaa278c4354b255ce74cd7516cb-MockGPTDataset-valid-sample_index.npy
-INFO:megatron.core.datasets.gpt_dataset:	Load the shuffle index from a4583eaa278c4354b255ce74cd7516cb-MockGPTDataset-valid-shuffle_index.npy
-INFO:megatron.core.datasets.gpt_dataset:> total number of samples: 10649
+INFO:megatron.core.datasets.gpt_dataset:	Load the document index from ae3f55d20d8823ce208efa5b84a2825e-MockGPTDataset-valid-document_index.npy
+INFO:megatron.core.datasets.gpt_dataset:	Load the sample index from ae3f55d20d8823ce208efa5b84a2825e-MockGPTDataset-valid-sample_index.npy
+INFO:megatron.core.datasets.gpt_dataset:	Load the shuffle index from ae3f55d20d8823ce208efa5b84a2825e-MockGPTDataset-valid-shuffle_index.npy
+INFO:megatron.core.datasets.gpt_dataset:> total number of samples: 8320
 INFO:megatron.core.datasets.gpt_dataset:Load the MockGPTDataset test indices
-INFO:megatron.core.datasets.gpt_dataset:	Load the document index from ab53957345f3c550894100dd9ef4db88-MockGPTDataset-test-document_index.npy
-INFO:megatron.core.datasets.gpt_dataset:	Load the sample index from ab53957345f3c550894100dd9ef4db88-MockGPTDataset-test-sample_index.npy
-INFO:megatron.core.datasets.gpt_dataset:	Load the shuffle index from ab53957345f3c550894100dd9ef4db88-MockGPTDataset-test-shuffle_index.npy
-INFO:megatron.core.datasets.gpt_dataset:> total number of samples: 10669
+INFO:megatron.core.datasets.gpt_dataset:	Load the document index from 707f7d9dc795dd765a761bef58e8a237-MockGPTDataset-test-document_index.npy
+INFO:megatron.core.datasets.gpt_dataset:	Load the sample index from 707f7d9dc795dd765a761bef58e8a237-MockGPTDataset-test-sample_index.npy
+INFO:megatron.core.datasets.gpt_dataset:	Load the shuffle index from 707f7d9dc795dd765a761bef58e8a237-MockGPTDataset-test-shuffle_index.npy
+INFO:megatron.core.datasets.gpt_dataset:> total number of samples: 8335
 > finished creating GPT datasets ...
-[after dataloaders are built] datetime: 2025-09-18 11:39:00 
+[after dataloaders are built] datetime: 2025-09-18 12:18:52 
 done with setup ...
 (min, max) time across ranks (ms):
-    model-and-optimizer-setup ......................: (112.39, 112.52)
-    train/valid/test-data-iterators-setup ..........: (6.13, 73.18)
+    model-and-optimizer-setup ......................: (122.76, 122.95)
+    train/valid/test-data-iterators-setup ..........: (6.09, 76.17)
 training ...
 Overwriting rerun_state_machine.current_iteration from -1 to 0...
-[before the start of training step] datetime: 2025-09-18 11:39:00 
-[MEM][LOAD_BATCH] dt=0.016s | alloc=1.90GB res=2.87GB peak_alloc=1.90GB peak_res=2.87GB
-[MEM][LOAD_BATCH] dt=0.016s | alloc=1.90GB res=2.87GB peak_alloc=1.90GB peak_res=2.87GB
-No teacher data provided, generating fake teacher data for testing...No teacher data provided, generating fake teacher data for testing...
-
-batch 0 efficient pos 320 teacher_values_batch: tensor([0.1363, 0.0868, 0.0853, 0.1275, 1.0000, 1.0000, 1.0000, 1.0000, 1.0000,
-        1.0000], device='cuda:1')
-batch 0 efficient pos 320 s_logpK: tensor([-11.9745, -12.6913, -11.6640, -11.3163,  -0.0000,  -0.0000,  -0.0000,
-         -0.0000,  -0.0000,  -0.0000], device='cuda:1', grad_fn=<MulBackward0>) with logZ tensor([12.3554], device='cuda:1', grad_fn=<SelectBackward0>)
-batch 0 efficient pos 320 kl_per_pos: 4.214100360870361
-batch 0 efficient pos 320 teacher_values_batch: tensor([0.1400, 0.0987, 0.0685, 0.1125, 0.0795, 0.0649, 1.0000, 1.0000, 1.0000],
-       device='cuda:0')
-batch 0 efficient pos 320 s_logpK: tensor([-14.5741, -13.2655, -13.0858, -12.3026, -13.1562, -12.9296,  -0.0000,
-         -0.0000,  -0.0000], device='cuda:0', grad_fn=<MulBackward0>) with logZ tensor([12.3554], device='cuda:0', grad_fn=<SelectBackward0>)
-batch 0 efficient pos 320 kl_per_pos: 6.204287528991699
-batch 1 efficient pos 320 teacher_values_batch: tensor([0.1116, 0.1611, 0.0626, 0.0818, 0.0857, 1.0000, 1.0000, 1.0000, 1.0000,
-        1.0000], device='cuda:1')
-batch 1 efficient pos 320 s_logpK: tensor([-12.7165, -12.3647, -11.5798, -12.4792, -13.3923,  -0.0000,  -0.0000,
-         -0.0000,  -0.0000,  -0.0000], device='cuda:1', grad_fn=<MulBackward0>) with logZ tensor([12.3532], device='cuda:1', grad_fn=<SelectBackward0>)
-batch 1 efficient pos 320 kl_per_pos: 5.178220748901367
-batch 1 efficient pos 320 teacher_values_batch: tensor([0.0782, 0.0823, 0.1112, 0.1362, 0.0892, 1.0000, 1.0000, 1.0000, 1.0000,
-        1.0000], device='cuda:0')
-batch 1 efficient pos 320 s_logpK: tensor([-11.5954, -12.7458, -11.9958, -13.1032, -11.2282,  -0.0000,  -0.0000,
-         -0.0000,  -0.0000,  -0.0000], device='cuda:0', grad_fn=<MulBackward0>) with logZ tensor([12.3532], device='cuda:0', grad_fn=<SelectBackward0>)
-batch 1 efficient pos 320 kl_per_pos: 4.939589023590088
-  Number of elements: torch.Size([2, 6400])
-  Number of elements: torch.Size([2, 6400])
-  KL losses: 10.087992668151855
-  KL losses: 10.087992668151855
-batch 0 traditional pos 320 teacher_probs: tensor([0.1400, 0.0987, 0.0685, 0.1125, 0.0795, 0.0649, 0.1363, 0.0868, 0.0853,
-        0.1275], device='cuda:0')
-batch 0 traditional pos 320 student_log_probs_teacher: tensor([-14.5741, -13.2655, -13.0858, -12.3026, -13.1561, -12.9296, -11.9745,
-        -12.6913, -11.6640, -11.3163], device='cuda:0',
-       grad_fn=<IndexBackward0>) lse student: 12.355368614196777
-batch 0 traditional pos 320 kl loss 10.418386459350586
-batch 0 traditional pos 320 teacher_probs: tensor([0.1400, 0.0987, 0.0685, 0.1125, 0.0795, 0.0649, 0.1363, 0.0868, 0.0853,
-        0.1275], device='cuda:1')
-batch 0 traditional pos 320 student_log_probs_teacher: tensor([-14.5741, -13.2655, -13.0858, -12.3026, -13.1561, -12.9296, -11.9745,
-        -12.6913, -11.6640, -11.3163], device='cuda:1',
-       grad_fn=<IndexBackward0>) lse student: 12.355368614196777
-batch 0 traditional pos 320 kl loss 10.418386459350586
-batch 0 traditional valid positions: 6400.0, batch_kl_sum: 64554.1875
-batch 1 traditional pos 320 teacher_probs: tensor([0.0782, 0.0823, 0.1112, 0.1362, 0.0892, 0.1116, 0.1611, 0.0626, 0.0818,
-        0.0857], device='cuda:1')
-batch 1 traditional pos 320 student_log_probs_teacher: tensor([-11.5954, -12.7458, -11.9958, -13.1032, -11.2282, -12.7165, -12.3647,
-        -11.5798, -12.4792, -13.3923], device='cuda:1',
-       grad_fn=<IndexBackward0>) lse student: 12.35323715209961
-batch 1 traditional pos 320 kl loss 10.11780834197998
-batch 0 traditional valid positions: 6400.0, batch_kl_sum: 64554.1875
-batch 1 traditional pos 320 teacher_probs: tensor([0.0782, 0.0823, 0.1112, 0.1362, 0.0892, 0.1116, 0.1611, 0.0626, 0.0818,
-        0.0857], device='cuda:0')
-batch 1 traditional pos 320 student_log_probs_teacher: tensor([-11.5954, -12.7458, -11.9958, -13.1032, -11.2282, -12.7165, -12.3647,
-        -11.5798, -12.4792, -13.3923], device='cuda:0',
-       grad_fn=<IndexBackward0>) lse student: 12.35323715209961
-batch 1 traditional pos 320 kl loss 10.11780834197998
-batch 1 traditional valid positions: 6400.0, batch_kl_sum: 64572.1640625
-KD loss: 10.087996482849121, valid positions: 12800.0
-batch 1 traditional valid positions: 6400.0, batch_kl_sum: 64572.1640625
-KD loss: 10.087996482849121, valid positions: 12800.0
-[MEM][FORWARD] dt=6.340s | alloc=4.30GB res=26.94GB peak_alloc=26.87GB peak_res=30.54GB
-[MEM][FORWARD] dt=6.459s | alloc=4.30GB res=26.96GB peak_alloc=26.87GB peak_res=29.73GB
+[before the start of training step] datetime: 2025-09-18 12:18:53 
+[MEM][LOAD_BATCH] dt=0.017s | alloc=1.90GB res=2.87GB peak_alloc=1.90GB peak_res=2.87GB
+[MEM][LOAD_BATCH] dt=0.017s | alloc=1.90GB res=2.87GB peak_alloc=1.90GB peak_res=2.87GB
+[MEM][FORWARD] dt=4.368s | alloc=6.90GB res=7.32GB peak_alloc=7.14GB peak_res=7.32GB
+[MEM][FORWARD] dt=4.422s | alloc=6.90GB res=7.28GB peak_alloc=7.14GB peak_res=7.28GB
 WARNING:megatron.core.rerun_state_machine:Result validation enabled
-[MEM][LOAD_BATCH] dt=0.000s | alloc=2.05GB res=26.94GB peak_alloc=2.05GB peak_res=26.94GB
-[MEM][LOAD_BATCH] dt=0.000s | alloc=2.05GB res=26.96GB peak_alloc=2.05GB peak_res=26.96GB
-No teacher data provided, generating fake teacher data for testing...No teacher data provided, generating fake teacher data for testing...
+[MEM][LOAD_BATCH] dt=0.000s | alloc=1.95GB res=12.20GB peak_alloc=1.95GB peak_res=12.20GB
+[MEM][LOAD_BATCH] dt=0.001s | alloc=1.95GB res=12.20GB peak_alloc=1.95GB peak_res=12.20GB
+[MEM][FORWARD] dt=3.757s | alloc=6.91GB res=12.20GB peak_alloc=7.14GB peak_res=12.20GB
+[MEM][FORWARD] dt=3.818s | alloc=6.91GB res=12.20GB peak_alloc=7.14GB peak_res=12.20GB
+Number of parameters in transformer block in billions:  0.70
+Number of parameters in embedding layers in billions: 0.32
+Total number of parameters in billions: 1.02
+Number of parameters in most loaded shard in billions: 0.5104
+compute_activation_memory_without_sp
+Activation memory footprint per transformer layer (precise, without SP): 704.0 MB
+Theoretical memory footprints: weight and optimizer=8761.50 MB, activation=12981.38 MB, total=21742.88 MB
 
-[MEM][FORWARD] dt=0.885s | alloc=4.44GB res=26.94GB peak_alloc=4.67GB peak_res=26.94GB
-WARNING:megatron.core.utils:
-['Traceback (most recent call last):\n', '  File "/workspace/training/Megatron-LM/pretrain_gpt.py", line 276, in forward_step\n    output_tensor = model(\n                    ^^^^^^\n', '  File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl\n    return self._call_impl(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n', '  File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1762, in _call_impl\n    return forward_call(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n', '  File "/workspace/training/Megatron-LM/megatron/core/distributed/data_parallel_base.py", line 22, in forward\n    return self.module(*inputs, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n', '  File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl\n    return self._call_impl(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n', '  File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1762, in _call_impl\n    return forward_call(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n', '  File "/workspace/training/Megatron-LM/megatron/core/transformer/module.py", line 259, in forward\n    outputs = self.module(*inputs, **kwargs)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n', '  File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl\n    return self._call_impl(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n', '  File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1762, in _call_impl\n    return forward_call(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n', '  File "/workspace/training/Megatron-LM/megatron/core/models/gpt/gpt_model.py", line 400, in forward\n    return self._postprocess(\n           ^^^^^^^^^^^^^^^^^^\n', '  File "/workspace/training/Megatron-LM/megatron/core/models/gpt/gpt_model.py", line 567, in _postprocess\n    token_losses, kl_loss, teacher_data = distillation_loss(embeddings=hidden_states,  # [B, T, H]\n                                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n', '  File "/workspace/training/Megatron-LM/megatron/core/fusions/distillation.py", line 127, in distillation_loss\n    _process_batch_element_kl_loss(\n', '  File "/workspace/training/Megatron-LM/megatron/core/fusions/distillation.py", line 235, in _process_batch_element_kl_loss\n    teacher_lookup_by_position = _build_teacher_lookup(\n                                 ^^^^^^^^^^^^^^^^^^^^^^\n', '  File "/workspace/training/Megatron-LM/megatron/core/fusions/distillation.py", line 296, in _build_teacher_lookup\n    position_idx = int(position.item() if isinstance(position, torch.Tensor) else position)\n                       ^^^^^^^^^^^^^^^\n', 'KeyboardInterrupt\n']
-[MEM][FORWARD] dt=0.887s | alloc=4.44GB res=26.96GB peak_alloc=4.67GB peak_res=26.96GB
-WARNING:megatron.core.utils:
-['Traceback (most recent call last):\n', '  File "/workspace/training/Megatron-LM/pretrain_gpt.py", line 276, in forward_step\n    output_tensor = model(\n                    ^^^^^^\n', '  File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl\n    return self._call_impl(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n', '  File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1762, in _call_impl\n    return forward_call(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n', '  File "/workspace/training/Megatron-LM/megatron/core/distributed/data_parallel_base.py", line 22, in forward\n    return self.module(*inputs, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n', '  File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl\n    return self._call_impl(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n', '  File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1762, in _call_impl\n    return forward_call(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n', '  File "/workspace/training/Megatron-LM/megatron/core/transformer/module.py", line 259, in forward\n    outputs = self.module(*inputs, **kwargs)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n', '  File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl\n    return self._call_impl(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n', '  File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1762, in _call_impl\n    return forward_call(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n', '  File "/workspace/training/Megatron-LM/megatron/core/models/gpt/gpt_model.py", line 400, in forward\n    return self._postprocess(\n           ^^^^^^^^^^^^^^^^^^\n', '  File "/workspace/training/Megatron-LM/megatron/core/models/gpt/gpt_model.py", line 567, in _postprocess\n    token_losses, kl_loss, teacher_data = distillation_loss(embeddings=hidden_states,  # [B, T, H]\n                                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n', '  File "/workspace/training/Megatron-LM/megatron/core/fusions/distillation.py", line 120, in distillation_loss\n    teacher_data = _prepare_teacher_data(\n                   ^^^^^^^^^^^^^^^^^^^^^^\n', '  File "/workspace/training/Megatron-LM/megatron/core/fusions/distillation.py", line 187, in _prepare_teacher_data\n    return generate_fake_teacher_data(\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n', '  File "/workspace/training/Megatron-LM/megatron/core/fusions/distillation.py", line 558, in generate_fake_teacher_data\n    random_teacher_indices, _ = torch.sort(\n                                ^^^^^^^^^^^\n', 'KeyboardInterrupt\n']
+ [2025-09-18 12:19:05] iteration        1/       5 | consumed samples:            4 | elapsed time per iteration (ms): 12580.6 | throughput per GPU (TFLOP/s/GPU): 9.8 | learning rate: 9.600000E-05 | global batch size:     4 | lm loss: 8.484183E+00 | loss scale: 1.0 | grad norm: 0.829 | num zeros: 271640.0 | params norm: 0.000 | number of skipped iterations:   0 | number of nan iterations:   0 |
+[Rank 0] (after 1 iterations) memory (MB) | allocated: 3946.40673828125 | max allocated: 10446.6220703125 | reserved: 15816.0 | max reserved: 15816.0
+[Rank 1] (after 1 iterations) memory (MB) | allocated: 3946.40673828125 | max allocated: 10446.6220703125 | reserved: 15716.0 | max reserved: 15716.0
+[MEM][LOAD_BATCH] dt=0.001s | alloc=3.85GB res=15.35GB peak_alloc=3.85GB peak_res=15.35GB
+[MEM][LOAD_BATCH] dt=0.001s | alloc=3.85GB res=15.45GB peak_alloc=3.85GB peak_res=15.45GB
+[MEM][FORWARD] dt=4.549s | alloc=8.81GB res=15.35GB peak_alloc=9.05GB peak_res=15.35GB
+[MEM][FORWARD] dt=4.595s | alloc=8.81GB res=15.45GB peak_alloc=9.05GB peak_res=15.45GB
+[MEM][LOAD_BATCH] dt=0.001s | alloc=3.85GB res=18.65GB peak_alloc=3.85GB peak_res=18.65GB
+[MEM][LOAD_BATCH] dt=0.001s | alloc=3.85GB res=18.61GB peak_alloc=3.85GB peak_res=18.61GB
+[MEM][FORWARD] dt=4.564s | alloc=8.81GB res=18.65GB peak_alloc=9.05GB peak_res=18.65GB
+[MEM][FORWARD] dt=4.612s | alloc=8.81GB res=18.61GB peak_alloc=9.05GB peak_res=18.61GB
+ [2025-09-18 12:19:18] iteration        2/       5 | consumed samples:            8 | elapsed time per iteration (ms): 13011.4 | throughput per GPU (TFLOP/s/GPU): 9.5 | learning rate: 4.931308E-05 | global batch size:     4 | lm loss: 8.484672E+00 | loss scale: 1.0 | grad norm: 0.834 | num zeros: 268816.0 | params norm: 0.000 | number of skipped iterations:   0 | number of nan iterations:   0 |
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.61GB peak_alloc=3.85GB peak_res=18.61GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.275s | alloc=8.81GB res=18.90GB peak_alloc=9.05GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.323s | alloc=8.81GB res=18.61GB peak_alloc=9.05GB peak_res=18.61GB
+[MEM][LOAD_BATCH] dt=0.001s | alloc=3.85GB res=18.61GB peak_alloc=3.85GB peak_res=18.61GB
+[MEM][LOAD_BATCH] dt=0.001s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.318s | alloc=8.81GB res=18.90GB peak_alloc=9.05GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.375s | alloc=8.81GB res=18.61GB peak_alloc=9.05GB peak_res=18.61GB
+ [2025-09-18 12:20:20] iteration        3/       5 | consumed samples:           12 | elapsed time per iteration (ms): 62156.2 | throughput per GPU (TFLOP/s/GPU): 2.0 | learning rate: 1.200000E-05 | global batch size:     4 | lm loss: 8.483961E+00 | loss scale: 1.0 | grad norm: 0.765 | num zeros: 272263.0 | params norm: 0.000 | number of skipped iterations:   0 | number of nan iterations:   0 |
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+
+[MEM][FORWARD] dt=3.331s | alloc=8.81GB res=18.90GB peak_alloc=9.04GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.388s | alloc=8.81GB res=18.90GB peak_alloc=9.05GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.001s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.001s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.321s | alloc=8.81GB res=18.90GB peak_alloc=9.04GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.375s | alloc=8.81GB res=18.90GB peak_alloc=9.05GB peak_res=18.90GB
+ [2025-09-18 12:20:31] iteration        4/       5 | consumed samples:           16 | elapsed time per iteration (ms): 10558.9 | throughput per GPU (TFLOP/s/GPU): 11.7 | learning rate: 1.200000E-05 | global batch size:     4 | lm loss: 8.482399E+00 | loss scale: 1.0 | grad norm: 0.739 | num zeros: 273037.0 | params norm: 0.000 | number of skipped iterations:   0 | number of nan iterations:   0 |
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+
+[MEM][FORWARD] dt=3.319s | alloc=8.81GB res=18.90GB peak_alloc=9.04GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.387s | alloc=8.81GB res=18.90GB peak_alloc=9.05GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.001s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.001s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.325s | alloc=8.81GB res=18.90GB peak_alloc=9.04GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.383s | alloc=8.82GB res=18.90GB peak_alloc=9.05GB peak_res=18.90GB
+ [2025-09-18 12:20:41] iteration        5/       5 | consumed samples:           20 | elapsed time per iteration (ms): 10539.2 | throughput per GPU (TFLOP/s/GPU): 11.7 | learning rate: 1.200000E-05 | global batch size:     4 | lm loss: 8.481735E+00 | loss scale: 1.0 | grad norm: 0.707 | num zeros: 267434.0 | params norm: 0.000 | number of skipped iterations:   0 | number of nan iterations:   0 |
+[after training is done] datetime: 2025-09-18 12:20:42 
+saving checkpoint at iteration       5 to output/qwen3_1.7b/checkpoints in torch_dist format
+Storing distributed optimizer sharded state of type fully_sharded_model_space
+WARNING:megatron.core.dist_checkpointing.serialization:Overwriting old incomplete / corrupted checkpoint...
+  successfully saved checkpoint from iteration       5 to output/qwen3_1.7b/checkpoints [ t 1/2, p 1/1 ]
+WARNING:megatron.core.rerun_state_machine:Setting RerunStateMachine mode RerunMode.DISABLED
+Evaluating on 128 samples
+Evaluating iter 1/32
+[MEM][LOAD_BATCH] dt=0.001s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.001s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.512s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.574s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.301s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.356s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+Evaluating iter 2/32
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.372s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.435s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.364s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.431s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+Evaluating iter 3/32
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.377s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.436s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.381s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.447s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+Evaluating iter 4/32
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.334s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.394s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.333s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.393s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+Evaluating iter 5/32
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.333s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.392s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.324s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.382s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+Evaluating iter 6/32
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.322s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.378s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.340s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.398s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+Evaluating iter 7/32
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.331s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.388s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.326s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.388s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+Evaluating iter 8/32
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.334s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.400s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.354s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.413s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+Evaluating iter 9/32
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.334s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.400s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.332s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.395s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+Evaluating iter 10/32
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.336s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.394s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.336s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.398s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+Evaluating iter 11/32
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.342s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.408s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.353s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.414s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+Evaluating iter 12/32
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.353s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.424s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.362s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.422s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+Evaluating iter 13/32
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.337s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.396s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.358s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.419s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+Evaluating iter 14/32
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.326s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.387s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.351s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.415s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+Evaluating iter 15/32
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.331s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.393s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.353s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.420s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+Evaluating iter 16/32
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.369s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.429s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.381s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.445s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+Evaluating iter 17/32
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.394s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.472s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.391s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.458s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+Evaluating iter 18/32
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.397s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.457s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.001s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.001s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.386s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.449s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+Evaluating iter 19/32
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.372s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.433s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.412s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.497s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+Evaluating iter 20/32
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.497s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.569s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.512s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.591s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+Evaluating iter 21/32
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.506s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.579s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.001s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.368s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.432s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+Evaluating iter 22/32
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.357s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.414s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.378s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.444s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+Evaluating iter 23/32
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.381s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.445s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.349s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.413s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+Evaluating iter 24/32
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.341s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.398s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.331s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.391s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+Evaluating iter 25/32
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.332s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.395s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.333s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.392s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+Evaluating iter 26/32
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.330s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.391s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.335s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.395s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+Evaluating iter 27/32
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.317s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.374s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.001s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.001s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.333s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.395s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+Evaluating iter 28/32
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.321s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.383s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.001s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.001s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.331s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.393s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+Evaluating iter 29/32
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.347s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.408s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.342s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.401s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+Evaluating iter 30/32
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.341s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.398s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.355s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.411s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+Evaluating iter 31/32
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.356s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.415s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.001s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.001s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.349s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.409s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+Evaluating iter 32/32
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.362s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.424s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.346s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.409s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+WARNING:megatron.core.rerun_state_machine:Setting RerunStateMachine mode RerunMode.VALIDATE_RESULTS
+(min, max) time across ranks (ms):
+    evaluate .......................................: (219353.81, 219353.88)
+WARNING:megatron.core.rerun_state_machine:Setting RerunStateMachine mode RerunMode.VALIDATE_RESULTS
+---------------------------------------------------------------------------------------------------------------
+ validation loss at iteration 5 on validation set | lm loss value: 8.482534E+00 | lm loss PPL: 4.829675E+03 | 
+---------------------------------------------------------------------------------------------------------------
+WARNING:megatron.core.rerun_state_machine:Setting RerunStateMachine mode RerunMode.DISABLED
+Evaluating on 128 samples
+Evaluating iter 1/32
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.342s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.410s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.342s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.405s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+Evaluating iter 2/32
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.365s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.424s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.368s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.432s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+Evaluating iter 3/32
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.354s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.420s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.378s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.438s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+Evaluating iter 4/32
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.381s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.447s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.364s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.432s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+Evaluating iter 5/32
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.400s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.464s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.378s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.444s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+Evaluating iter 6/32
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.494s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.573s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.001s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.001s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.495s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.569s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+Evaluating iter 7/32
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.547s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.623s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.491s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.565s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+Evaluating iter 8/32
+[MEM][LOAD_BATCH] dt=0.001s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.001s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.500s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.594s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.486s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.567s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+Evaluating iter 9/32
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+
+[MEM][FORWARD] dt=3.375s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.437s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+
+[MEM][FORWARD] dt=3.355s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.418s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+Evaluating iter 10/32
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.392s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.462s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.372s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.433s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+Evaluating iter 11/32
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.353s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.412s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.001s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.001s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.365s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.427s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+Evaluating iter 12/32
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.326s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.386s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.353s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.420s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+Evaluating iter 13/32
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.351s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.413s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.366s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.427s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+Evaluating iter 14/32
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.358s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.418s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.357s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.417s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+Evaluating iter 15/32
+[MEM][LOAD_BATCH] dt=0.001s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.001s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.367s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.434s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.358s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.422s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+Evaluating iter 16/32
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.360s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.422s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.449s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.511s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+Evaluating iter 17/32
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.392s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.457s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.384s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.448s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+Evaluating iter 18/32
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.379s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.471s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.399s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.467s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+Evaluating iter 19/32
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.350s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.418s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.368s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.428s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+Evaluating iter 20/32
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.335s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.395s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.348s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.413s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+Evaluating iter 21/32
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.346s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.407s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.368s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.431s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+Evaluating iter 22/32
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.348s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.409s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.361s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.424s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+Evaluating iter 23/32
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.379s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.443s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.384s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.450s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+Evaluating iter 24/32
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.388s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.451s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.368s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.433s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+Evaluating iter 25/32
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.369s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.433s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.379s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.442s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+Evaluating iter 26/32
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.371s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.435s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.342s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.410s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+Evaluating iter 27/32
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.324s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.382s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.341s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.403s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+Evaluating iter 28/32
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.339s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.406s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.343s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.405s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+Evaluating iter 29/32
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.340s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.405s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.337s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.400s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+Evaluating iter 30/32
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.348s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.413s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.363s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.423s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+Evaluating iter 31/32
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.369s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.427s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.384s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.452s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+Evaluating iter 32/32
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.363s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.431s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][LOAD_BATCH] dt=0.000s | alloc=3.85GB res=18.90GB peak_alloc=3.85GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.350s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+[MEM][FORWARD] dt=3.408s | alloc=3.85GB res=18.90GB peak_alloc=6.69GB peak_res=18.90GB
+(min, max) time across ranks (ms):
+    evaluate .......................................: (220614.35, 220614.38)WARNING:megatron.core.rerun_state_machine:Setting RerunStateMachine mode RerunMode.VALIDATE_RESULTS
+
+WARNING:megatron.core.rerun_state_machine:Setting RerunStateMachine mode RerunMode.VALIDATE_RESULTS
+---------------------------------------------------------------------------------------------------------
+ validation loss at iteration 5 on test set | lm loss value: 8.482531E+00 | lm loss PPL: 4.829656E+03 | 
+---------------------------------------------------------------------------------------------------------

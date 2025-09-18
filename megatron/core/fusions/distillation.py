@@ -55,7 +55,7 @@ from megatron.core.fusions.cce_loss import cce_per_token_loss
 DEFAULT_TEMPERATURE = 1.0
 DEFAULT_CHUNK_SIZE = 1024
 DEFAULT_IGNORE_INDEX = -100
-DEFAULT_NUM_TEACHER_TOKENS = 10
+DEFAULT_NUM_TEACHER_TOKENS = 50
 
 
 def distillation_loss(
@@ -174,7 +174,7 @@ def distillation_loss(
     if debug:
         _print_debug_summary(kl_loss_tensor, batch_size, sequence_length)
     
-    return cross_entropy_loss, kl_loss_tensor, teacher_data
+    return kl_loss_tensor, teacher_data
 
 
 def _prepare_teacher_data(

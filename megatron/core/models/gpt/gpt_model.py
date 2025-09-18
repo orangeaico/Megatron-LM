@@ -554,25 +554,17 @@ class GPTModel(LanguageModule):
                     f"[CCE debug] rank={world_rank} tp_rank={tp_rank} vocab_size={vocab_size}"
                 )
 
-            # token_losses = cce_per_token_loss(
-            #     embeddings=hidden_states,             # [B, T, H]
-            #     classifier_weight=classifier_weight,  # [V, H] (or [V_local, H])
-            #     labels=labels,                        # [B, T]
-            #     vocab_size=vocab_size,
-            #     impl=self.config.linear_ce_impl,
-            #     reduction=self.config.linear_ce_reduction,
-            #     shift=self.config.linear_ce_shift,
-            #     ignore_index=self.config.linear_ce_ignore_index,
-            # )
-            token_losses, kl_loss, teacher_data = distillation_loss(embeddings=hidden_states,  # [B, T, H]
-                                                      classifier_weight=classifier_weight,  # [V, H] (or [V_local, H])
-                                                      labels=labels,  # [B, T]
-                                                      vocab_size=vocab_size,
-                                                      impl=self.config.linear_ce_impl,
-                                                      reduction=self.config.linear_ce_reduction,
-                                                      shift=self.config.linear_ce_shift,
-                                                      ignore_index=self.config.linear_ce_ignore_index,
-                                                      debug=self.config.debug_distillation)
+            token_losses = cce_per_token_loss(
+                embeddings=hidden_states,             # [B, T, H]
+                classifier_weight=classifier_weight,  # [V, H] (or [V_local, H])
+                labels=labels,                        # [B, T]
+                vocab_size=vocab_size,
+                impl=self.config.linear_ce_impl,
+                reduction=self.config.linear_ce_reduction,
+                shift=self.config.linear_ce_shift,
+                ignore_index=self.config.linear_ce_ignore_index,
+            )
+
             if self.config.debug_cce_loss:
                 if parallel_state.get_tensor_model_parallel_world_size() > 1:
                     tp_rank_local = parallel_state.get_tensor_model_parallel_rank()
@@ -679,7 +671,28 @@ class GPTModel(LanguageModule):
             # Default: return per-token losses for Megatron's loss masking/reduction.
             if sequence_parallel_override:
                 self.output_layer.sequence_parallel = True
-            # return token_losses
+
+            if self.config.distillation_loss:
+                kl_loss, teacher_data = distillation_loss(embeddings=hidden_states,  # [B, T, H]
+                                                      classifier_weight=classifier_weight,  # [V, H] (or [V_local, H])
+                                                      labels=labels,  # [B, T]
+                                                      vocab_size=vocab_size,
+                                                      impl=self.config.linear_ce_impl,
+                                                      reduction=self.config.linear_ce_reduction,
+                                                      shift=self.config.linear_ce_shift,
+                                                      ignore_index=self.config.linear_ce_ignore_index,
+                                                      debug=self.config.debug_distillation)
+
+
+            if self.config.debug_distillation:
+                logits, _ = self.output_layer(
+                hidden_states, weight=output_weight, runtime_gather_output=runtime_gather_output
+            )
+                logits = gather_from_tensor_model_parallel_region(logits, group=self.pg_collection.tp)
+                traditional_distillation_loss(logits, teacher_data, labels, T=1, ignore_index=self.config.linear_ce_ignore_index)
+            
+
+            return token_losses
 
         if self.mtp_process:
             mtp_labels = labels.clone()
@@ -746,6 +759,10 @@ class GPTModel(LanguageModule):
                     hidden_states.squeeze(1).unsqueeze(0)
                 ).unsqueeze(1)
 
+        logits, _ = self.output_layer(
+            hidden_states, weight=output_weight, runtime_gather_output=runtime_gather_output
+        )
+
         # Restore sequence parallel execution to the output layer if necessary.
         if sequence_parallel_override:
             assert (
@@ -771,17 +788,9 @@ class GPTModel(LanguageModule):
             # [s b h] => [b s h]
             return logits.transpose(0, 1).contiguous()
 
-        # loss = self.compute_language_model_loss(labels, logits)
-        if self.config.debug_distillation:
-            logits, _ = self.output_layer(
-            hidden_states, weight=output_weight, runtime_gather_output=runtime_gather_output
-        )
-            logits = gather_from_tensor_model_parallel_region(logits, group=self.pg_collection.tp)
-            traditional_distillation_loss(logits, teacher_data, labels, T=1, ignore_index=self.config.linear_ce_ignore_index)
-        
+        loss = self.compute_language_model_loss(labels, logits)
 
-
-        return token_losses
+        return loss
 
     def shared_embedding_or_output_weight(self) -> Tensor:
         """Gets the embedding weight or output logit weights when share input embedding and

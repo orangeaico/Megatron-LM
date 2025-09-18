@@ -50,7 +50,7 @@ MICRO_BATCH_SIZE=2
 GLOBAL_BATCH_SIZE=4
 NUM_LAYERS=14
 DTYPE="bf16"
-SEQ_LENGTH=6400
+SEQ_LENGTH=8192
 MAX_POSITION_EMBEDDINGS=40960 
 
 DISTRIBUTED_ARGS=(
@@ -201,7 +201,7 @@ CHECKPOINT_ARGS=(
 )
 
 EVAL_AND_LOGGING_ARGS=(
-    --eval-iters 32
+    --eval-iters 3
     --eval-interval 100
     --log-interval 1
     --log-throughput
