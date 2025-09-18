@@ -58,8 +58,8 @@ MICRO_BATCH_SIZE=1
 GLOBAL_BATCH_SIZE=1  
 NUM_LAYERS=48  
 DTYPE="bf16"
-SEQ_LENGTH=8192
-MAX_POSITION_EMBEDDINGS=40960 
+SEQ_LENGTH=65536
+MAX_POSITION_EMBEDDINGS=262144 
 
 DISTRIBUTED_ARGS=(
     --nproc_per_node $GPUS_PER_NODE
@@ -74,7 +74,7 @@ MODEL_ARGS=(
     --num-layers $NUM_LAYERS
     --seq-length $SEQ_LENGTH
     --hidden-size 2048  
-    --ffn-hidden-size 6144 
+    --ffn-hidden-size 5472 
     --num-attention-heads 32  
     --group-query-attention
     --num-query-groups 4 
@@ -85,11 +85,9 @@ MODEL_ARGS=(
     --untie-embeddings-and-output-weights
     --make-vocab-size-divisible-by 1187
     --position-embedding-type rope
-    --rotary-base 1000000  # Same as Qwen3 rope_theta
+    --rotary-base 10000000  # Same as Qwen3 rope_theta
     --rotary-percent 1.0
     --rotary-seq-len-interpolation-factor 1
-    # --use-rope-scaling
-    # --rope-scaling-factor 2
     --swiglu
     --norm-epsilon 1e-06
     --init-method-std 0.02 
@@ -102,7 +100,7 @@ MOE_ARGS=(
     --moe-router-load-balancing-type aux_loss
     --moe-router-topk 8  # num_experts_per_tok
     --moe-grouped-gemm
-    --moe-aux-loss-coeff 1e-3  # router_aux_loss_coef from config
+    --moe-aux-loss-coeff 0  # router_aux_loss_coef from config
     --moe-token-dispatcher-type alltoall
     --moe-permute-fusion
     # --moe-router-dtype fp32
