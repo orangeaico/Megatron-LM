@@ -23,7 +23,7 @@ from megatron.training.utils import (
 from megatron.training.datasets.sft_dataset import SFTDataset
 from model_provider import model_provider
 from gpt_builders import gpt_builder
-from mem_logging_utils import mem_phase, PHASE_LOGGER, PHASE_LAYER_LOGGER, attach_module_peaks, nvtx_range
+from mem_logging_utils import mem_phase, nvtx_range
 
 try:
     from megatron.post_training.arguments import add_modelopt_args, modelopt_args_enabled
@@ -138,13 +138,6 @@ def forward_step(data_iterator, model: GPTModel, return_schedule_plan: bool = Fa
     with stimer(bdata=True):
         tokens, labels, loss_mask, attention_mask, position_ids = get_batch(data_iterator)
     timers('batch-generator').stop()
-
-    # Optional per-layer peaks (only once the model exists)
-    if PHASE_LOGGER and PHASE_LAYER_LOGGER:
-        # Attach hooks only once per process
-        if not hasattr(model, "_phase_layer_hooks_attached"):
-            attach_module_peaks(model)
-            model._phase_layer_hooks_attached = True
 
     with stimer, mem_phase("FORWARD", do_barrier=True), nvtx_range("FORWARD"):
         if args.use_legacy_models:
