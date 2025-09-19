@@ -2329,7 +2329,7 @@ def train(
             decoupled_learning_rate,
             iteration,
             loss_scale,
-            report_memory_flag,
+            True,
             skipped_iter,
             grad_norm,
             params_norm,
