@@ -24,6 +24,10 @@ from megatron.training.utils import (
     get_batch_on_this_tp_rank,
     get_blend_and_blend_per_split,
 )
+from megatron.training.teacher_data_utils import (
+    has_teacher_data,
+    unpack_teacher_batch,
+)
 from megatron.training.datasets.sft_dataset import SFTDataset
 from model_provider import model_provider
 from gpt_builders import gpt_builder
@@ -158,16 +162,27 @@ def get_batch(data_iterator):
     if (not parallel_state.is_pipeline_first_stage(ignore_virtual=True)) and (
         not parallel_state.is_pipeline_last_stage(ignore_virtual=True)
     ):
-        return None, None, None, None, None
+        return None, None, None, None, None, None
 
     # get batches based on the TP rank you are on
     with mem_phase("LOAD_BATCH", do_barrier=True), nvtx_range("LOAD_BATCH"):
         batch = get_batch_on_this_tp_rank(data_iterator)
 
-        # slice batch along sequence dimension for context parallelism
-        batch = get_batch_on_this_cp_rank(batch)
+    # slice batch along sequence dimension for context parallelism
+    batch = get_batch_on_this_cp_rank(batch)
 
-    return batch.values()
+    teacher_packed = batch.pop('teacher_data', None)
+    teacher_data = None
+    if teacher_packed is not None and has_teacher_data(teacher_packed):
+        teacher_data = unpack_teacher_batch(teacher_packed)
+
+    tokens = batch['tokens']
+    labels = batch['labels']
+    loss_mask = batch['loss_mask']
+    attention_mask = batch['attention_mask']
+    position_ids = batch['position_ids']
+
+    return tokens, labels, loss_mask, attention_mask, position_ids, teacher_data
 
 
 # define spiky loss as a loss that's 10x the max loss observed
@@ -251,7 +266,14 @@ def forward_step(data_iterator, model: GPTModel, return_schedule_plan: bool = Fa
     timers('batch-generator', log_level=2).start()
     global stimer
     with stimer(bdata=True):
-        tokens, labels, loss_mask, attention_mask, position_ids = get_batch(data_iterator)
+        (
+            tokens,
+            labels,
+            loss_mask,
+            attention_mask,
+            position_ids,
+            teacher_data,
+        ) = get_batch(data_iterator)
     timers('batch-generator').stop()
 
     # Optional per-layer peaks (only once the model exists)
@@ -274,7 +296,12 @@ def forward_step(data_iterator, model: GPTModel, return_schedule_plan: bool = Fa
                 return schedule_plan, partial(loss_func, loss_mask, model=model)
             else:
                 output_tensor = model(
-                    tokens, position_ids, attention_mask, labels=labels, loss_mask=loss_mask
+                    tokens,
+                    position_ids,
+                    attention_mask,
+                    labels=labels,
+                    loss_mask=loss_mask,
+                    teacher_data=teacher_data,
                 )
 
     # [ModelOpt]: model is needed to access ModelOpt distillation losses

@@ -29,7 +29,7 @@ Example:
     Basic usage for knowledge distillation:
     
     >>> # Standard distillation loss computation
-    >>> ce_loss, kl_loss, teacher_data = distillation_loss(
+    >>> kl_loss, teacher_data = distillation_loss(
     ...     embeddings=student_embeddings,
     ...     classifier_weight=vocab_projection_weights,
     ...     labels=target_labels,
@@ -280,7 +280,6 @@ def _process_batch_element_kl_loss(
             is_tensor_parallel=is_tensor_parallel,
             temp=temp,
             ignore_index=ignore_index,
-            device=batch_embeddings.device,
         )
         
         if not chunk_data['positions']:
@@ -345,7 +344,6 @@ def _extract_chunk_teacher_data(
     is_tensor_parallel: bool,
     temp: float,
     ignore_index: int,
-    device: torch.device,
 ) -> Dict[str, List]:
     """
     Extract and filter teacher data for a specific chunk.

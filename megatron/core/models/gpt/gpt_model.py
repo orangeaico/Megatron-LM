@@ -1,7 +1,7 @@
 # Copyright (c) 2023, NVIDIA CORPORATION. All rights reserved.
 
 from collections import OrderedDict
-from typing import Dict, Literal, Optional
+from typing import Dict, List, Literal, Optional
 
 import torch
 from torch import Tensor
@@ -360,6 +360,7 @@ class GPTModel(LanguageModule):
         *,
         inference_params: Optional[BaseInferenceContext] = None,
         loss_mask: Optional[Tensor] = None,
+        teacher_data: Optional[List[Dict[str, torch.Tensor]]] = None,
     ) -> Tensor:
         """Forward function of the GPT Model This function passes the input tensors
         through the embedding layer, and then the decoeder and finally into the post
@@ -415,6 +416,7 @@ class GPTModel(LanguageModule):
             runtime_gather_output=runtime_gather_output,
             extra_block_kwargs=extra_block_kwargs,
             inference_context=inference_context,
+            teacher_data=teacher_data,
         )
 
     def _postprocess(
@@ -436,6 +438,7 @@ class GPTModel(LanguageModule):
         runtime_gather_output=None,
         extra_block_kwargs=None,
         inference_context=None,
+        teacher_data=None,
     ):
         """Postprocesses decoder hidden states to generate logits or compute loss.
 
@@ -674,16 +677,19 @@ class GPTModel(LanguageModule):
                 self.output_layer.sequence_parallel = True
 
             if self.config.distillation_loss:
-                kl_loss, teacher_data = distillation_loss(embeddings=hidden_states,  # [B, T, H]
-                                                      classifier_weight=classifier_weight,  # [V, H] (or [V_local, H])
-                                                      labels=labels,  # [B, T]
-                                                      vocab_size=vocab_size,
-                                                      impl=self.config.linear_ce_impl,
-                                                      reduction=self.config.linear_ce_reduction,
-                                                      shift=self.config.linear_ce_shift,
-                                                      ignore_index=self.config.linear_ce_ignore_index,
-                                                      debug=self.config.debug_distillation,
-                                                      temp=self.config.distillation_temp)
+                kl_loss, teacher_data = distillation_loss(
+                    embeddings=hidden_states,  # [B, T, H]
+                    classifier_weight=classifier_weight,  # [V, H] (or [V_local, H])
+                    labels=labels,  # [B, T]
+                    vocab_size=vocab_size,
+                    impl=self.config.linear_ce_impl,
+                    reduction=self.config.linear_ce_reduction,
+                    shift=self.config.linear_ce_shift,
+                    ignore_index=self.config.linear_ce_ignore_index,
+                    debug=self.config.debug_distillation,
+                    temp=self.config.distillation_temp,
+                    teacher_data=teacher_data,
+                )
 
 
             if self.config.debug_distillation:

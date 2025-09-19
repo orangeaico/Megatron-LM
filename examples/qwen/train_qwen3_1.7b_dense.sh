@@ -41,7 +41,6 @@ mkdir -p "$DATA_CACHE_PATH"
 
 # Distributed training setup
 GPUS_PER_NODE=2
-GPUS_PER_NODE=2
 NUM_NODES=1
 MASTER_ADDR=${MASTER_ADDR:-localhost}
 MASTER_PORT=${MASTER_PORT:-6000}
@@ -62,7 +61,7 @@ MICRO_BATCH_SIZE=2
 GLOBAL_BATCH_SIZE=4
 NUM_LAYERS=14
 DTYPE="bf16"
-SEQ_LENGTH=8192 # 65000
+SEQ_LENGTH=4096 # 65000
 MAX_POSITION_EMBEDDINGS=40960 # 65000
 
 DISTRIBUTED_ARGS=(
@@ -168,7 +167,7 @@ MODEL_PARALLEL_ARGS=(
     --tensor-model-parallel-size $TP_SIZE
     --context-parallel-size $CP_SIZE
     # --pipeline-model-parallel-size $PP_SIZE # Not explicitly set in llama script options, assume 1 if not multi-node PP
-    # --sequence-parallel  # Always enable sequence parallelism with TP_SIZE=2
+    --sequence-parallel  # Always enable sequence parallelism with TP_SIZE=2
 )
 
 # Data arguments (conditional for mock vs real data)
