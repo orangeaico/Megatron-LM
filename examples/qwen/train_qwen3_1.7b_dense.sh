@@ -18,9 +18,11 @@ MODEL_NAME="qwen3_1.7b"
 BASE_DIR="/workspace/data/"
 
 LOAD_CHECKPOINT_PATH="$BASE_DIR/mega-models/Qwen3-1.7B"
-TOKENIZER_ARG="$BASE_DIR/mega-models/Qwen3-1.7B" # Path to tokenizer model, or "MOCK"
-# DATA_ARG="$BASE_DIR/data/qwen_out_text_document"     # Data prefix, or "MOCK"
-DATA_ARG="$BASE_DIR/data/test_output.jsonl"
+TOKENIZER_ARG="Qwen/Qwen3-1.7B" # Path to tokenizer model
+
+JSON_TRAIN_DIR="/workspace/training/teacher_data"
+JSON_VALID_DIR="/workspace/training/teacher_data"
+JSON_TEST_DIR="/workspace/training/teacher_data"
 
 BASE_OUTPUT_DIR="$BASE_DIR/himanshu/output"
 SAVE_CHECKPOINT_PATH="$BASE_OUTPUT_DIR/$MODEL_NAME/checkpoints"
@@ -28,8 +30,6 @@ SAVE_CHECKPOINT_PATH="$BASE_OUTPUT_DIR/$MODEL_NAME/checkpoints"
 DATA_CACHE_PATH="output/$MODEL_NAME/benchmark_cache"
 TENSORBOARD_LOGS_PATH="output/$MODEL_NAME/tensorboard_logs"
 MEMORY_SNAPSHOT_PATH="output/$MODEL_NAME/memory_snapshots/memory_snapshot.pickle"
-TOKENIZER_ARG="MOCK" # Path to tokenizer model, or "MOCK"
-DATA_ARG="MOCK"     # Data prefix, or "MOCK"
 
 WANDB_API_KEY=''
 
@@ -52,11 +52,8 @@ PRETRAIN_SCRIPT_PATH="pretrain_gpt.py"
 
 # Fixed model and training parameters for Qwen3-1.7B
 TP_SIZE=2
-CP_SIZE=1    
-PP_SIZE=1     
-MICRO_BATCH_SIZE=4
-GLOBAL_BATCH_SIZE=8  
-NUM_LAYERS=28  
+CP_SIZE=1
+PP_SIZE=1
 MICRO_BATCH_SIZE=2
 GLOBAL_BATCH_SIZE=4
 NUM_LAYERS=14
@@ -101,7 +98,7 @@ MODEL_ARGS=(
 TRAINING_ARGS=(
     --micro-batch-size $MICRO_BATCH_SIZE
     --global-batch-size $GLOBAL_BATCH_SIZE
-    --train-samples 300
+    --train-samples 20
     --lr-decay-samples 300
     --exit-duration-in-mins 235
 
@@ -171,38 +168,23 @@ MODEL_PARALLEL_ARGS=(
 )
 
 # Data arguments (conditional for mock vs real data)
-DATA_ARGS_LIST=()
-if [[ "$TOKENIZER_ARG" == "MOCK" ]] || [[ "$DATA_ARG" == "MOCK" ]] || [[ -z "$TOKENIZER_ARG" ]]; then
-    DATA_ARGS_LIST+=(
-        "--mock-data"
-        "--tokenizer-type NullTokenizer"
-        "--vocab-size 151936"  # Qwen3-1.7B vocab size
-        "--data-cache-path ${DATA_CACHE_PATH}"
-        "--tiktoken-pattern v2" 
-        "--split '99,1,0'"
-        "--no-create-attention-mask-in-dataloader"
-        "--no-mmap-bin-files"
-        "--num-workers 1"
-    )
-else
-    # Settings for real data
-    DATA_ARGS_LIST+=(
-        "--data-path $DATA_ARG"
-        "--tokenizer-type HuggingFaceTokenizer" 
-        "--tokenizer-model $TOKENIZER_ARG"
-        "--data-cache-path ${DATA_CACHE_PATH}"
-        "--split '99,1,0'"
-        "--no-create-attention-mask-in-dataloader"
-        "--no-mmap-bin-files"
-        "--num-workers 1"
-        # Note: --vocab-size might be inferred by HuggingFaceTokenizer or might need to be explicit.
-        "--vocab-size 151936"  # Qwen3-1.7B vocab size
-        "--sft"
-        # "--reset-position-ids"
-        # "--reset-attention-mask"
-        # "--eod-mask-loss"
-        # "--no-check-for-nan-in-loss-and-grad"
-    )
+DATA_ARGS_LIST=(
+    "--dataloader-type external"
+    "--tokenizer-type HuggingFaceTokenizer"
+    "--tokenizer-model $TOKENIZER_ARG"
+    "--json-teacher-train-dir $JSON_TRAIN_DIR"
+    "--data-cache-path ${DATA_CACHE_PATH}"
+    "--split '99,1,0'"
+    "--num-workers 0"
+    "--vocab-size 151936"
+)
+
+if [[ -n "$JSON_VALID_DIR" ]]; then
+    DATA_ARGS_LIST+=("--json-teacher-valid-dir $JSON_VALID_DIR")
+fi
+
+if [[ -n "$JSON_TEST_DIR" ]]; then
+    DATA_ARGS_LIST+=("--json-teacher-test-dir $JSON_TEST_DIR")
 fi
 
 CHECKPOINT_ARGS=(

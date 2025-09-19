@@ -104,7 +104,6 @@ def distillation_loss(
     Raises:
         ValueError: If teacher_data is None and cannot be generated
     """
-    
     # Compute standard cross-entropy loss with log-sum-exp values
     cross_entropy_loss, log_sum_exp_values = cce_per_token_loss(
         embeddings=embeddings,
@@ -134,7 +133,8 @@ def distillation_loss(
     
     device = batch_first_embeddings.device
     batch_size, sequence_length, hidden_size = batch_first_embeddings.shape
-    
+    no_teacher_positions = 0
+
     # Initialize KL loss tensor
     kl_loss_tensor = torch.zeros(
         (batch_size, sequence_length), 
@@ -150,7 +150,7 @@ def distillation_loss(
     
     # Process each batch element separately
     for batch_idx in range(batch_size):
-        _process_batch_element_kl_loss(
+        no_teacher_positions += _process_batch_element_kl_loss(
             batch_idx=batch_idx,
             batch_embeddings=batch_first_embeddings[batch_idx],
             batch_labels=labels[batch_idx],
@@ -171,11 +171,11 @@ def distillation_loss(
     if is_tensor_parallel:
         kl_loss_tensor = reduce_from_tensor_model_parallel_region(kl_loss_tensor)
 
-    kl_loss_tensor = kl_loss_tensor/ (batch_size * sequence_length)
-    
+    kl_loss_tensor = kl_loss_tensor/ (no_teacher_positions + 1e-6)
+
     if debug:
-        _print_debug_summary(kl_loss_tensor)
-    
+        _print_debug_summary(kl_loss_tensor, no_teacher_positions)
+
     return kl_loss_tensor, teacher_data
 
 
@@ -265,12 +265,13 @@ def _process_batch_element_kl_loss(
     )
     
     sequence_length = batch_embeddings.size(0)
+    no_teacher_positions_in_batch = 0
     
     # Process sequence in chunks for memory efficiency
     for chunk_start in range(0, sequence_length, chunk_size):
         chunk_end = min(chunk_start + chunk_size, sequence_length)
-        
-        chunk_data = _extract_chunk_teacher_data(
+
+        chunk_data, no_teacher_positions_in_chunk = _extract_chunk_teacher_data(
             teacher_lookup_by_position=teacher_lookup_by_position,
             batch_labels=batch_labels,
             chunk_start=chunk_start,
@@ -297,7 +298,9 @@ def _process_batch_element_kl_loss(
             temp=temp,
             debug=debug,
         )
-
+        no_teacher_positions_in_batch += no_teacher_positions_in_chunk
+    
+    return no_teacher_positions_in_batch
 
 def _build_teacher_lookup(
     batch_teacher_data: Dict[str, Any], 
@@ -369,12 +372,13 @@ def _extract_chunk_teacher_data(
         'teacher_values': [], 
         'positions_in_chunk': []
     }
-    
+    no_teacher_positions_in_chunk = 0
     for position in range(chunk_start, chunk_end):
         if (position not in teacher_lookup_by_position or 
             batch_labels[position].item() == ignore_index):
             continue
-            
+
+        no_teacher_positions_in_chunk += 1
         teacher_indices, teacher_values = teacher_lookup_by_position[position]
         
         # Apply temperature and compute log probabilities
@@ -392,13 +396,13 @@ def _extract_chunk_teacher_data(
         else:
             local_teacher_indices = teacher_indices
             local_teacher_log_probs = teacher_log_probs
-        
+
         chunk_data['positions'].append(position)
         chunk_data['teacher_indices'].append(local_teacher_indices)
         chunk_data['teacher_values'].append(local_teacher_log_probs)
         chunk_data['positions_in_chunk'].append(position - chunk_start)
     
-    return chunk_data
+    return chunk_data, no_teacher_positions_in_chunk
 
 
 def _compute_chunk_kl_losses(
@@ -512,7 +516,7 @@ def _print_chunk_debug_info(
     kl_losses: torch.Tensor,
 ) -> None:
     """Print debug information for chunk processing."""
-    debug_position = 320
+    debug_position = 3157
     if debug_position in positions:
         position_index = positions.index(debug_position)
         print(f"batch {batch_idx} efficient pos {debug_position} "
@@ -526,9 +530,10 @@ def _print_chunk_debug_info(
 
 def _print_debug_summary(
     kl_losses: torch.Tensor, 
+    no_teacher_positions: int,
 ) -> None:
     """Print debug summary information."""
-    print(f"  Number of elements: {kl_losses.shape}")
+    print(f"  Number of elements: {no_teacher_positions}")
     print(f"  KL losses: {kl_losses.sum()}")
 
 
@@ -651,7 +656,7 @@ def traditional_distillation_loss(
     total_valid_positions = torch.zeros((), device=device, dtype=torch.float32)
     
     # Debug configuration
-    debug_position_idx = 320
+    debug_position_idx = 3157
     
     # Process each batch element independently
     for batch_idx in range(batch_size):
@@ -678,7 +683,7 @@ def traditional_distillation_loss(
                 teacher_position.item() if isinstance(teacher_position, torch.Tensor) 
                 else teacher_position
             )
-            
+
             # Skip positions that should be ignored
             if batch_label_sequence[position_idx].item() == ignore_index:
                 continue
