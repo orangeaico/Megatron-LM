@@ -170,9 +170,11 @@ def distillation_loss(
     # Reduce KL losses across tensor parallel ranks
     if is_tensor_parallel:
         kl_loss_tensor = reduce_from_tensor_model_parallel_region(kl_loss_tensor)
+
+    kl_loss_tensor = kl_loss_tensor/ (batch_size * sequence_length)
     
     if debug:
-        _print_debug_summary(kl_loss_tensor, batch_size, sequence_length)
+        _print_debug_summary(kl_loss_tensor)
     
     return kl_loss_tensor, teacher_data
 
@@ -498,7 +500,7 @@ def _compute_chunk_kl_losses(
     if debug:
         _print_chunk_debug_info(
             batch_idx, chunk_data['positions'], padded_teacher_values, 
-            student_log_probs, teacher_mask, position_log_sum_exp, kl_per_position
+            student_log_probs, teacher_mask, position_log_sum_exp, kl_loss_tensor
         )
 
 
@@ -521,17 +523,15 @@ def _print_chunk_debug_info(
               f"s_logpK: {student_log_probs[position_index] * teacher_mask[position_index].float()} "
               f"with logZ {log_sum_exp_values[position_index]}")
         print(f"batch {batch_idx} efficient pos {debug_position} "
-              f"kl_per_pos: {kl_losses[position_index]}")
+              f"kl_per_pos: {kl_losses[batch_idx, debug_position]}")
 
 
 def _print_debug_summary(
     kl_losses: torch.Tensor, 
-    batch_size: int, 
-    sequence_length: int
 ) -> None:
     """Print debug summary information."""
     print(f"  Number of elements: {kl_losses.shape}")
-    print(f"  KL losses: {kl_losses.sum() / (batch_size * sequence_length)}")
+    print(f"  KL losses: {kl_losses.sum()}")
 
 
 def generate_fake_teacher_data(
@@ -713,8 +713,8 @@ def traditional_distillation_loss(
             # KL = sum(p_teacher * (log p_teacher - log p_student))
             teacher_probs = teacher_log_probs.exp()
             kl_divergence_at_position = teacher_probs * (teacher_log_probs - student_log_probs_teacher_tokens)
-            kl_divergence_scalar = kl_divergence_at_position.sum()  # Reduce to scalar
-            
+            kl_divergence_scalar = kl_divergence_at_position.sum() * (T ** 2)  # Reduce to scalar
+
             # Debug output for specific position
             if position_idx == debug_position_idx:
                 full_vocab_log_sum_exp = torch.logsumexp(
@@ -728,7 +728,7 @@ def traditional_distillation_loss(
                 print(f"batch {batch_idx} traditional pos {debug_position_idx} "
                       f"kl loss {kl_divergence_scalar}")
             
-            batch_kl_accumulator += kl_divergence_scalar
+            batch_kl_accumulator += kl_divergence_scalar 
             batch_valid_positions += 1
         
         total_kl_loss += batch_kl_accumulator
@@ -739,7 +739,7 @@ def traditional_distillation_loss(
     
     # Compute average loss over valid positions with temperature scaling
     if total_valid_positions > 0:
-        knowledge_distillation_loss = (total_kl_loss / total_valid_positions) * (T ** 2)
+        knowledge_distillation_loss = (total_kl_loss / total_valid_positions) 
     else:
         knowledge_distillation_loss = torch.zeros_like(total_kl_loss)
     

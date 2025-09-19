@@ -83,6 +83,7 @@ def cce_per_token_loss(
         ignore_index=ignore_index,
         vocab_parallel_options=vp_opts,
         return_lse=return_lse,
+        softcap = temp
     )
 
     return losses # return losses or (losses, lse)

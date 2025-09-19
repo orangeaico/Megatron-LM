@@ -692,10 +692,13 @@ class TransformerConfig(ModelParallelConfig):
     debug_cce_loss: bool = False
 
     # For debugging distillation issues
-    debug_distillation: bool = False
+    debug_distillation: bool = True
 
     # For distillation loss
-    distillation_loss: bool = False
+    distillation_loss: bool = True
+
+    # Distillation Temperature
+    distillation_temp: float = 3.0
 
     def __post_init__(self):
         """Python dataclass method that is used to modify attributes after initialization.

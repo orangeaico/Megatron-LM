@@ -682,7 +682,8 @@ class GPTModel(LanguageModule):
                                                       reduction=self.config.linear_ce_reduction,
                                                       shift=self.config.linear_ce_shift,
                                                       ignore_index=self.config.linear_ce_ignore_index,
-                                                      debug=self.config.debug_distillation)
+                                                      debug=self.config.debug_distillation,
+                                                      temp=self.config.distillation_temp)
 
 
             if self.config.debug_distillation:
@@ -690,8 +691,8 @@ class GPTModel(LanguageModule):
                 hidden_states, weight=output_weight, runtime_gather_output=runtime_gather_output
             )
                 logits = gather_from_tensor_model_parallel_region(logits, group=self.pg_collection.tp)
-                traditional_distillation_loss(logits, teacher_data, labels, T=1, ignore_index=self.config.linear_ce_ignore_index)
-            
+                traditional_distillation_loss(logits, teacher_data, labels, T=self.config.distillation_temp, ignore_index=self.config.linear_ce_ignore_index)
+
 
             return token_losses
 
