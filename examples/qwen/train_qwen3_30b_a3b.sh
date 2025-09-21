@@ -17,9 +17,11 @@ MODEL_NAME="Qwen3-Coder-30B-A3B-Instruct"
 
 BASE_DIR="/workspace/data/"
 LOAD_CHECKPOINT_PATH="$BASE_DIR/mega-models/Qwen3-1.7B"
-TOKENIZER_ARG="$BASE_DIR/mega-models/Qwen3-1.7B" # Path to tokenizer model, or "MOCK"
-# DATA_ARG="$BASE_DIR/data/qwen_out_text_document"     # Data prefix, or "MOCK"
-DATA_ARG="$BASE_DIR/data/test_output.jsonl"
+# TOKENIZER_ARG="$BASE_DIR/mega-models/Qwen3-1.7B" # Path to tokenizer model, or "MOCK"
+# DATA_ARG="$BASE_DIR/data/test_output.jsonl"
+
+TOKENIZER_ARG="MOCK"
+DATA_ARG="MOCK"
 
 BASE_OUTPUT_DIR="$BASE_DIR/himanshu/output"
 SAVE_CHECKPOINT_PATH="$BASE_OUTPUT_DIR/$MODEL_NAME/checkpoints"
@@ -37,7 +39,7 @@ mkdir -p "$(dirname "$MEMORY_SNAPSHOT_PATH")"
 mkdir -p "$DATA_CACHE_PATH"
 
 # Distributed training setup
-GPUS_PER_NODE=2
+GPUS_PER_NODE=8
 NUM_NODES=1
 MASTER_ADDR=${MASTER_ADDR:-localhost}
 MASTER_PORT=${MASTER_PORT:-6000}
@@ -48,14 +50,14 @@ WORLD_SIZE=$(($GPUS_PER_NODE*$NUM_NODES))
 PRETRAIN_SCRIPT_PATH="pretrain_gpt.py"
 
 # Fixed model and training parameters for Qwen3-1.7B
-TP_SIZE=2 
-CP_SIZE=1
+TP_SIZE=1
+CP_SIZE=2
 EP_SIZE=1
-EXPERT_TP_SIZE=1
+EXPERT_TP_SIZE=4
 PP_SIZE=1
 LAYERS_PER_VP=1
 MICRO_BATCH_SIZE=1 
-GLOBAL_BATCH_SIZE=1  
+GLOBAL_BATCH_SIZE=8
 NUM_LAYERS=48  
 DTYPE="bf16"
 SEQ_LENGTH=65536
@@ -222,7 +224,7 @@ CHECKPOINT_ARGS=(
     --auto-detect-ckpt-format
     --dist-ckpt-strictness log_all
     --distributed-timeout-minutes 60
-    --load "$LOAD_CHECKPOINT_PATH"
+#     --load "$LOAD_CHECKPOINT_PATH"
     --save "$SAVE_CHECKPOINT_PATH"
     --no-save-optim
     --no-save-rng
