@@ -58,7 +58,7 @@ def mem_phase(name: str, do_barrier: bool = False):
     device = torch.cuda.current_device()
     if do_barrier:
         _barrier()
-    # torch.cuda.reset_peak_memory_stats(device)
+    torch.cuda.reset_peak_memory_stats(device)
     t0 = time.time()
     try:
         yield
