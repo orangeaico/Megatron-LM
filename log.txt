@@ -73,10 +73,10 @@ using torch.bfloat16 for parameters ...
   data_parallel_random_init ....................... False
   data_parallel_sharding_strategy ................. no_shard
   data_parallel_size .............................. 1
-  data_path ....................................... None
+  data_path ....................................... ['/workspace/training/teacher_data']
   data_per_class_fraction ......................... 1.0
   data_sharding ................................... True
-  dataloader_type ................................. external
+  dataloader_type ................................. single
   ddp_average_in_collective ....................... False
   ddp_bucket_size ................................. None
   ddp_num_buckets ................................. None
@@ -107,6 +107,7 @@ using torch.bfloat16 for parameters ...
   disable_symmetric_registration .................. False
   dist_ckpt_format_deprecated ..................... None
   dist_ckpt_strictness ............................ log_all
+  distillation_loss ............................... True
   distribute_saved_activations .................... False
   distributed_backend ............................. nccl
   distributed_timeout_minutes ..................... 60
@@ -122,13 +123,13 @@ using torch.bfloat16 for parameters ...
   enable_msc ...................................... True
   enable_one_logger ............................... True
   encoder_num_layers .............................. 14
-  encoder_seq_length .............................. 4096
+  encoder_seq_length .............................. 8192
   end_weight_decay ................................ 0.0
   eod_mask_loss ................................... False
   error_injection_rate ............................ 0
   error_injection_type ............................ transient_error
-  eval_interval ................................... 100
-  eval_iters ...................................... 3
+  eval_interval ................................... 1
+  eval_iters ...................................... 1
   evidence_data_path .............................. None
   exit_duration_in_mins ........................... 235
   exit_interval ................................... None
@@ -171,7 +172,7 @@ using torch.bfloat16 for parameters ...
   fsdp_double_buffer .............................. False
   full_validation ................................. False
   generate_fake_teacher_data ...................... False
-  global_batch_size ............................... 4
+  global_batch_size ............................... 2
   grad_reduce_in_bf16 ............................. True
   gradient_accumulation_fusion .................... True
   gradient_reduce_div_fusion ...................... True
@@ -239,9 +240,6 @@ using torch.bfloat16 for parameters ...
   is_hybrid_model ................................. False
   iter_per_epoch .................................. 1250
   iterations_to_skip .............................. []
-  json_teacher_test_dir ........................... /workspace/training/teacher_data
-  json_teacher_train_dir .......................... /workspace/training/teacher_data
-  json_teacher_valid_dir .......................... /workspace/training/teacher_data
   keep_fp8_transpose_cache ........................ False
   kitchen_config_file ............................. None
   kitchen_recipe_number ........................... None
@@ -300,7 +298,7 @@ using torch.bfloat16 for parameters ...
   max_tokens_to_oom ............................... 12000
   memory_snapshot_path ............................ output/qwen3_1.7b/memory_snapshots/memory_snapshot.pickle
   merge_file ...................................... None
-  micro_batch_size ................................ 2
+  micro_batch_size ................................ 1
   microbatch_group_size_per_vp_stage .............. None
   mid_level_dataset_surplus ....................... 0.005
   min_loss_scale .................................. 1.0
@@ -466,7 +464,7 @@ using torch.bfloat16 for parameters ...
   save_retain_interval ............................ None
   scatter_gather_tensors_in_pipeline .............. True
   seed ............................................ 1234
-  seq_length ...................................... 4096
+  seq_length ...................................... 8192
   sequence_parallel ............................... True
   sft ............................................. False
   sft_tokenizer_prompt_format ..................... nemotron-h-aligned
@@ -515,7 +513,7 @@ using torch.bfloat16 for parameters ...
   tp_comm_split_rs ................................ True
   train_data_path ................................. None
   train_iters ..................................... None
-  train_samples ................................... 20
+  train_samples ................................... 44
   train_sync_interval ............................. None
   transformer_impl ................................ transformer_engine
   transformer_pipeline_model_parallel_size ........ 1
@@ -580,36 +578,35 @@ WARNING:megatron.core.rerun_state_machine:RerunStateMachine initialized in mode 
 make: Entering directory '/workspace/training/Megatron-LM/megatron/core/datasets'
 make: Nothing to be done for 'default'.
 make: Leaving directory '/workspace/training/Megatron-LM/megatron/core/datasets'
->>> done with dataset index builder. Compilation time: 0.014 seconds
+>>> done with dataset index builder. Compilation time: 0.012 seconds
 > compiling and loading fused kernels ...
->>> done with compiling and loading fused kernels. Compilation time: 0.203 seconds
-time to initialize megatron (seconds): 1.668
-[after megatron is initialized] datetime: 2025-09-19 12:16:07 
+>>> done with compiling and loading fused kernels. Compilation time: 0.229 seconds
+time to initialize megatron (seconds): 2.937
+[after megatron is initialized] datetime: 2025-09-22 11:12:01 
 building GPT model ...
  > number of parameters on (tensor, pipeline) model parallel rank (0, 0): 507966976
  > number of parameters on (tensor, pipeline) model parallel rank (1, 0): 507966976
 INFO:megatron.core.distributed.distributed_data_parallel:Setting up DistributedDataParallel with config DistributedDataParallelConfig(grad_reduce_in_fp32=False, overlap_grad_reduce=True, overlap_param_gather=True, align_param_gather=False, use_distributed_optimizer=True, num_distributed_optimizer_instances=1, check_for_nan_in_grad=True, check_for_large_grads=False, bucket_size=40000000, pad_buckets_for_high_nccl_busbw=False, average_in_collective=False, fp8_param_gather=False, reuse_grad_buf_for_mxfp8_param_ag=False, use_megatron_fsdp=False, use_custom_fsdp=False, data_parallel_sharding_strategy='no_shard', gradient_reduce_div_fusion=True, suggested_communication_unit_size=None, preserve_fp32_weights=True, keep_fp8_transpose_cache=False, nccl_ub=False, fsdp_double_buffer=False, outer_dp_sharding_strategy='no_shard', disable_symmetric_registration=False, delay_wgrad_compute=False)
 INFO:megatron.core.distributed.param_and_grad_buffer:Number of buckets for gradient all-reduce / reduce-scatter: 8
 Params for bucket 1 (44046592 elements, 44046592 padded size):
-	module.decoder.final_layernorm.weight
-	module.decoder.layers.13.mlp.linear_fc2.weight
-	module.decoder.layers.13.self_attention.linear_qkv.weight
-	module.decoder.layers.13.self_attention.linear_qkv.layer_norm_weight
-	module.decoder.layers.12.mlp.linear_fc2.weight
-	module.decoder.layers.12.mlp.linear_fc1.weight
+	module.decoder.layers.13.mlp.linear_fc1.weight
 	module.decoder.layers.13.mlp.linear_fc1.layer_norm_weight
 	module.decoder.layers.13.self_attention.k_layernorm.weight
-	module.decoder.layers.13.mlp.linear_fc1.weight
-	module.decoder.layers.13.self_attention.q_layernorm.weight
 	module.decoder.layers.13.self_attention.linear_proj.weight
+	module.decoder.layers.12.mlp.linear_fc2.weight
+	module.decoder.final_layernorm.weight
+	module.decoder.layers.13.mlp.linear_fc2.weight
+	module.decoder.layers.13.self_attention.q_layernorm.weight
+	module.decoder.layers.13.self_attention.linear_qkv.weight
+	module.decoder.layers.13.self_attention.linear_qkv.layer_norm_weight
+	module.decoder.layers.12.mlp.linear_fc1.weight
 Params for bucket 2 (50340352 elements, 50340352 padded size):
-	module.decoder.layers.12.self_attention.linear_qkv.layer_norm_weight
 	module.decoder.layers.12.self_attention.linear_qkv.weight
+	module.decoder.layers.12.self_attention.linear_qkv.layer_norm_weight
 	module.decoder.layers.11.mlp.linear_fc2.weight
-	module.decoder.layers.11.self_attention.q_layernorm.weight
 	module.decoder.layers.11.self_attention.linear_qkv.weight
 	module.decoder.layers.11.self_attention.linear_qkv.layer_norm_weight
-	module.decoder.layers.10.mlp.linear_fc1.weight
+	module.decoder.layers.10.mlp.linear_fc2.weight
 	module.decoder.layers.12.mlp.linear_fc1.layer_norm_weight
 	module.decoder.layers.12.self_attention.k_layernorm.weight
 	module.decoder.layers.12.self_attention.q_layernorm.weight
@@ -617,9 +614,16 @@ Params for bucket 2 (50340352 elements, 50340352 padded size):
 	module.decoder.layers.11.mlp.linear_fc1.weight
 	module.decoder.layers.11.mlp.linear_fc1.layer_norm_weight
 	module.decoder.layers.11.self_attention.k_layernorm.weight
+	module.decoder.layers.11.self_attention.q_layernorm.weight
 	module.decoder.layers.11.self_attention.linear_proj.weight
-	module.decoder.layers.10.mlp.linear_fc2.weight
+	module.decoder.layers.10.mlp.linear_fc1.weight
 Params for bucket 3 (50340352 elements, 50340352 padded size):
+	module.decoder.layers.10.self_attention.linear_qkv.weight
+	module.decoder.layers.10.self_attention.linear_qkv.layer_norm_weight
+	module.decoder.layers.9.mlp.linear_fc2.weight
+	module.decoder.layers.9.self_attention.linear_qkv.weight
+	module.decoder.layers.9.self_attention.linear_qkv.layer_norm_weight
+	module.decoder.layers.8.mlp.linear_fc2.weight
 	module.decoder.layers.10.mlp.linear_fc1.layer_norm_weight
 	module.decoder.layers.10.self_attention.q_layernorm.weight
 	module.decoder.layers.10.self_attention.k_layernorm.weight
@@ -630,1159 +634,117 @@ Params for bucket 3 (50340352 elements, 50340352 padded size):
 	module.decoder.layers.9.self_attention.q_layernorm.weight
 	module.decoder.layers.9.self_attention.linear_proj.weight
 	module.decoder.layers.8.mlp.linear_fc1.weight
-	module.decoder.layers.10.self_attention.linear_qkv.layer_norm_weight
-	module.decoder.layers.10.self_attention.linear_qkv.weight
-	module.decoder.layers.9.mlp.linear_fc2.weight
-	module.decoder.layers.9.self_attention.linear_qkv.weight
-	module.decoder.layers.9.self_attention.linear_qkv.layer_norm_weight
-	module.decoder.layers.8.mlp.linear_fc2.weight
 Params for bucket 4 (50340352 elements, 50340352 padded size):
+	module.decoder.layers.8.self_attention.linear_qkv.weight
+	module.decoder.layers.8.self_attention.linear_qkv.layer_norm_weight
+	module.decoder.layers.7.mlp.linear_fc2.weight
+	module.decoder.layers.7.mlp.linear_fc1.weight
+	module.decoder.layers.7.self_attention.linear_qkv.weight
+	module.decoder.layers.7.self_attention.linear_qkv.layer_norm_weight
+	module.decoder.layers.6.mlp.linear_fc2.weight
 	module.decoder.layers.8.mlp.linear_fc1.layer_norm_weight
 	module.decoder.layers.8.self_attention.k_layernorm.weight
-	module.decoder.layers.8.self_attention.linear_proj.weight
-	module.decoder.layers.7.mlp.linear_fc2.weight
-	module.decoder.layers.7.self_attention.k_layernorm.weight
-	module.decoder.layers.7.self_attention.linear_qkv.layer_norm_weight
-	module.decoder.layers.7.self_attention.linear_proj.weight
-	module.decoder.layers.8.self_attention.linear_qkv.layer_norm_weight
 	module.decoder.layers.8.self_attention.q_layernorm.weight
-	module.decoder.layers.8.self_attention.linear_qkv.weight
-	module.decoder.layers.7.mlp.linear_fc1.weight
+	module.decoder.layers.8.self_attention.linear_proj.weight
 	module.decoder.layers.7.mlp.linear_fc1.layer_norm_weight
+	module.decoder.layers.7.self_attention.k_layernorm.weight
 	module.decoder.layers.7.self_attention.q_layernorm.weight
-	module.decoder.layers.7.self_attention.linear_qkv.weight
-	module.decoder.layers.6.mlp.linear_fc2.weight
+	module.decoder.layers.7.self_attention.linear_proj.weight
 	module.decoder.layers.6.mlp.linear_fc1.weight
 Params for bucket 5 (50340352 elements, 50340352 padded size):
-	module.decoder.layers.6.self_attention.k_layernorm.weight
 	module.decoder.layers.6.self_attention.linear_qkv.weight
+	module.decoder.layers.6.self_attention.linear_qkv.layer_norm_weight
+	module.decoder.layers.5.mlp.linear_fc2.weight
+	module.decoder.layers.5.self_attention.linear_qkv.weight
+	module.decoder.layers.4.mlp.linear_fc1.weight
+	module.decoder.layers.4.mlp.linear_fc2.weight
+	module.decoder.layers.6.mlp.linear_fc1.layer_norm_weight
+	module.decoder.layers.6.self_attention.q_layernorm.weight
+	module.decoder.layers.6.self_attention.k_layernorm.weight
 	module.decoder.layers.6.self_attention.linear_proj.weight
+	module.decoder.layers.5.mlp.linear_fc1.weight
 	module.decoder.layers.5.mlp.linear_fc1.layer_norm_weight
 	module.decoder.layers.5.self_attention.k_layernorm.weight
 	module.decoder.layers.5.self_attention.q_layernorm.weight
-	module.decoder.layers.5.self_attention.linear_qkv.weight
-	module.decoder.layers.5.self_attention.linear_proj.weight
-	module.decoder.layers.4.mlp.linear_fc2.weight
-	module.decoder.layers.6.mlp.linear_fc1.layer_norm_weight
-	module.decoder.layers.6.self_attention.linear_qkv.layer_norm_weight
-	module.decoder.layers.6.self_attention.q_layernorm.weight
-	module.decoder.layers.5.mlp.linear_fc2.weight
-	module.decoder.layers.5.mlp.linear_fc1.weight
 	module.decoder.layers.5.self_attention.linear_qkv.layer_norm_weight
-	module.decoder.layers.4.mlp.linear_fc1.weight
+	module.decoder.layers.5.self_attention.linear_proj.weight
 Params for bucket 6 (50340352 elements, 50340352 padded size):
-	module.decoder.layers.4.self_attention.q_layernorm.weight
-	module.decoder.layers.4.self_attention.k_layernorm.weight
-	module.decoder.layers.3.mlp.linear_fc1.weight
-	module.decoder.layers.3.mlp.linear_fc1.layer_norm_weight
-	module.decoder.layers.3.self_attention.linear_qkv.weight
-	module.decoder.layers.3.self_attention.linear_qkv.layer_norm_weight
-	module.decoder.layers.3.self_attention.linear_proj.weight
-	module.decoder.layers.4.mlp.linear_fc1.layer_norm_weight
 	module.decoder.layers.4.self_attention.linear_qkv.weight
+	module.decoder.layers.4.self_attention.q_layernorm.weight
 	module.decoder.layers.4.self_attention.linear_qkv.layer_norm_weight
+	module.decoder.layers.4.self_attention.k_layernorm.weight
 	module.decoder.layers.4.self_attention.linear_proj.weight
 	module.decoder.layers.3.mlp.linear_fc2.weight
+	module.decoder.layers.3.mlp.linear_fc1.weight
+	module.decoder.layers.3.mlp.linear_fc1.layer_norm_weight
 	module.decoder.layers.3.self_attention.k_layernorm.weight
-	module.decoder.layers.3.self_attention.q_layernorm.weight
+	module.decoder.layers.3.self_attention.linear_qkv.weight
+	module.decoder.layers.3.self_attention.linear_proj.weight
 	module.decoder.layers.2.mlp.linear_fc2.weight
+	module.decoder.layers.4.mlp.linear_fc1.layer_norm_weight
+	module.decoder.layers.3.self_attention.q_layernorm.weight
+	module.decoder.layers.3.self_attention.linear_qkv.layer_norm_weight
 	module.decoder.layers.2.mlp.linear_fc1.weight
 Params for bucket 7 (50340352 elements, 50340352 padded size):
 	module.decoder.layers.2.mlp.linear_fc1.layer_norm_weight
-	module.decoder.layers.2.self_attention.linear_qkv.weight
-	module.decoder.layers.2.self_attention.k_layernorm.weight
+	module.decoder.layers.2.self_attention.q_layernorm.weight
 	module.decoder.layers.2.self_attention.linear_proj.weight
-	module.decoder.layers.1.mlp.linear_fc1.weight
-	module.decoder.layers.1.mlp.linear_fc1.layer_norm_weight
 	module.decoder.layers.1.self_attention.k_layernorm.weight
 	module.decoder.layers.1.self_attention.q_layernorm.weight
-	module.decoder.layers.1.self_attention.linear_qkv.layer_norm_weight
+	module.decoder.layers.1.self_attention.linear_qkv.weight
 	module.decoder.layers.0.mlp.linear_fc2.weight
 	module.decoder.layers.0.mlp.linear_fc1.weight
+	module.decoder.layers.2.self_attention.linear_qkv.weight
+	module.decoder.layers.2.self_attention.k_layernorm.weight
 	module.decoder.layers.2.self_attention.linear_qkv.layer_norm_weight
-	module.decoder.layers.2.self_attention.q_layernorm.weight
 	module.decoder.layers.1.mlp.linear_fc2.weight
-	module.decoder.layers.1.self_attention.linear_qkv.weight
+	module.decoder.layers.1.mlp.linear_fc1.weight
+	module.decoder.layers.1.mlp.linear_fc1.layer_norm_weight
+	module.decoder.layers.1.self_attention.linear_qkv.layer_norm_weight
 	module.decoder.layers.1.self_attention.linear_proj.weight
 Params for bucket 8 (161878272 elements, 161878272 padded size):
 	module.decoder.layers.0.mlp.linear_fc1.layer_norm_weight
+	module.decoder.layers.0.self_attention.linear_qkv.layer_norm_weight
 	module.decoder.layers.0.self_attention.linear_qkv.weight
-	module.decoder.layers.0.self_attention.linear_proj.weight
-	module.embedding.word_embeddings.weight
 	module.decoder.layers.0.self_attention.k_layernorm.weight
 	module.decoder.layers.0.self_attention.q_layernorm.weight
-	module.decoder.layers.0.self_attention.linear_qkv.layer_norm_weight
-INFO:megatron.core.optimizer:Setting up optimizer with config OptimizerConfig(optimizer='adam', lr=5e-05, min_lr=1e-07, decoupled_lr=None, decoupled_min_lr=None, weight_decay=0.0, fp8_recipe='delayed', fp16=False, bf16=True, reuse_grad_buf_for_mxfp8_param_ag=False, params_dtype=torch.bfloat16, use_precision_aware_optimizer=True, store_param_remainders=True, main_grads_dtype=torch.bfloat16, main_params_dtype=torch.float16, exp_avg_dtype=torch.float16, exp_avg_sq_dtype=torch.float16, loss_scale=None, initial_loss_scale=4294967296, min_loss_scale=1.0, loss_scale_window=1000, hysteresis=2, adam_beta1=0.9, adam_beta2=0.95, adam_eps=1e-08, sgd_momentum=0.9, use_distributed_optimizer=True, overlap_param_gather=True, overlap_param_gather_with_optimizer_step=False, use_megatron_fsdp=False, optimizer_cpu_offload=False, optimizer_offload_fraction=1.0, use_torch_optimizer_for_cpu_offload=False, overlap_cpu_optimizer_d2h_h2d=False, pin_cpu_grads=True, pin_cpu_params=True, clip_grad=1.0, log_num_zeros_in_grad=True, barrier_with_L1_time=True, timers=<megatron.core.timers.Timers object at 0x73d67da67f50>, config_logger_dir='')
-setting training iterations to 5
+	module.decoder.layers.0.self_attention.linear_proj.weight
+	module.embedding.word_embeddings.weight
+INFO:megatron.core.optimizer:Setting up optimizer with config OptimizerConfig(optimizer='adam', lr=5e-05, min_lr=1e-07, decoupled_lr=None, decoupled_min_lr=None, weight_decay=0.0, fp8_recipe='delayed', fp16=False, bf16=True, reuse_grad_buf_for_mxfp8_param_ag=False, params_dtype=torch.bfloat16, use_precision_aware_optimizer=True, store_param_remainders=True, main_grads_dtype=torch.bfloat16, main_params_dtype=torch.float16, exp_avg_dtype=torch.float16, exp_avg_sq_dtype=torch.float16, loss_scale=None, initial_loss_scale=4294967296, min_loss_scale=1.0, loss_scale_window=1000, hysteresis=2, adam_beta1=0.9, adam_beta2=0.95, adam_eps=1e-08, sgd_momentum=0.9, use_distributed_optimizer=True, overlap_param_gather=True, overlap_param_gather_with_optimizer_step=False, use_megatron_fsdp=False, optimizer_cpu_offload=False, optimizer_offload_fraction=1.0, use_torch_optimizer_for_cpu_offload=False, overlap_cpu_optimizer_d2h_h2d=False, pin_cpu_grads=True, pin_cpu_params=True, clip_grad=1.0, log_num_zeros_in_grad=True, barrier_with_L1_time=True, timers=<megatron.core.timers.Timers object at 0x7da48085d400>, config_logger_dir='')
+setting training iterations to 22
 INFO:megatron.core.optimizer_param_scheduler:> learning rate decay style: cosine
 WARNING: could not find the metadata file /workspace/data//mega-models/Qwen3-1.7B/latest_checkpointed_iteration.txt
     will not load any checkpoints and will start from random
 (min, max) time across ranks (ms):
     load-checkpoint ................................: (0.11, 0.11)
-[after model, optimizer, and learning rate scheduler are built] datetime: 2025-09-19 12:16:07 
+[after model, optimizer, and learning rate scheduler are built] datetime: 2025-09-22 11:12:01 
 > building train, validation, and test datasets ...
  > datasets target sizes (minimum size):
-    train:      20
-    validation: 12
-    test:       12
-[after dataloaders are built] datetime: 2025-09-19 12:16:07 
+    train:      44
+    validation: 46
+    test:       2
+INFO:megatron.core.datasets.blended_megatron_dataset_config:Let split_matrix = [(0, 0.99), (0.99, 1.0), None]
+> building train, validation, and test datasets for GPT ...
+INFO:megatron.core.datasets.blended_megatron_dataset_builder:Building JsonTeacherDataset splits with sizes=(44, 46, 2) and config=GPTDatasetConfig(random_seed=1234, sequence_length=8192, blend=(['/workspace/training/teacher_data'], None), blend_per_split=None, multiple_validation_sets=False, full_validation=False, split="'99,1,0'", split_matrix=[(0, 0.99), (0.99, 1.0), None], num_dataset_builder_threads=1, path_to_cache='output/qwen3_1.7b/benchmark_cache', mmap_bin_files=True, mock=False, tokenizer=<megatron.training.tokenizer.tokenizer._HuggingFaceTokenizer object at 0x7da481307ef0>, mid_level_dataset_surplus=0.005, reset_position_ids=False, reset_attention_mask=False, eod_mask_loss=False, create_attention_mask=True, drop_last_partial_validation_sequence=True, add_extra_token_to_sequence=True, object_storage_cache_path=None)
+Number of JSON files found: 44
+> train dataset: <megatron.training.datasets.json_teacher_dataset.JsonTeacherDataset object at 0x7da45056d850> samples
+> validation dataset: <megatron.training.datasets.json_teacher_dataset.JsonTeacherDataset object at 0x7da45056dd90> samples
+> test dataset: None samples
+> finished creating GPT datasets ...
+[after dataloaders are built] datetime: 2025-09-22 11:12:01 
 done with setup ...
 training ...(min, max) time across ranks (ms):
-    model-and-optimizer-setup ......................: (101.49, 106.44)
-    train/valid/test-data-iterators-setup ..........: (54.24, 54.24)
+    model-and-optimizer-setup ......................: (90.14, 90.36)
+    train/valid/test-data-iterators-setup ..........: (132.81, 132.91)
 
 Overwriting rerun_state_machine.current_iteration from -1 to 0...
-[before the start of training step] datetime: 2025-09-19 12:16:08 
-Dropped 10815 teacher logits positions outside valid range [0, 4096)
-Dropped 34092 teacher logits positions outside valid range [0, 4096)
-[MEM][LOAD_BATCH] dt=0.327s | alloc=1.92GB res=2.85GB peak_alloc=1.92GB peak_res=2.85GB
-[MEM][LOAD_BATCH] dt=0.328s | alloc=1.92GB res=2.85GB peak_alloc=1.92GB peak_res=2.85GB
-  Number of elements: 873
-  KL losses: 93.03547668457031
-  Number of elements: 873
-  KL losses: 93.03547668457031
-batch 0 traditional valid positions: 408.0, batch_kl_sum: 38426.06640625
-batch 0 traditional valid positions: 408.0, batch_kl_sum: 38426.06640625
-batch 1 traditional valid positions: 465.0, batch_kl_sum: 42793.90234375
-KD loss: 93.03547668457031, valid positions: 873.0
-[MEM][FORWARD] dt=2.045s | alloc=2.39GB res=14.72GB peak_alloc=14.19GB peak_res=14.72GB
-batch 1 traditional valid positions: 465.0, batch_kl_sum: 42793.90234375
-KD loss: 93.03547668457031, valid positions: 873.0
-[MEM][FORWARD] dt=2.053s | alloc=2.39GB res=14.79GB peak_alloc=14.24GB peak_res=14.79GB
-WARNING:megatron.core.rerun_state_machine:Result validation enabled
-Dropped 15084 teacher logits positions outside valid range [0, 4096)
-Dropped 12288 teacher logits positions outside valid range [0, 4096)
-[MEM][LOAD_BATCH] dt=0.209s | alloc=2.04GB res=14.79GB peak_alloc=2.04GB peak_res=14.79GB
-[MEM][LOAD_BATCH] dt=0.209s | alloc=2.04GB res=14.72GB peak_alloc=2.04GB peak_res=14.72GB
-  Number of elements: 363
-  KL losses: 93.27664947509766
-  Number of elements: 363
-  KL losses: 93.27664947509766
-batch 1 traditional valid positions: 363.0, batch_kl_sum: 33859.4296875
-KD loss: 93.27666473388672, valid positions: 363.0
-batch 1 traditional valid positions: 363.0, batch_kl_sum: 33859.4296875
-KD loss: 93.27666473388672, valid positions: 363.0
-[MEM][FORWARD] dt=4.265s | alloc=2.32GB res=14.72GB peak_alloc=14.05GB peak_res=14.72GB
-[MEM][FORWARD] dt=4.267s | alloc=2.32GB res=14.79GB peak_alloc=14.07GB peak_res=14.79GB
-Number of parameters in transformer block in billions:  0.70
-Number of parameters in embedding layers in billions: 0.31
-Total number of parameters in billions: 1.02
-Number of parameters in most loaded shard in billions: 0.5080
-compute_activation_memory_without_sp
-Activation memory footprint per transformer layer (precise, without SP): 352.0 MB
-Theoretical memory footprints: weight and optimizer=8719.77 MB, activation=6471.22 MB, total=15190.99 MB
-
- [2025-09-19 12:16:17] iteration        1/       5 | consumed samples:            4 | elapsed time per iteration (ms): 9181.7 | throughput per GPU (TFLOP/s/GPU): 6.1 | learning rate: 4.997812E-05 | global batch size:     4 | lm loss: 1.078181E+01 | loss scale: 1.0 | grad norm: 166.358 | num zeros: 34569.0 | params norm: 0.000 | number of skipped iterations:   0 | number of nan iterations:   0 |
-[Rank 0] (after 1 iterations) memory (MB) | allocated: 3989.85986328125 | max allocated: 14405.2109375 | reserved: 15152.0 | max reserved: 15152.0
-[Rank 1] (after 1 iterations) memory (MB) | allocated: 3989.85986328125 | max allocated: 14384.53173828125 | reserved: 15072.0 | max reserved: 15072.0
-Dropped 12818 teacher logits positions outside valid range [0, 4096)
-Dropped 10025 teacher logits positions outside valid range [0, 4096)
-[MEM][LOAD_BATCH] dt=0.364s | alloc=3.93GB res=14.80GB peak_alloc=3.93GB peak_res=14.80GB
-[MEM][LOAD_BATCH] dt=0.365s | alloc=3.93GB res=14.72GB peak_alloc=3.93GB peak_res=14.72GB
-batch 0 efficient pos 3157 teacher_values_batch: tensor([1.5236e-03, 7.1970e-04, 6.9033e-04, 6.3514e-04, 1.0000e+00, 1.0000e+00,
-        1.0000e+00, 1.0000e+00, 1.0000e+00, 1.0000e+00, 1.0000e+00, 1.0000e+00,
-        1.0000e+00, 1.0000e+00, 1.0000e+00, 1.0000e+00, 1.0000e+00, 1.0000e+00,
-        1.0000e+00, 1.0000e+00], device='cuda:1')
-batch 0 efficient pos 3157 s_logpK: tensor([-11.9555, -11.8181, -12.2752, -12.2420,  -0.0000,  -0.0000,  -0.0000,
-         -0.0000,  -0.0000,  -0.0000,  -0.0000,  -0.0000,  -0.0000,  -0.0000,
-         -0.0000,  -0.0000,  -0.0000,  -0.0000,  -0.0000,  -0.0000],
-       device='cuda:1', grad_fn=<MulBackward0>) with logZ tensor([11.9763], device='cuda:1', grad_fn=<SelectBackward0>)
-batch 0 efficient pos 3157 kl_per_pos: 0.16360856592655182
-batch 0 efficient pos 3157 teacher_values_batch: tensor([8.9434e-01, 2.4847e-02, 7.1189e-03, 6.8284e-03, 4.5015e-03, 4.3178e-03,
-        3.9726e-03, 3.8105e-03, 3.2255e-03, 3.2255e-03, 2.8465e-03, 2.6189e-03,
-        2.0396e-03, 1.6560e-03, 1.5884e-03, 1.5236e-03, 1.5236e-03, 1.4614e-03,
-        1.3446e-03, 1.2897e-03, 1.1866e-03, 1.1382e-03, 1.0917e-03, 1.0472e-03,
-        1.0472e-03, 1.0472e-03, 1.0472e-03, 1.0044e-03, 1.0044e-03, 9.2412e-04,
-        8.5023e-04, 8.5023e-04, 8.5023e-04, 8.1553e-04, 8.1553e-04, 7.8225e-04,
-        7.5032e-04, 6.9033e-04, 6.9033e-04, 6.9033e-04, 6.9033e-04, 6.9033e-04,
-        6.6216e-04, 6.6216e-04, 6.6216e-04, 6.6216e-04, 1.0000e+00, 1.0000e+00,
-        1.0000e+00, 1.0000e+00], device='cuda:0')
-batch 0 efficient pos 3157 s_logpK: tensor([-11.4099, -12.0225, -11.7107, -11.8230, -12.0393, -12.1355, -10.9295,
-        -11.9395, -12.0205, -11.9501, -11.1443, -11.9943, -12.4080, -11.8538,
-        -11.9236, -11.9246, -12.1218, -12.2107, -12.0974, -11.9055, -11.9897,
-        -12.0330, -11.5720, -11.6248, -11.4529, -12.0745, -12.1336, -11.5232,
-        -11.7351, -12.3767, -11.6072, -12.4158, -12.1375, -11.4373, -11.6756,
-        -12.0070, -11.9713, -11.8211, -11.8093, -12.6209, -12.1052, -12.0872,
-        -11.1638, -12.8787, -12.5271, -11.8850,  -0.0000,  -0.0000,  -0.0000,
-         -0.0000], device='cuda:0', grad_fn=<MulBackward0>) with logZ tensor([11.9763], device='cuda:0', grad_fn=<SelectBackward0>)
-batch 0 efficient pos 3157 kl_per_pos: 96.84830474853516
-  Number of elements: 673
-  KL losses: 92.95465087890625
-  Number of elements: 673
-  KL losses: 92.95465087890625
-batch 0 traditional pos 3157 teacher_probs: tensor([8.9434e-01, 2.4847e-02, 7.1189e-03, 6.8284e-03, 4.5015e-03, 4.3178e-03,
-        3.9726e-03, 3.8105e-03, 3.2255e-03, 3.2255e-03, 2.8465e-03, 2.6189e-03,
-        2.0396e-03, 1.6560e-03, 1.5884e-03, 1.5236e-03, 1.5236e-03, 1.5236e-03,
-        1.4614e-03, 1.3446e-03, 1.2897e-03, 1.1866e-03, 1.1382e-03, 1.0917e-03,
-        1.0472e-03, 1.0472e-03, 1.0472e-03, 1.0472e-03, 1.0044e-03, 1.0044e-03,
-        9.2412e-04, 8.5023e-04, 8.5023e-04, 8.5023e-04, 8.1553e-04, 8.1553e-04,
-        7.8225e-04, 7.5032e-04, 7.1970e-04, 6.9033e-04, 6.9033e-04, 6.9033e-04,
-        6.9033e-04, 6.9033e-04, 6.9033e-04, 6.6216e-04, 6.6216e-04, 6.6216e-04,
-        6.6216e-04, 6.3514e-04], device='cuda:1')
-batch 0 traditional pos 3157 student_log_probs_teacher: tensor([-11.4099, -12.0225, -11.7107, -11.8230, -12.0393, -12.1355, -10.9295,
-        -11.9395, -12.0205, -11.9501, -11.1443, -11.9943, -12.4080, -11.8538,
-        -11.9236, -11.9246, -12.1218, -11.9552, -12.2107, -12.0974, -11.9055,
-        -11.9897, -12.0330, -11.5720, -11.6248, -11.4529, -12.0745, -12.1336,
-        -11.5232, -11.7351, -12.3767, -11.6072, -12.4158, -12.1375, -11.4373,
-        -11.6756, -12.0070, -11.9713, -11.8181, -11.8211, -11.8093, -12.6209,
-        -12.1052, -12.0872, -12.2752, -11.1638, -12.8787, -12.5271, -11.8850,
-        -12.2400], device='cuda:1', grad_fn=<IndexBackward0>) lse student: 11.976339340209961
-batch 0 traditional pos 3157 kl loss 97.01190948486328
-batch 0 traditional pos 3157 teacher_probs: tensor([8.9434e-01, 2.4847e-02, 7.1189e-03, 6.8284e-03, 4.5015e-03, 4.3178e-03,
-        3.9726e-03, 3.8105e-03, 3.2255e-03, 3.2255e-03, 2.8465e-03, 2.6189e-03,
-        2.0396e-03, 1.6560e-03, 1.5884e-03, 1.5236e-03, 1.5236e-03, 1.5236e-03,
-        1.4614e-03, 1.3446e-03, 1.2897e-03, 1.1866e-03, 1.1382e-03, 1.0917e-03,
-        1.0472e-03, 1.0472e-03, 1.0472e-03, 1.0472e-03, 1.0044e-03, 1.0044e-03,
-        9.2412e-04, 8.5023e-04, 8.5023e-04, 8.5023e-04, 8.1553e-04, 8.1553e-04,
-        7.8225e-04, 7.5032e-04, 7.1970e-04, 6.9033e-04, 6.9033e-04, 6.9033e-04,
-        6.9033e-04, 6.9033e-04, 6.9033e-04, 6.6216e-04, 6.6216e-04, 6.6216e-04,
-        6.6216e-04, 6.3514e-04], device='cuda:0')
-batch 0 traditional pos 3157 student_log_probs_teacher: tensor([-11.4099, -12.0225, -11.7107, -11.8230, -12.0393, -12.1355, -10.9295,
-        -11.9395, -12.0205, -11.9501, -11.1443, -11.9943, -12.4080, -11.8538,
-        -11.9236, -11.9246, -12.1218, -11.9552, -12.2107, -12.0974, -11.9055,
-        -11.9897, -12.0330, -11.5720, -11.6248, -11.4529, -12.0745, -12.1336,
-        -11.5232, -11.7351, -12.3767, -11.6072, -12.4158, -12.1375, -11.4373,
-        -11.6756, -12.0070, -11.9713, -11.8181, -11.8211, -11.8093, -12.6209,
-        -12.1052, -12.0872, -12.2752, -11.1638, -12.8787, -12.5271, -11.8850,
-        -12.2400], device='cuda:0', grad_fn=<IndexBackward0>) lse student: 11.976339340209961
-batch 0 traditional pos 3157 kl loss 97.01190948486328
-batch 0 traditional valid positions: 344.0, batch_kl_sum: 31955.140625
-batch 0 traditional valid positions: 344.0, batch_kl_sum: 31955.140625
-batch 1 traditional valid positions: 329.0, batch_kl_sum: 30603.3046875
-KD loss: 92.95459747314453, valid positions: 673.0
-[MEM][FORWARD] dt=1.360s | alloc=4.26GB res=18.72GB peak_alloc=16.03GB peak_res=18.72GB
-batch 1 traditional valid positions: 329.0, batch_kl_sum: 30603.3046875
-KD loss: 92.95459747314453, valid positions: 673.0
-[MEM][FORWARD] dt=1.383s | alloc=4.26GB res=18.72GB peak_alloc=16.07GB peak_res=18.72GB
-Dropped 13389 teacher logits positions outside valid range [0, 4096)
-Dropped 8353 teacher logits positions outside valid range [0, 4096)
-[MEM][LOAD_BATCH] dt=0.269s | alloc=3.93GB res=18.72GB peak_alloc=3.93GB peak_res=18.72GB
-[MEM][LOAD_BATCH] dt=0.270s | alloc=3.93GB res=18.72GB peak_alloc=3.93GB peak_res=18.72GB
-batch 0 efficient pos 3157 teacher_values_batch: tensor([9.8417e-01, 2.4395e-03, 2.3400e-03, 1.3058e-03, 7.7566e-04, 6.8452e-04,
-        4.5126e-04, 4.2392e-04, 3.8199e-04, 3.2334e-04, 2.9749e-04, 2.7947e-04,
-        2.6806e-04, 2.6254e-04, 2.4663e-04, 2.4663e-04, 2.1765e-04, 2.1765e-04,
-        2.1765e-04, 2.1765e-04, 2.0877e-04, 2.0446e-04, 2.0025e-04, 1.8424e-04,
-        1.7307e-04, 1.6951e-04, 1.6259e-04, 1.5924e-04, 1.4650e-04, 1.4650e-04,
-        1.4348e-04, 1.4053e-04, 1.4053e-04, 1.3763e-04, 1.3479e-04, 1.3479e-04,
-        1.3201e-04, 1.2401e-04, 1.2146e-04, 1.2146e-04, 1.2146e-04, 1.1895e-04,
-        1.1895e-04, 1.1895e-04, 1.1895e-04, 1.1650e-04, 1.1410e-04, 1.0944e-04,
-        1.0497e-04, 1.0497e-04], device='cuda:0')
-batch 0 efficient pos 3157 s_logpK: tensor([-11.5131, -11.1361, -12.2553, -11.2377, -11.1127, -11.8041, -11.7445,
-        -11.9323, -11.8012, -11.6322, -12.0932, -12.1508, -10.5150, -11.7484,
-        -11.8373, -12.2787, -11.4018, -11.3393, -11.8187, -11.5560, -12.2299,
-        -11.3627, -11.6264, -11.8002, -11.9308, -11.4643, -10.6010, -11.8119,
-        -11.6771, -11.8080, -12.2357, -11.8275, -11.3158, -12.4213, -12.1976,
-        -12.1840, -12.0614, -11.8607, -12.0800, -12.0067, -11.7992, -11.7738,
-        -11.6264, -11.4779, -11.4447, -11.7387, -11.9037, -11.9379, -11.8681,
-        -11.8627], device='cuda:0', grad_fn=<MulBackward0>) with logZ tensor([11.9760], device='cuda:0', grad_fn=<SelectBackward0>)
-batch 0 efficient pos 3157 kl_per_pos: 102.43203735351562
-  Number of elements: 416
-  KL losses: 94.19762420654297
-  Number of elements: 416
-  KL losses: 94.19762420654297
-batch 0 traditional pos 3157 teacher_probs: tensor([9.8417e-01, 2.4395e-03, 2.3400e-03, 1.3058e-03, 7.7566e-04, 6.8452e-04,
-        4.5126e-04, 4.2392e-04, 3.8199e-04, 3.2334e-04, 2.9749e-04, 2.7947e-04,
-        2.6806e-04, 2.6254e-04, 2.4663e-04, 2.4663e-04, 2.1765e-04, 2.1765e-04,
-        2.1765e-04, 2.1765e-04, 2.0877e-04, 2.0446e-04, 2.0025e-04, 1.8424e-04,
-        1.7307e-04, 1.6951e-04, 1.6259e-04, 1.5924e-04, 1.4650e-04, 1.4650e-04,
-        1.4348e-04, 1.4053e-04, 1.4053e-04, 1.3763e-04, 1.3479e-04, 1.3479e-04,
-        1.3201e-04, 1.2401e-04, 1.2146e-04, 1.2146e-04, 1.2146e-04, 1.1895e-04,
-        1.1895e-04, 1.1895e-04, 1.1895e-04, 1.1650e-04, 1.1410e-04, 1.0944e-04,
-        1.0497e-04, 1.0497e-04], device='cuda:1')
-batch 0 traditional pos 3157 student_log_probs_teacher: tensor([-11.5131, -11.1361, -12.2553, -11.2377, -11.1127, -11.8041, -11.7445,
-        -11.9323, -11.8012, -11.6322, -12.0932, -12.1508, -10.5150, -11.7484,
-        -11.8373, -12.2787, -11.4018, -11.3393, -11.8187, -11.5560, -12.2299,
-        -11.3627, -11.6264, -11.8002, -11.9308, -11.4643, -10.6010, -11.8119,
-        -11.6771, -11.8080, -12.2357, -11.8275, -11.3158, -12.4213, -12.1976,
-        -12.1840, -12.0614, -11.8607, -12.0800, -12.0067, -11.7992, -11.7738,
-        -11.6264, -11.4779, -11.4447, -11.7387, -11.9037, -11.9379, -11.8681,
-        -11.8627], device='cuda:1', grad_fn=<IndexBackward0>) lse student: 11.975968360900879
-batch 0 traditional pos 3157 kl loss 102.43203735351562
-batch 0 traditional pos 3157 teacher_probs: tensor([9.8417e-01, 2.4395e-03, 2.3400e-03, 1.3058e-03, 7.7566e-04, 6.8452e-04,
-        4.5126e-04, 4.2392e-04, 3.8199e-04, 3.2334e-04, 2.9749e-04, 2.7947e-04,
-        2.6806e-04, 2.6254e-04, 2.4663e-04, 2.4663e-04, 2.1765e-04, 2.1765e-04,
-        2.1765e-04, 2.1765e-04, 2.0877e-04, 2.0446e-04, 2.0025e-04, 1.8424e-04,
-        1.7307e-04, 1.6951e-04, 1.6259e-04, 1.5924e-04, 1.4650e-04, 1.4650e-04,
-        1.4348e-04, 1.4053e-04, 1.4053e-04, 1.3763e-04, 1.3479e-04, 1.3479e-04,
-        1.3201e-04, 1.2401e-04, 1.2146e-04, 1.2146e-04, 1.2146e-04, 1.1895e-04,
-        1.1895e-04, 1.1895e-04, 1.1895e-04, 1.1650e-04, 1.1410e-04, 1.0944e-04,
-        1.0497e-04, 1.0497e-04], device='cuda:0')
-batch 0 traditional pos 3157 student_log_probs_teacher: tensor([-11.5131, -11.1361, -12.2553, -11.2377, -11.1127, -11.8041, -11.7445,
-        -11.9323, -11.8012, -11.6322, -12.0932, -12.1508, -10.5150, -11.7484,
-        -11.8373, -12.2787, -11.4018, -11.3393, -11.8187, -11.5560, -12.2299,
-        -11.3627, -11.6264, -11.8002, -11.9308, -11.4643, -10.6010, -11.8119,
-        -11.6771, -11.8080, -12.2357, -11.8275, -11.3158, -12.4213, -12.1976,
-        -12.1840, -12.0614, -11.8607, -12.0800, -12.0067, -11.7992, -11.7738,
-        -11.6264, -11.4779, -11.4447, -11.7387, -11.9037, -11.9379, -11.8681,
-        -11.8627], device='cuda:0', grad_fn=<IndexBackward0>) lse student: 11.975968360900879
-batch 0 traditional pos 3157 kl loss 102.43203735351562
-batch 0 traditional valid positions: 101.0, batch_kl_sum: 9801.0048828125
-batch 0 traditional valid positions: 101.0, batch_kl_sum: 9801.0048828125
-batch 1 traditional valid positions: 315.0, batch_kl_sum: 29385.208984375
-KD loss: 94.1976318359375, valid positions: 416.0
-[MEM][FORWARD] dt=1.282s | alloc=4.22GB res=18.72GB peak_alloc=15.96GB peak_res=18.72GB
-batch 1 traditional valid positions: 315.0, batch_kl_sum: 29385.208984375
-KD loss: 94.1976318359375, valid positions: 416.0
-[MEM][FORWARD] dt=1.298s | alloc=4.22GB res=18.72GB peak_alloc=15.98GB peak_res=18.72GB
- [2025-09-19 12:16:22] iteration        2/       5 | consumed samples:            8 | elapsed time per iteration (ms): 5124.9 | throughput per GPU (TFLOP/s/GPU): 10.9 | learning rate: 4.991250E-05 | global batch size:     4 | lm loss: 8.548092E+00 | loss scale: 1.0 | grad norm: 110.129 | num zeros: 12686.0 | params norm: 0.000 | number of skipped iterations:   0 | number of nan iterations:   0 |
-Dropped 16666 teacher logits positions outside valid range [0, 4096)
-Dropped 12246 teacher logits positions outside valid range [0, 4096)
-[MEM][LOAD_BATCH] dt=0.240s | alloc=3.93GB res=18.72GB peak_alloc=3.93GB peak_res=18.72GB
-[MEM][LOAD_BATCH] dt=0.241s | alloc=3.93GB res=18.72GB peak_alloc=3.93GB peak_res=18.72GB
-  Number of elements: 810
-  KL losses: 90.12141418457031
-  Number of elements: 810
-  KL losses: 90.12141418457031
-batch 0 traditional valid positions: 236.0, batch_kl_sum: 21281.583984375
-batch 0 traditional valid positions: 236.0, batch_kl_sum: 21281.583984375
-batch 1 traditional valid positions: 574.0, batch_kl_sum: 51716.76171875
-KD loss: 90.12141418457031, valid positions: 810.0
-batch 1 traditional valid positions: 574.0, batch_kl_sum: 51716.76171875
-KD loss: 90.12141418457031, valid positions: 810.0
-[MEM][FORWARD] dt=1.329s | alloc=4.28GB res=18.74GB peak_alloc=16.11GB peak_res=18.74GB
-[MEM][FORWARD] dt=1.335s | alloc=4.28GB res=18.74GB peak_alloc=16.07GB peak_res=18.74GB
-Dropped 9967 teacher logits positions outside valid range [0, 4096)
-Dropped 10774 teacher logits positions outside valid range [0, 4096)
-[MEM][LOAD_BATCH] dt=0.186s | alloc=3.93GB res=18.74GB peak_alloc=3.93GB peak_res=18.74GB
-[MEM][LOAD_BATCH] dt=0.186s | alloc=3.93GB res=18.74GB peak_alloc=3.93GB peak_res=18.74GB
-batch 1 efficient pos 3157 teacher_values_batch: tensor([0.0020, 0.0016, 0.0013, 1.0000, 1.0000, 1.0000, 1.0000, 1.0000, 1.0000,
-        1.0000, 1.0000, 1.0000, 1.0000, 1.0000, 1.0000], device='cuda:1')
-batch 1 efficient pos 3157 s_logpK: tensor([-12.1093, -11.8056, -11.9554,  -0.0000,  -0.0000,  -0.0000,  -0.0000,
-         -0.0000,  -0.0000,  -0.0000,  -0.0000,  -0.0000,  -0.0000,  -0.0000,
-         -0.0000], device='cuda:1', grad_fn=<MulBackward0>) with logZ tensor([11.9775], device='cuda:1', grad_fn=<SelectBackward0>)
-batch 1 efficient pos 3157 kl_per_pos: 0.24170780181884766
-  Number of elements: 753
-batch 1 efficient pos 3157 teacher_values_batch: tensor([0.7265, 0.0943, 0.0282, 0.0259, 0.0104, 0.0084, 0.0058, 0.0055, 0.0049,
-        0.0047, 0.0043, 0.0040, 0.0038, 0.0037, 0.0037, 0.0035, 0.0032, 0.0032,
-        0.0031, 0.0030, 0.0028, 0.0026, 0.0020, 0.0020, 0.0020, 0.0020, 0.0020,
-        0.0020, 0.0019, 0.0019, 0.0019, 0.0018, 0.0018, 0.0015, 0.0015, 0.0015,
-        0.0015, 0.0014, 0.0013, 0.0013, 0.0012, 0.0012, 0.0012, 0.0012, 0.0012,
-        0.0012, 0.0012, 1.0000, 1.0000, 1.0000], device='cuda:0')
-batch 1 efficient pos 3157 s_logpK: tensor([-11.8759, -11.5107, -11.9145, -11.7099, -11.4579, -12.4228, -11.7177,
-        -11.8339, -11.8798, -12.4853, -11.9255, -11.8124, -12.4091, -11.8476,
-        -12.0312, -12.4775, -12.4247, -12.2997, -11.9018, -12.1952, -12.0170,
-        -11.8085, -12.0221, -11.8114, -11.4345, -12.1464, -12.1532, -12.3271,
-        -12.1073, -12.2333, -12.0304, -12.1054, -11.6357, -12.0097, -11.7499,
-        -11.4697, -11.5771, -11.4853, -12.0732, -11.9473, -11.6103, -12.1220,
-        -11.6279, -12.3212, -12.4716, -11.5614, -11.7773,  -0.0000,  -0.0000,
-         -0.0000], device='cuda:0', grad_fn=<MulBackward0>) with logZ tensor([11.9775], device='cuda:0', grad_fn=<SelectBackward0>)
-batch 1 efficient pos 3157 kl_per_pos: 94.13236999511719
-  KL losses: 92.81560516357422
-  Number of elements: 753
-  KL losses: 92.81560516357422
-batch 0 traditional valid positions: 438.0, batch_kl_sum: 41009.85546875
-batch 0 traditional valid positions: 438.0, batch_kl_sum: 41009.85546875
-batch 1 traditional pos 3157 teacher_probs: tensor([0.7265, 0.0943, 0.0282, 0.0259, 0.0104, 0.0084, 0.0058, 0.0055, 0.0049,
-        0.0047, 0.0043, 0.0040, 0.0038, 0.0037, 0.0037, 0.0035, 0.0032, 0.0032,
-        0.0031, 0.0030, 0.0028, 0.0026, 0.0020, 0.0020, 0.0020, 0.0020, 0.0020,
-        0.0020, 0.0020, 0.0019, 0.0019, 0.0019, 0.0018, 0.0018, 0.0016, 0.0015,
-        0.0015, 0.0015, 0.0015, 0.0014, 0.0013, 0.0013, 0.0013, 0.0012, 0.0012,
-        0.0012, 0.0012, 0.0012, 0.0012, 0.0012], device='cuda:0')
-batch 1 traditional pos 3157 student_log_probs_teacher: tensor([-11.8759, -11.5106, -11.9144, -11.7099, -11.4579, -12.4227, -11.7177,
-        -11.8339, -11.8798, -12.4852, -11.9254, -11.8124, -12.4091, -11.8476,
-        -12.0311, -12.4774, -12.4247, -12.2997, -11.9018, -12.1952, -12.0170,
-        -11.8085, -12.0221, -11.8114, -11.4345, -12.1464, -12.1532, -12.3270,
-        -12.1093, -12.1073, -12.2333, -12.0304, -12.1054, -11.6356, -11.8056,
-        -12.0097, -11.7499, -11.4696, -11.5770, -11.4852, -12.0731, -11.9473,
-        -11.9560, -11.6102, -12.1220, -11.6278, -12.3212, -12.4716, -11.5614,
-        -11.7772], device='cuda:0', grad_fn=<IndexBackward0>) lse student: 11.977462768554688
-batch 1 traditional pos 3157 kl loss 94.37384033203125
-batch 1 traditional pos 3157 teacher_probs: tensor([0.7265, 0.0943, 0.0282, 0.0259, 0.0104, 0.0084, 0.0058, 0.0055, 0.0049,
-        0.0047, 0.0043, 0.0040, 0.0038, 0.0037, 0.0037, 0.0035, 0.0032, 0.0032,
-        0.0031, 0.0030, 0.0028, 0.0026, 0.0020, 0.0020, 0.0020, 0.0020, 0.0020,
-        0.0020, 0.0020, 0.0019, 0.0019, 0.0019, 0.0018, 0.0018, 0.0016, 0.0015,
-        0.0015, 0.0015, 0.0015, 0.0014, 0.0013, 0.0013, 0.0013, 0.0012, 0.0012,
-        0.0012, 0.0012, 0.0012, 0.0012, 0.0012], device='cuda:1')
-batch 1 traditional pos 3157 student_log_probs_teacher: tensor([-11.8759, -11.5106, -11.9144, -11.7099, -11.4579, -12.4227, -11.7177,
-        -11.8339, -11.8798, -12.4852, -11.9254, -11.8124, -12.4091, -11.8476,
-        -12.0311, -12.4774, -12.4247, -12.2997, -11.9018, -12.1952, -12.0170,
-        -11.8085, -12.0221, -11.8114, -11.4345, -12.1464, -12.1532, -12.3270,
-        -12.1093, -12.1073, -12.2333, -12.0304, -12.1054, -11.6356, -11.8056,
-        -12.0097, -11.7499, -11.4696, -11.5770, -11.4852, -12.0731, -11.9473,
-        -11.9560, -11.6102, -12.1220, -11.6278, -12.3212, -12.4716, -11.5614,
-        -11.7772], device='cuda:1', grad_fn=<IndexBackward0>) lse student: 11.977462768554688
-batch 1 traditional pos 3157 kl loss 94.37384033203125
-batch 1 traditional valid positions: 315.0, batch_kl_sum: 28880.23828125
-KD loss: 92.8155288696289, valid positions: 753.0
-batch 1 traditional valid positions: 315.0, batch_kl_sum: 28880.23828125
-KD loss: 92.8155288696289, valid positions: 753.0
-[MEM][FORWARD] dt=1.324s | alloc=4.27GB res=18.74GB peak_alloc=16.10GB peak_res=18.74GB
-[MEM][FORWARD] dt=1.329s | alloc=4.27GB res=18.74GB peak_alloc=16.06GB peak_res=18.74GB
- [2025-09-19 12:16:34] iteration        3/       5 | consumed samples:           12 | elapsed time per iteration (ms): 12107.9 | throughput per GPU (TFLOP/s/GPU): 4.6 | learning rate: 4.980326E-05 | global batch size:     4 | lm loss: 6.577073E+00 | loss scale: 1.0 | grad norm: 94.802 | num zeros: 13509.0 | params norm: 0.000 | number of skipped iterations:   0 | number of nan iterations:   0 |
-Dropped 16065 teacher logits positions outside valid range [0, 4096)
-Dropped 10271 teacher logits positions outside valid range [0, 4096)
-[MEM][LOAD_BATCH] dt=0.198s | alloc=3.93GB res=18.74GB peak_alloc=3.93GB peak_res=18.74GB
-[MEM][LOAD_BATCH] dt=0.198s | alloc=3.93GB res=18.74GB peak_alloc=3.93GB peak_res=18.74GB
-  Number of elements: 651
-  KL losses: 97.15323638916016
-  Number of elements: 651
-  KL losses: 97.15323638916016
-batch 0 traditional valid positions: 231.0, batch_kl_sum: 22427.26953125
-batch 0 traditional valid positions: 231.0, batch_kl_sum: 22427.26953125
-batch 1 traditional valid positions: 420.0, batch_kl_sum: 40819.4765625
-KD loss: 97.1532211303711, valid positions: 651.0
-batch 1 traditional valid positions: 420.0, batch_kl_sum: 40819.4765625
-KD loss: 97.1532211303711, valid positions: 651.0
-[MEM][FORWARD] dt=1.297s | alloc=4.26GB res=18.74GB peak_alloc=16.06GB peak_res=18.74GB
-[MEM][FORWARD] dt=1.300s | alloc=4.26GB res=18.74GB peak_alloc=16.03GB peak_res=18.74GB
-Dropped 15454 teacher logits positions outside valid range [0, 4096)
-Dropped 29535 teacher logits positions outside valid range [0, 4096)
-[MEM][LOAD_BATCH] dt=0.292s | alloc=3.93GB res=18.74GB peak_alloc=3.93GB peak_res=18.74GB
-[MEM][LOAD_BATCH] dt=0.293s | alloc=3.93GB res=18.74GB peak_alloc=3.93GB peak_res=18.74GB
-  Number of elements: 566
-  KL losses: 96.38937377929688
-  Number of elements: 566
-  KL losses: 96.38937377929688
-batch 0 traditional valid positions: 191.0, batch_kl_sum: 18329.671875
-batch 0 traditional valid positions: 191.0, batch_kl_sum: 18329.671875
-batch 1 traditional valid positions: 375.0, batch_kl_sum: 36226.71875
-KD loss: 96.3893814086914, valid positions: 566.0
-batch 1 traditional valid positions: 375.0, batch_kl_sum: 36226.71875
-KD loss: 96.3893814086914, valid positions: 566.0
-[MEM][FORWARD] dt=1.283s | alloc=4.24GB res=18.74GB peak_alloc=16.04GB peak_res=18.74GB
-[MEM][FORWARD] dt=1.285s | alloc=4.24GB res=18.74GB peak_alloc=16.00GB peak_res=18.74GB
- [2025-09-19 12:16:39] iteration        4/       5 | consumed samples:           16 | elapsed time per iteration (ms): 4881.5 | throughput per GPU (TFLOP/s/GPU): 11.4 | learning rate: 4.965060E-05 | global batch size:     4 | lm loss: 5.497835E+00 | loss scale: 1.0 | grad norm: 137.219 | num zeros: 39378.0 | params norm: 0.000 | number of skipped iterations:   0 | number of nan iterations:   0 |
-Dropped 18419 teacher logits positions outside valid range [0, 4096)
-Dropped 8461 teacher logits positions outside valid range [0, 4096)
-[MEM][LOAD_BATCH] dt=0.234s | alloc=3.93GB res=18.74GB peak_alloc=3.93GB peak_res=18.74GB
-[MEM][LOAD_BATCH] dt=0.235s | alloc=3.93GB res=18.74GB peak_alloc=3.93GB peak_res=18.74GB
-  Number of elements: 924
-  KL losses: 91.31683349609375  Number of elements: 924
-
-  KL losses: 91.31683349609375
-batch 0 traditional valid positions: 476.0, batch_kl_sum: 42820.1484375
-batch 0 traditional valid positions: 476.0, batch_kl_sum: 42820.1484375
-batch 1 traditional valid positions: 448.0, batch_kl_sum: 41556.61328125
-KD loss: 91.31684875488281, valid positions: 924.0
-batch 1 traditional valid positions: 448.0, batch_kl_sum: 41556.61328125
-KD loss: 91.31684875488281, valid positions: 924.0
-[MEM][FORWARD] dt=1.371s | alloc=4.30GB res=18.93GB peak_alloc=16.15GB peak_res=18.93GB
-[MEM][FORWARD] dt=1.375s | alloc=4.30GB res=18.93GB peak_alloc=16.11GB peak_res=18.93GB
-Dropped 10368 teacher logits positions outside valid range [0, 4096)
-Dropped 17730 teacher logits positions outside valid range [0, 4096)
-[MEM][LOAD_BATCH] dt=0.232s | alloc=3.93GB res=18.93GB peak_alloc=3.93GB peak_res=18.93GB
-[MEM][LOAD_BATCH] dt=0.233s | alloc=3.93GB res=18.93GB peak_alloc=3.93GB peak_res=18.93GB
-batch 0 efficient pos 3157 teacher_values_batch: tensor([2.1535e-04, 2.0656e-04, 1.8229e-04, 1.0000e+00, 1.0000e+00, 1.0000e+00,
-        1.0000e+00, 1.0000e+00, 1.0000e+00, 1.0000e+00, 1.0000e+00, 1.0000e+00,
-        1.0000e+00, 1.0000e+00, 1.0000e+00, 1.0000e+00, 1.0000e+00, 1.0000e+00,
-        1.0000e+00, 1.0000e+00, 1.0000e+00, 1.0000e+00, 1.0000e+00],
-       device='cuda:1')
-batch 0 efficient pos 3157 s_logpK: tensor([-11.6599, -12.5661, -12.1862,  -0.0000,  -0.0000,  -0.0000,  -0.0000,
-         -0.0000,  -0.0000,  -0.0000,  -0.0000,  -0.0000,  -0.0000,  -0.0000,
-         -0.0000,  -0.0000,  -0.0000,  -0.0000,  -0.0000,  -0.0000,  -0.0000,
-         -0.0000,  -0.0000], device='cuda:1', grad_fn=<MulBackward0>) with logZ tensor([11.9685], device='cuda:1', grad_fn=<SelectBackward0>)
-batch 0 efficient pos 3157 kl_per_pos: 0.019688954576849937
-batch 0 efficient pos 3157 teacher_values_batch: tensor([4.2320e-01, 3.5823e-01, 1.4324e-01, 1.8594e-02, 8.7833e-03, 8.7833e-03,
-        4.1489e-03, 4.1489e-03, 2.7351e-03, 2.7351e-03, 2.4138e-03, 2.4138e-03,
-        1.8798e-03, 1.7295e-03, 1.2920e-03, 1.1402e-03, 1.0062e-03, 1.0062e-03,
-        8.5173e-04, 8.5173e-04, 7.2097e-04, 7.2097e-04, 6.6333e-04, 6.6333e-04,
-        5.6150e-04, 5.3858e-04, 5.1660e-04, 4.9552e-04, 4.7530e-04, 3.8591e-04,
-        3.5505e-04, 3.4056e-04, 3.1333e-04, 3.0055e-04, 2.7652e-04, 2.7652e-04,
-        2.7652e-04, 2.7652e-04, 2.6523e-04, 2.5441e-04, 2.4402e-04, 2.4402e-04,
-        2.2451e-04, 2.1535e-04, 2.1535e-04, 2.0656e-04, 1.8229e-04, 1.0000e+00,
-        1.0000e+00, 1.0000e+00], device='cuda:0')
-batch 0 efficient pos 3157 s_logpK: tensor([-11.0935,  -9.9919, -11.9350, -12.2439, -11.7917, -10.4138, -11.8230,
-        -12.1872, -12.1120, -12.2224, -11.0427, -12.1394, -12.1433, -12.3669,
-        -12.0666, -11.8791, -12.1726, -11.9169, -11.7976, -12.2790, -12.0876,
-        -11.5837, -12.6247, -11.9570, -11.8649, -12.1325, -11.1442, -12.1599,
-        -12.0734, -11.9077, -11.0935, -12.2634, -11.7370, -11.9397, -10.8669,
-        -11.8181, -12.3181, -12.2097, -11.8840, -11.4743, -11.9447, -12.3259,
-        -11.5388, -12.0205, -12.2653, -12.0681, -11.6735,  -0.0000,  -0.0000,
-         -0.0000], device='cuda:0', grad_fn=<MulBackward0>) with logZ tensor([11.9685], device='cuda:0', grad_fn=<SelectBackward0>)
-batch 0 efficient pos 3157 kl_per_pos: 85.04550170898438
-  Number of elements: 803
-  Number of elements: 803
-  KL losses: 93.11170196533203
-  KL losses: 93.11170196533203
-batch 0 traditional pos 3157 teacher_probs: tensor([4.2320e-01, 3.5823e-01, 1.4324e-01, 1.8594e-02, 8.7833e-03, 8.7833e-03,
-        4.1489e-03, 4.1489e-03, 2.7351e-03, 2.7351e-03, 2.4138e-03, 2.4138e-03,
-        1.8798e-03, 1.7295e-03, 1.2920e-03, 1.1402e-03, 1.0062e-03, 1.0062e-03,
-        8.5173e-04, 8.5173e-04, 7.2097e-04, 7.2097e-04, 6.6333e-04, 6.6333e-04,
-        5.6150e-04, 5.3858e-04, 5.1660e-04, 4.9552e-04, 4.7530e-04, 3.8591e-04,
-        3.5505e-04, 3.4056e-04, 3.1333e-04, 3.0055e-04, 2.7652e-04, 2.7652e-04,
-        2.7652e-04, 2.7652e-04, 2.6523e-04, 2.5441e-04, 2.4402e-04, 2.4402e-04,
-        2.2451e-04, 2.1535e-04, 2.1535e-04, 2.1535e-04, 2.0656e-04, 2.0656e-04,
-        1.8229e-04, 1.8229e-04], device='cuda:0')
-batch 0 traditional pos 3157 teacher_probs: tensor([4.2320e-01, 3.5823e-01, 1.4324e-01, 1.8594e-02, 8.7833e-03, 8.7833e-03,
-        4.1489e-03, 4.1489e-03, 2.7351e-03, 2.7351e-03, 2.4138e-03, 2.4138e-03,
-        1.8798e-03, 1.7295e-03, 1.2920e-03, 1.1402e-03, 1.0062e-03, 1.0062e-03,
-        8.5173e-04, 8.5173e-04, 7.2097e-04, 7.2097e-04, 6.6333e-04, 6.6333e-04,
-        5.6150e-04, 5.3858e-04, 5.1660e-04, 4.9552e-04, 4.7530e-04, 3.8591e-04,
-        3.5505e-04, 3.4056e-04, 3.1333e-04, 3.0055e-04, 2.7652e-04, 2.7652e-04,
-        2.7652e-04, 2.7652e-04, 2.6523e-04, 2.5441e-04, 2.4402e-04, 2.4402e-04,
-        2.2451e-04, 2.1535e-04, 2.1535e-04, 2.1535e-04, 2.0656e-04, 2.0656e-04,
-        1.8229e-04, 1.8229e-04], device='cuda:1')
-batch 0 traditional pos 3157 student_log_probs_teacher: tensor([-11.0935,  -9.9919, -11.9350, -12.2439, -11.7917, -10.4138, -11.8230,
-        -12.1872, -12.1120, -12.2224, -11.0427, -12.1394, -12.1433, -12.3669,
-        -12.0666, -11.8791, -12.1726, -11.9169, -11.7976, -12.2790, -12.0876,
-        -11.5837, -12.6247, -11.9570, -11.8649, -12.1325, -11.1442, -12.1599,
-        -12.0734, -11.9077, -11.0935, -12.2634, -11.7370, -11.9397, -10.8669,
-        -11.8181, -12.3181, -12.2097, -11.8840, -11.4743, -11.9447, -12.3259,
-        -11.5388, -12.0205, -12.2653, -11.6599, -12.0681, -12.5661, -11.6735,
-        -12.1843], device='cuda:0', grad_fn=<IndexBackward0>) lse student: 11.968461990356445
-batch 0 traditional pos 3157 kl loss 85.06520080566406
-batch 0 traditional pos 3157 student_log_probs_teacher: tensor([-11.0935,  -9.9919, -11.9350, -12.2439, -11.7917, -10.4138, -11.8230,
-        -12.1872, -12.1120, -12.2224, -11.0427, -12.1394, -12.1433, -12.3669,
-        -12.0666, -11.8791, -12.1726, -11.9169, -11.7976, -12.2790, -12.0876,
-        -11.5837, -12.6247, -11.9570, -11.8649, -12.1325, -11.1442, -12.1599,
-        -12.0734, -11.9077, -11.0935, -12.2634, -11.7370, -11.9397, -10.8669,
-        -11.8181, -12.3181, -12.2097, -11.8840, -11.4743, -11.9447, -12.3259,
-        -11.5388, -12.0205, -12.2653, -11.6599, -12.0681, -12.5661, -11.6735,
-        -12.1843], device='cuda:1', grad_fn=<IndexBackward0>) lse student: 11.968461990356445
-batch 0 traditional pos 3157 kl loss 85.06520080566406
-batch 0 traditional valid positions: 450.0, batch_kl_sum: 41865.8828125
-batch 0 traditional valid positions: 450.0, batch_kl_sum: 41865.8828125
-batch 1 traditional valid positions: 353.0, batch_kl_sum: 32902.76953125
-KD loss: 93.11164855957031, valid positions: 803.0
-batch 1 traditional valid positions: 353.0, batch_kl_sum: 32902.76953125
-KD loss: 93.11164855957031, valid positions: 803.0
-[MEM][FORWARD] dt=1.447s | alloc=4.28GB res=18.93GB peak_alloc=16.12GB peak_res=18.93GB
-[MEM][FORWARD] dt=1.449s | alloc=4.28GB res=18.93GB peak_alloc=16.07GB peak_res=18.93GB
- [2025-09-19 12:16:44] iteration        5/       5 | consumed samples:           20 | elapsed time per iteration (ms): 5363.2 | throughput per GPU (TFLOP/s/GPU): 10.4 | learning rate: 4.945478E-05 | global batch size:     4 | lm loss: 4.706910E+00 | loss scale: 1.0 | grad norm: 74.947 | num zeros: 13078.0 | params norm: 0.000 | number of skipped iterations:   0 | number of nan iterations:   0 |
-[after training is done] datetime: 2025-09-19 12:16:45 
-saving checkpoint at iteration       5 to /workspace/data//himanshu/output/qwen3_1.7b/checkpoints in torch_dist format
-Storing distributed optimizer sharded state of type fully_sharded_model_space
-WARNING:megatron.core.dist_checkpointing.serialization:Overwriting old incomplete / corrupted checkpoint...
-  successfully saved checkpoint from iteration       5 to /workspace/data//himanshu/output/qwen3_1.7b/checkpoints [ t 1/2, p 1/1 ]
-WARNING:megatron.core.rerun_state_machine:Setting RerunStateMachine mode RerunMode.DISABLED
-Evaluating on 12 samples
-Evaluating iter 1/3
-Dropped 20175 teacher logits positions outside valid range [0, 4096)
-Dropped 13879 teacher logits positions outside valid range [0, 4096)
-[MEM][LOAD_BATCH] dt=0.263s | alloc=3.93GB res=18.93GB peak_alloc=3.93GB peak_res=18.93GB
-[MEM][LOAD_BATCH] dt=0.264s | alloc=3.93GB res=18.93GB peak_alloc=3.93GB peak_res=18.93GB
-  Number of elements: 749
-  KL losses: 94.29817199707031
-  Number of elements: 749
-  KL losses: 94.29817199707031
-batch 0 traditional valid positions: 572.0, batch_kl_sum: 54101.734375
-batch 0 traditional valid positions: 572.0, batch_kl_sum: 54101.734375
-batch 1 traditional valid positions: 177.0, batch_kl_sum: 16527.580078125
-KD loss: 94.29814910888672, valid positions: 749.0
-[MEM][FORWARD] dt=1.652s | alloc=3.93GB res=18.93GB peak_alloc=15.58GB peak_res=18.93GB
-batch 1 traditional valid positions: 177.0, batch_kl_sum: 16527.580078125
-KD loss: 94.29814910888672, valid positions: 749.0
-[MEM][FORWARD] dt=1.653s | alloc=3.93GB res=18.93GB peak_alloc=15.58GB peak_res=18.93GB
-Dropped 10774 teacher logits positions outside valid range [0, 4096)
-Dropped 15474 teacher logits positions outside valid range [0, 4096)
-[MEM][LOAD_BATCH] dt=0.205s | alloc=3.93GB res=18.93GB peak_alloc=3.93GB peak_res=18.93GB
-[MEM][LOAD_BATCH] dt=0.206s | alloc=3.93GB res=18.93GB peak_alloc=3.93GB peak_res=18.93GB
-batch 0 efficient pos 3157 teacher_values_batch: tensor([0.0020, 0.0016, 0.0013, 1.0000, 1.0000, 1.0000, 1.0000, 1.0000, 1.0000,
-        1.0000, 1.0000, 1.0000, 1.0000, 1.0000, 1.0000], device='cuda:1')
-batch 0 efficient pos 3157 s_logpK: tensor([-12.1186, -11.7163, -11.9996,  -0.0000,  -0.0000,  -0.0000,  -0.0000,
-         -0.0000,  -0.0000,  -0.0000,  -0.0000,  -0.0000,  -0.0000,  -0.0000,
-         -0.0000], device='cuda:1') with logZ tensor([11.9878], device='cuda:1')
-batch 0 efficient pos 3157 kl_per_pos: 0.24110877513885498
-batch 0 efficient pos 3157 teacher_values_batch: tensor([0.7265, 0.0943, 0.0282, 0.0259, 0.0104, 0.0084, 0.0058, 0.0055, 0.0049,
-        0.0047, 0.0043, 0.0040, 0.0038, 0.0037, 0.0037, 0.0035, 0.0032, 0.0032,
-        0.0031, 0.0030, 0.0028, 0.0026, 0.0020, 0.0020, 0.0020, 0.0020, 0.0020,
-        0.0020, 0.0019, 0.0019, 0.0019, 0.0018, 0.0018, 0.0015, 0.0015, 0.0015,
-        0.0015, 0.0014, 0.0013, 0.0013, 0.0012, 0.0012, 0.0012, 0.0012, 0.0012,
-        0.0012, 0.0012, 1.0000, 1.0000, 1.0000], device='cuda:0')
-batch 0 efficient pos 3157 s_logpK: tensor([-12.0012, -11.6616, -12.0513, -11.8686, -11.5132, -12.3726, -11.5835,
-        -11.9824, -11.9053, -12.2300, -11.9053, -11.8169, -12.4253, -11.9639,
-        -12.2349, -11.8599, -12.2554, -11.8945, -12.0937, -12.1470, -12.0557,
-        -11.7964, -11.8823, -11.8442, -11.3940, -12.5308, -11.9611, -12.2075,
-        -11.9458, -12.4194, -11.8315, -12.1821, -11.4526, -11.7583, -11.8999,
-        -11.6909, -12.1509, -11.2222, -12.0027, -11.8784, -11.7876, -11.8227,
-        -11.5171, -12.0229, -12.1372, -11.9451, -11.3433,  -0.0000,  -0.0000,
-         -0.0000], device='cuda:0') with logZ tensor([11.9878], device='cuda:0')
-batch 0 efficient pos 3157 kl_per_pos: 95.11018371582031
-  Number of elements: 727
-  KL losses: 93.05135345458984
-  Number of elements: 727
-  KL losses: 93.05135345458984
-batch 0 traditional pos 3157 teacher_probs: tensor([0.7265, 0.0943, 0.0282, 0.0259, 0.0104, 0.0084, 0.0058, 0.0055, 0.0049,
-        0.0047, 0.0043, 0.0040, 0.0038, 0.0037, 0.0037, 0.0035, 0.0032, 0.0032,
-        0.0031, 0.0030, 0.0028, 0.0026, 0.0020, 0.0020, 0.0020, 0.0020, 0.0020,
-        0.0020, 0.0020, 0.0019, 0.0019, 0.0019, 0.0018, 0.0018, 0.0016, 0.0015,
-        0.0015, 0.0015, 0.0015, 0.0014, 0.0013, 0.0013, 0.0013, 0.0012, 0.0012,
-        0.0012, 0.0012, 0.0012, 0.0012, 0.0012], device='cuda:0')
-batch 0 traditional pos 3157 student_log_probs_teacher: tensor([-12.0013, -11.6618, -12.0514, -11.8688, -11.5133, -12.3727, -11.5836,
-        -11.9826, -11.9054, -12.2301, -11.9054, -11.8170, -12.4254, -11.9640,
-        -12.2350, -11.8600, -12.2555, -11.8947, -12.0939, -12.1471, -12.0558,
-        -11.7965, -11.8825, -11.8444, -11.3942, -12.5309, -11.9612, -12.2077,
-        -12.1198, -11.9459, -12.4196, -11.8317, -12.1823, -11.4528, -11.7165,
-        -11.7584, -11.9000, -11.6911, -12.1510, -11.2223, -12.0029, -11.8786,
-        -12.0003, -11.7877, -11.8229, -11.5172, -12.0231, -12.1374, -11.9452,
-        -11.3434], device='cuda:0') lse student: 11.987789154052734
-batch 0 traditional pos 3157 kl loss 95.35264587402344
-batch 0 traditional pos 3157 teacher_probs: tensor([0.7265, 0.0943, 0.0282, 0.0259, 0.0104, 0.0084, 0.0058, 0.0055, 0.0049,
-        0.0047, 0.0043, 0.0040, 0.0038, 0.0037, 0.0037, 0.0035, 0.0032, 0.0032,
-        0.0031, 0.0030, 0.0028, 0.0026, 0.0020, 0.0020, 0.0020, 0.0020, 0.0020,
-        0.0020, 0.0020, 0.0019, 0.0019, 0.0019, 0.0018, 0.0018, 0.0016, 0.0015,
-        0.0015, 0.0015, 0.0015, 0.0014, 0.0013, 0.0013, 0.0013, 0.0012, 0.0012,
-        0.0012, 0.0012, 0.0012, 0.0012, 0.0012], device='cuda:1')
-batch 0 traditional pos 3157 student_log_probs_teacher: tensor([-12.0013, -11.6618, -12.0514, -11.8688, -11.5133, -12.3727, -11.5836,
-        -11.9826, -11.9054, -12.2301, -11.9054, -11.8170, -12.4254, -11.9640,
-        -12.2350, -11.8600, -12.2555, -11.8947, -12.0939, -12.1471, -12.0558,
-        -11.7965, -11.8825, -11.8444, -11.3942, -12.5309, -11.9612, -12.2077,
-        -12.1198, -11.9459, -12.4196, -11.8317, -12.1823, -11.4528, -11.7165,
-        -11.7584, -11.9000, -11.6911, -12.1510, -11.2223, -12.0029, -11.8786,
-        -12.0003, -11.7877, -11.8229, -11.5172, -12.0231, -12.1374, -11.9452,
-        -11.3434], device='cuda:1') lse student: 11.987789154052734
-batch 0 traditional pos 3157 kl loss 95.35264587402344
-batch 0 traditional valid positions: 315.0, batch_kl_sum: 29362.708984375
-batch 0 traditional valid positions: 315.0, batch_kl_sum: 29362.708984375
-batch 1 traditional valid positions: 412.0, batch_kl_sum: 38285.65625
-KD loss: 93.05139923095703, valid positions: 727.0
-[MEM][FORWARD] dt=1.311s | alloc=3.93GB res=18.93GB peak_alloc=15.58GB peak_res=18.93GB
-batch 1 traditional valid positions: 412.0, batch_kl_sum: 38285.65625
-KD loss: 93.05139923095703, valid positions: 727.0
-[MEM][FORWARD] dt=1.316s | alloc=3.93GB res=18.93GB peak_alloc=15.58GB peak_res=18.93GB
-Evaluating iter 2/3
-Dropped 8026 teacher logits positions outside valid range [0, 4096)
-Dropped 14817 teacher logits positions outside valid range [0, 4096)
-[MEM][LOAD_BATCH] dt=0.152s | alloc=3.93GB res=18.93GB peak_alloc=3.93GB peak_res=18.93GB
-[MEM][LOAD_BATCH] dt=0.152s | alloc=3.93GB res=18.93GB peak_alloc=3.93GB peak_res=18.93GB
-batch 0 efficient pos 3157 teacher_values_batch: tensor([0.6485, 0.1508, 0.0337, 0.0114, 0.0089, 0.0089, 0.0082, 0.0082, 0.0075,
-        0.0061, 0.0058, 0.0056, 0.0052, 0.0052, 0.0050, 0.0046, 0.0037, 0.0034,
-        0.0033, 0.0033, 0.0031, 0.0029, 0.0029, 0.0028, 0.0028, 0.0028, 0.0028,
-        0.0025, 0.0024, 0.0023, 0.0023, 0.0022, 0.0022, 0.0022, 0.0021, 0.0020,
-        0.0019, 0.0019, 0.0018, 0.0018, 0.0016, 0.0016, 0.0015, 0.0015, 0.0015,
-        0.0015, 0.0015, 0.0015, 0.0015, 0.0015], device='cuda:0')
-batch 0 efficient pos 3157 s_logpK: tensor([-11.4377, -11.7092, -11.5022, -11.4885, -11.7961, -11.8469, -11.7893,
-        -11.8020, -12.1047, -12.3147, -11.7570, -11.2033, -11.7775, -12.0161,
-        -11.6272, -12.2561, -11.4963, -12.4768, -11.7111, -11.4865, -12.1760,
-        -11.3440, -12.5705, -11.1760, -11.6897, -11.6486, -11.7209, -12.0842,
-        -12.1525, -12.3811, -11.9555, -12.6213, -11.6525, -11.7609, -10.9729,
-        -11.8630, -12.0783, -12.5783, -11.7981, -12.0207, -11.8332, -11.7609,
-        -11.4807, -12.2678, -12.4846, -11.8776, -11.5373, -12.0407, -11.8410,
-        -11.9811], device='cuda:0') with logZ tensor([11.9729], device='cuda:0')
-batch 0 efficient pos 3157 kl_per_pos: 89.62743377685547
-  Number of elements: 263
-  KL losses: 94.85249328613281
-  Number of elements: 263
-  KL losses: 94.85249328613281
-batch 0 traditional pos 3157 teacher_probs: tensor([0.6485, 0.1508, 0.0337, 0.0114, 0.0089, 0.0089, 0.0082, 0.0082, 0.0075,
-        0.0061, 0.0058, 0.0056, 0.0052, 0.0052, 0.0050, 0.0046, 0.0037, 0.0034,
-        0.0033, 0.0033, 0.0031, 0.0029, 0.0029, 0.0028, 0.0028, 0.0028, 0.0028,
-        0.0025, 0.0024, 0.0023, 0.0023, 0.0022, 0.0022, 0.0022, 0.0021, 0.0020,
-        0.0019, 0.0019, 0.0018, 0.0018, 0.0016, 0.0016, 0.0015, 0.0015, 0.0015,
-        0.0015, 0.0015, 0.0015, 0.0015, 0.0015], device='cuda:0')
-batch 0 traditional pos 3157 teacher_probs: tensor([0.6485, 0.1508, 0.0337, 0.0114, 0.0089, 0.0089, 0.0082, 0.0082, 0.0075,
-        0.0061, 0.0058, 0.0056, 0.0052, 0.0052, 0.0050, 0.0046, 0.0037, 0.0034,
-        0.0033, 0.0033, 0.0031, 0.0029, 0.0029, 0.0028, 0.0028, 0.0028, 0.0028,
-        0.0025, 0.0024, 0.0023, 0.0023, 0.0022, 0.0022, 0.0022, 0.0021, 0.0020,
-        0.0019, 0.0019, 0.0018, 0.0018, 0.0016, 0.0016, 0.0015, 0.0015, 0.0015,
-        0.0015, 0.0015, 0.0015, 0.0015, 0.0015], device='cuda:1')
-batch 0 traditional pos 3157 student_log_probs_teacher: tensor([-11.4377, -11.7092, -11.5022, -11.4885, -11.7961, -11.8469, -11.7893,
-        -11.8020, -12.1047, -12.3147, -11.7570, -11.2033, -11.7776, -12.0161,
-        -11.6272, -12.2561, -11.4963, -12.4768, -11.7111, -11.4865, -12.1760,
-        -11.3440, -12.5705, -11.1760, -11.6897, -11.6486, -11.7209, -12.0842,
-        -12.1526, -12.3811, -11.9555, -12.6213, -11.6526, -11.7610, -10.9729,
-        -11.8630, -12.0783, -12.5783, -11.7981, -12.0207, -11.8332, -11.7610,
-        -11.4807, -12.2678, -12.4846, -11.8776, -11.5373, -12.0407, -11.8410,
-        -11.9811], device='cuda:0') lse student: 11.972862243652344
-batch 0 traditional pos 3157 kl loss 89.62744140625
-batch 0 traditional pos 3157 student_log_probs_teacher: tensor([-11.4377, -11.7092, -11.5022, -11.4885, -11.7961, -11.8469, -11.7893,
-        -11.8020, -12.1047, -12.3147, -11.7570, -11.2033, -11.7776, -12.0161,
-        -11.6272, -12.2561, -11.4963, -12.4768, -11.7111, -11.4865, -12.1760,
-        -11.3440, -12.5705, -11.1760, -11.6897, -11.6486, -11.7209, -12.0842,
-        -12.1526, -12.3811, -11.9555, -12.6213, -11.6526, -11.7610, -10.9729,
-        -11.8630, -12.0783, -12.5783, -11.7981, -12.0207, -11.8332, -11.7610,
-        -11.4807, -12.2678, -12.4846, -11.8776, -11.5373, -12.0407, -11.8410,
-        -11.9811], device='cuda:1') lse student: 11.972862243652344
-batch 0 traditional pos 3157 kl loss 89.62744140625
-batch 0 traditional valid positions: 90.0, batch_kl_sum: 8801.5634765625
-batch 0 traditional valid positions: 90.0, batch_kl_sum: 8801.5634765625
-batch 1 traditional valid positions: 173.0, batch_kl_sum: 16144.6552734375
-KD loss: 94.8525390625, valid positions: 263.0
-batch 1 traditional valid positions: 173.0, batch_kl_sum: 16144.6552734375
-KD loss: 94.8525390625, valid positions: 263.0
-[MEM][FORWARD] dt=1.211s | alloc=3.93GB res=18.93GB peak_alloc=15.58GB peak_res=18.93GB
-[MEM][FORWARD] dt=1.211s | alloc=3.93GB res=18.93GB peak_alloc=15.58GB peak_res=18.93GB
-Dropped 10271 teacher logits positions outside valid range [0, 4096)
-Dropped 12818 teacher logits positions outside valid range [0, 4096)
-[MEM][LOAD_BATCH] dt=0.184s | alloc=3.93GB res=18.93GB peak_alloc=3.93GB peak_res=18.93GB
-[MEM][LOAD_BATCH] dt=0.185s | alloc=3.93GB res=18.93GB peak_alloc=3.93GB peak_res=18.93GB
-batch 1 efficient pos 3157 teacher_values_batch: tensor([1.5236e-03, 7.1970e-04, 6.9033e-04, 6.3514e-04, 1.0000e+00, 1.0000e+00,
-        1.0000e+00, 1.0000e+00, 1.0000e+00, 1.0000e+00, 1.0000e+00, 1.0000e+00,
-        1.0000e+00, 1.0000e+00, 1.0000e+00, 1.0000e+00, 1.0000e+00, 1.0000e+00,
-        1.0000e+00, 1.0000e+00], device='cuda:1')
-batch 1 efficient pos 3157 s_logpK: tensor([-11.9811, -11.7678, -11.8835, -12.1457,  -0.0000,  -0.0000,  -0.0000,
-         -0.0000,  -0.0000,  -0.0000,  -0.0000,  -0.0000,  -0.0000,  -0.0000,
-         -0.0000,  -0.0000,  -0.0000,  -0.0000,  -0.0000,  -0.0000],
-       device='cuda:1') with logZ tensor([11.9738], device='cuda:1')
-batch 1 efficient pos 3157 kl_per_pos: 0.16065014898777008
-  Number of elements: 764
-batch 1 efficient pos 3157 teacher_values_batch: tensor([8.9434e-01, 2.4847e-02, 7.1189e-03, 6.8284e-03, 4.5015e-03, 4.3178e-03,
-        3.9726e-03, 3.8105e-03, 3.2255e-03, 3.2255e-03, 2.8465e-03, 2.6189e-03,
-        2.0396e-03, 1.6560e-03, 1.5884e-03, 1.5236e-03, 1.5236e-03, 1.4614e-03,
-        1.3446e-03, 1.2897e-03, 1.1866e-03, 1.1382e-03, 1.0917e-03, 1.0472e-03,
-        1.0472e-03, 1.0472e-03, 1.0472e-03, 1.0044e-03, 1.0044e-03, 9.2412e-04,
-        8.5023e-04, 8.5023e-04, 8.5023e-04, 8.1553e-04, 8.1553e-04, 7.8225e-04,
-        7.5032e-04, 6.9033e-04, 6.9033e-04, 6.9033e-04, 6.9033e-04, 6.9033e-04,
-        6.6216e-04, 6.6216e-04, 6.6216e-04, 6.6216e-04, 1.0000e+00, 1.0000e+00,
-        1.0000e+00, 1.0000e+00], device='cuda:0')
-batch 1 efficient pos 3157 s_logpK: tensor([-11.3332, -12.6418, -12.0568, -11.5969, -12.5558, -11.9666, -11.1183,
-        -12.0446, -12.2394, -11.9767, -11.4543, -11.7756, -11.9064, -11.9512,
-        -11.6711, -11.8879, -11.8845, -12.3722, -11.8976, -11.9189, -11.9949,
-        -11.9316, -11.5695, -11.5461, -11.8478, -12.3469, -12.0637, -11.3488,
-        -11.2199, -12.4426, -11.7023, -12.3351, -12.2804, -11.8967, -12.2785,
-        -12.3859, -11.7599, -11.5265, -12.4933, -11.8864, -11.7892, -12.4191,
-        -11.6144, -11.9510, -12.4738, -11.4738,  -0.0000,  -0.0000,  -0.0000,
-         -0.0000], device='cuda:0') with logZ tensor([11.9738], device='cuda:0')
-batch 1 efficient pos 3157 kl_per_pos: 96.39743041992188
-  KL losses: 94.61883544921875
-  Number of elements: 764
-  KL losses: 94.61883544921875
-batch 0 traditional valid positions: 420.0, batch_kl_sum: 40099.2421875
-batch 0 traditional valid positions: 420.0, batch_kl_sum: 40099.2421875
-batch 1 traditional pos 3157 teacher_probs: tensor([8.9434e-01, 2.4847e-02, 7.1189e-03, 6.8284e-03, 4.5015e-03, 4.3178e-03,
-        3.9726e-03, 3.8105e-03, 3.2255e-03, 3.2255e-03, 2.8465e-03, 2.6189e-03,
-        2.0396e-03, 1.6560e-03, 1.5884e-03, 1.5236e-03, 1.5236e-03, 1.5236e-03,
-        1.4614e-03, 1.3446e-03, 1.2897e-03, 1.1866e-03, 1.1382e-03, 1.0917e-03,
-        1.0472e-03, 1.0472e-03, 1.0472e-03, 1.0472e-03, 1.0044e-03, 1.0044e-03,
-        9.2412e-04, 8.5023e-04, 8.5023e-04, 8.5023e-04, 8.1553e-04, 8.1553e-04,
-        7.8225e-04, 7.5032e-04, 7.1970e-04, 6.9033e-04, 6.9033e-04, 6.9033e-04,
-        6.9033e-04, 6.9033e-04, 6.9033e-04, 6.6216e-04, 6.6216e-04, 6.6216e-04,
-        6.6216e-04, 6.3514e-04], device='cuda:0')
-batch 1 traditional pos 3157 teacher_probs: tensor([8.9434e-01, 2.4847e-02, 7.1189e-03, 6.8284e-03, 4.5015e-03, 4.3178e-03,
-        3.9726e-03, 3.8105e-03, 3.2255e-03, 3.2255e-03, 2.8465e-03, 2.6189e-03,
-        2.0396e-03, 1.6560e-03, 1.5884e-03, 1.5236e-03, 1.5236e-03, 1.5236e-03,
-        1.4614e-03, 1.3446e-03, 1.2897e-03, 1.1866e-03, 1.1382e-03, 1.0917e-03,
-        1.0472e-03, 1.0472e-03, 1.0472e-03, 1.0472e-03, 1.0044e-03, 1.0044e-03,
-        9.2412e-04, 8.5023e-04, 8.5023e-04, 8.5023e-04, 8.1553e-04, 8.1553e-04,
-        7.8225e-04, 7.5032e-04, 7.1970e-04, 6.9033e-04, 6.9033e-04, 6.9033e-04,
-        6.9033e-04, 6.9033e-04, 6.9033e-04, 6.6216e-04, 6.6216e-04, 6.6216e-04,
-        6.6216e-04, 6.3514e-04], device='cuda:1')
-batch 1 traditional pos 3157 student_log_probs_teacher: tensor([-11.3332, -12.6418, -12.0568, -11.5969, -12.5558, -11.9666, -11.1183,
-        -12.0446, -12.2394, -11.9767, -11.4543, -11.7756, -11.9064, -11.9512,
-        -11.6711, -11.8879, -11.8844, -11.9805, -12.3722, -11.8976, -11.9189,
-        -11.9949, -11.9316, -11.5695, -11.5461, -11.8478, -12.3469, -12.0636,
-        -11.3488, -11.2199, -12.4426, -11.7023, -12.3351, -12.2804, -11.8967,
-        -12.2785, -12.3859, -11.7599, -11.7697, -11.5265, -12.4933, -11.8864,
-        -11.7892, -12.4191, -11.8835, -11.6144, -11.9510, -12.4738, -11.4738,
-        -12.1457], device='cuda:0') lse student: 11.973806381225586
-batch 1 traditional pos 3157 kl loss 96.55809020996094
-batch 1 traditional pos 3157 student_log_probs_teacher: tensor([-11.3332, -12.6418, -12.0568, -11.5969, -12.5558, -11.9666, -11.1183,
-        -12.0446, -12.2394, -11.9767, -11.4543, -11.7756, -11.9064, -11.9512,
-        -11.6711, -11.8879, -11.8844, -11.9805, -12.3722, -11.8976, -11.9189,
-        -11.9949, -11.9316, -11.5695, -11.5461, -11.8478, -12.3469, -12.0636,
-        -11.3488, -11.2199, -12.4426, -11.7023, -12.3351, -12.2804, -11.8967,
-        -12.2785, -12.3859, -11.7599, -11.7697, -11.5265, -12.4933, -11.8864,
-        -11.7892, -12.4191, -11.8835, -11.6144, -11.9510, -12.4738, -11.4738,
-        -12.1457], device='cuda:1') lse student: 11.973806381225586
-batch 1 traditional pos 3157 kl loss 96.55809020996094
-batch 1 traditional valid positions: 344.0, batch_kl_sum: 32189.5546875
-KD loss: 94.61884307861328, valid positions: 764.0
-[MEM][FORWARD] dt=1.322s | alloc=3.93GB res=18.93GB peak_alloc=15.58GB peak_res=18.93GB
-batch 1 traditional valid positions: 344.0, batch_kl_sum: 32189.5546875
-KD loss: 94.61884307861328, valid positions: 764.0
-[MEM][FORWARD] dt=1.322s | alloc=3.93GB res=18.93GB peak_alloc=15.58GB peak_res=18.93GB
-Evaluating iter 3/3
-Dropped 15454 teacher logits positions outside valid range [0, 4096)
-Dropped 16666 teacher logits positions outside valid range [0, 4096)
-[MEM][LOAD_BATCH] dt=0.197s | alloc=3.93GB res=18.93GB peak_alloc=3.93GB peak_res=18.93GB
-[MEM][LOAD_BATCH] dt=0.198s | alloc=3.93GB res=18.93GB peak_alloc=3.93GB peak_res=18.93GB
-  Number of elements: 427
-  KL losses: 92.394775390625
-  Number of elements: 427
-  KL losses: 92.394775390625
-batch 0 traditional valid positions: 191.0, batch_kl_sum: 17918.43359375
-batch 0 traditional valid positions: 191.0, batch_kl_sum: 17918.43359375
-batch 1 traditional valid positions: 236.0, batch_kl_sum: 21534.146484375
-KD loss: 92.3947982788086, valid positions: 427.0
-batch 1 traditional valid positions: 236.0, batch_kl_sum: 21534.146484375
-KD loss: 92.3947982788086, valid positions: 427.0
-[MEM][FORWARD] dt=1.246s | alloc=3.93GB res=18.93GB peak_alloc=15.58GB peak_res=18.93GB
-[MEM][FORWARD] dt=1.246s | alloc=3.93GB res=18.93GB peak_alloc=15.58GB peak_res=18.93GB
-Dropped 11468 teacher logits positions outside valid range [0, 4096)
-Dropped 13389 teacher logits positions outside valid range [0, 4096)
-[MEM][LOAD_BATCH] dt=0.195s | alloc=3.93GB res=18.93GB peak_alloc=3.93GB peak_res=18.93GB
-[MEM][LOAD_BATCH] dt=0.195s | alloc=3.93GB res=18.93GB peak_alloc=3.93GB peak_res=18.93GB
-  Number of elements: 528
-batch 1 efficient pos 3157 teacher_values_batch: tensor([9.8417e-01, 2.4395e-03, 2.3400e-03, 1.3058e-03, 7.7566e-04, 6.8452e-04,
-        4.5126e-04, 4.2392e-04, 3.8199e-04, 3.2334e-04, 2.9749e-04, 2.7947e-04,
-        2.6806e-04, 2.6254e-04, 2.4663e-04, 2.4663e-04, 2.1765e-04, 2.1765e-04,
-        2.1765e-04, 2.1765e-04, 2.0877e-04, 2.0446e-04, 2.0025e-04, 1.8424e-04,
-        1.7307e-04, 1.6951e-04, 1.6259e-04, 1.5924e-04, 1.4650e-04, 1.4650e-04,
-        1.4348e-04, 1.4053e-04, 1.4053e-04, 1.3763e-04, 1.3479e-04, 1.3479e-04,
-        1.3201e-04, 1.2401e-04, 1.2146e-04, 1.2146e-04, 1.2146e-04, 1.1895e-04,
-        1.1895e-04, 1.1895e-04, 1.1895e-04, 1.1650e-04, 1.1410e-04, 1.0944e-04,
-        1.0497e-04, 1.0497e-04], device='cuda:0')
-batch 1 efficient pos 3157 s_logpK: tensor([-11.0405, -12.2085, -12.2231, -12.3198, -11.7007, -12.2163, -11.7515,
-        -11.7817, -11.8179, -11.8149, -12.0522, -11.4390, -11.9348, -11.8608,
-        -11.5972, -12.0654, -11.9717, -11.5737, -11.7983, -11.4077, -12.0464,
-        -11.9952, -11.5112, -11.8462, -11.7993, -11.3726, -11.2710, -11.5894,
-        -11.9033, -11.9528, -11.7944, -11.8867, -11.6401, -12.5640, -11.8745,
-        -11.8691, -11.9299, -11.9984, -12.2612, -12.1646, -11.7827, -11.6597,
-        -11.2280, -11.9402, -11.4429, -11.7446, -12.0757, -11.8555, -12.0732,
-        -11.9955], device='cuda:0') with logZ tensor([11.9741], device='cuda:0')
-batch 1 efficient pos 3157 kl_per_pos: 98.29227447509766
-  KL losses: 96.03533935546875
-  Number of elements: 528
-  KL losses: 96.03533935546875
-batch 0 traditional valid positions: 427.0, batch_kl_sum: 40803.26171875
-batch 0 traditional valid positions: 427.0, batch_kl_sum: 40803.26171875
-batch 1 traditional pos 3157 teacher_probs: tensor([9.8417e-01, 2.4395e-03, 2.3400e-03, 1.3058e-03, 7.7566e-04, 6.8452e-04,
-        4.5126e-04, 4.2392e-04, 3.8199e-04, 3.2334e-04, 2.9749e-04, 2.7947e-04,
-        2.6806e-04, 2.6254e-04, 2.4663e-04, 2.4663e-04, 2.1765e-04, 2.1765e-04,
-        2.1765e-04, 2.1765e-04, 2.0877e-04, 2.0446e-04, 2.0025e-04, 1.8424e-04,
-        1.7307e-04, 1.6951e-04, 1.6259e-04, 1.5924e-04, 1.4650e-04, 1.4650e-04,
-        1.4348e-04, 1.4053e-04, 1.4053e-04, 1.3763e-04, 1.3479e-04, 1.3479e-04,
-        1.3201e-04, 1.2401e-04, 1.2146e-04, 1.2146e-04, 1.2146e-04, 1.1895e-04,
-        1.1895e-04, 1.1895e-04, 1.1895e-04, 1.1650e-04, 1.1410e-04, 1.0944e-04,
-        1.0497e-04, 1.0497e-04], device='cuda:1')
-batch 1 traditional pos 3157 student_log_probs_teacher: tensor([-11.0405, -12.2085, -12.2231, -12.3198, -11.7007, -12.2163, -11.7515,
-        -11.7817, -11.8179, -11.8149, -12.0522, -11.4390, -11.9348, -11.8608,
-        -11.5972, -12.0654, -11.9717, -11.5737, -11.7983, -11.4077, -12.0464,
-        -11.9952, -11.5112, -11.8462, -11.7993, -11.3725, -11.2710, -11.5893,
-        -11.9033, -11.9527, -11.7944, -11.8867, -11.6401, -12.5640, -11.8745,
-        -11.8691, -11.9299, -11.9984, -12.2612, -12.1645, -11.7827, -11.6597,
-        -11.2280, -11.9402, -11.4429, -11.7446, -12.0757, -11.8555, -12.0732,
-        -11.9955], device='cuda:1') lse student: 11.974124908447266
-batch 1 traditional pos 3157 kl loss 98.29212188720703
-batch 1 traditional pos 3157 teacher_probs: tensor([9.8417e-01, 2.4395e-03, 2.3400e-03, 1.3058e-03, 7.7566e-04, 6.8452e-04,
-        4.5126e-04, 4.2392e-04, 3.8199e-04, 3.2334e-04, 2.9749e-04, 2.7947e-04,
-        2.6806e-04, 2.6254e-04, 2.4663e-04, 2.4663e-04, 2.1765e-04, 2.1765e-04,
-        2.1765e-04, 2.1765e-04, 2.0877e-04, 2.0446e-04, 2.0025e-04, 1.8424e-04,
-        1.7307e-04, 1.6951e-04, 1.6259e-04, 1.5924e-04, 1.4650e-04, 1.4650e-04,
-        1.4348e-04, 1.4053e-04, 1.4053e-04, 1.3763e-04, 1.3479e-04, 1.3479e-04,
-        1.3201e-04, 1.2401e-04, 1.2146e-04, 1.2146e-04, 1.2146e-04, 1.1895e-04,
-        1.1895e-04, 1.1895e-04, 1.1895e-04, 1.1650e-04, 1.1410e-04, 1.0944e-04,
-        1.0497e-04, 1.0497e-04], device='cuda:0')
-batch 1 traditional pos 3157 student_log_probs_teacher: tensor([-11.0405, -12.2085, -12.2231, -12.3198, -11.7007, -12.2163, -11.7515,
-        -11.7817, -11.8179, -11.8149, -12.0522, -11.4390, -11.9348, -11.8608,
-        -11.5972, -12.0654, -11.9717, -11.5737, -11.7983, -11.4077, -12.0464,
-        -11.9952, -11.5112, -11.8462, -11.7993, -11.3725, -11.2710, -11.5893,
-        -11.9033, -11.9527, -11.7944, -11.8867, -11.6401, -12.5640, -11.8745,
-        -11.8691, -11.9299, -11.9984, -12.2612, -12.1645, -11.7827, -11.6597,
-        -11.2280, -11.9402, -11.4429, -11.7446, -12.0757, -11.8555, -12.0732,
-        -11.9955], device='cuda:0') lse student: 11.974124908447266
-batch 1 traditional pos 3157 kl loss 98.29212188720703
-batch 1 traditional valid positions: 101.0, batch_kl_sum: 9903.40234375
-KD loss: 96.03534698486328, valid positions: 528.0
-batch 1 traditional valid positions: 101.0, batch_kl_sum: 9903.40234375
-KD loss: 96.03534698486328, valid positions: 528.0
-[MEM][FORWARD] dt=1.275s | alloc=3.93GB res=18.93GB peak_alloc=15.58GB peak_res=18.93GB
-[MEM][FORWARD] dt=1.276s | alloc=3.93GB res=18.93GB peak_alloc=15.58GB peak_res=18.93GB
-(min, max) time across ranks (ms):
-    evaluate .......................................: (9291.18, 9291.18)
-WARNING:megatron.core.rerun_state_machine:Setting RerunStateMachine mode RerunMode.VALIDATE_RESULTS
-WARNING:megatron.core.rerun_state_machine:Setting RerunStateMachine mode RerunMode.VALIDATE_RESULTS
----------------------------------------------------------------------------------------------------------------
- validation loss at iteration 5 on validation set | lm loss value: 3.222829E+00 | lm loss PPL: 2.509903E+01 | 
----------------------------------------------------------------------------------------------------------------
-WARNING:megatron.core.rerun_state_machine:Setting RerunStateMachine mode RerunMode.DISABLED
-Evaluating on 12 samples
-Evaluating iter 1/3
-Dropped 20175 teacher logits positions outside valid range [0, 4096)
-Dropped 13879 teacher logits positions outside valid range [0, 4096)
-[MEM][LOAD_BATCH] dt=0.250s | alloc=3.93GB res=18.93GB peak_alloc=3.93GB peak_res=18.93GB
-[MEM][LOAD_BATCH] dt=0.251s | alloc=3.93GB res=18.93GB peak_alloc=3.93GB peak_res=18.93GB
-  Number of elements: 749
-  KL losses: 94.29817199707031
-  Number of elements: 749
-  KL losses: 94.29817199707031
-batch 0 traditional valid positions: 572.0, batch_kl_sum: 54101.734375
-batch 0 traditional valid positions: 572.0, batch_kl_sum: 54101.734375
-batch 1 traditional valid positions: 177.0, batch_kl_sum: 16527.580078125
-KD loss: 94.29814910888672, valid positions: 749.0
-[MEM][FORWARD] dt=1.327s | alloc=3.93GB res=18.93GB peak_alloc=15.58GB peak_res=18.93GB
-batch 1 traditional valid positions: 177.0, batch_kl_sum: 16527.580078125
-KD loss: 94.29814910888672, valid positions: 749.0
-[MEM][FORWARD] dt=1.330s | alloc=3.93GB res=18.93GB peak_alloc=15.58GB peak_res=18.93GB
-Dropped 10774 teacher logits positions outside valid range [0, 4096)
-Dropped 15474 teacher logits positions outside valid range [0, 4096)
-[MEM][LOAD_BATCH] dt=0.201s | alloc=3.93GB res=18.93GB peak_alloc=3.93GB peak_res=18.93GB
-[MEM][LOAD_BATCH] dt=0.202s | alloc=3.93GB res=18.93GB peak_alloc=3.93GB peak_res=18.93GB
-batch 0 efficient pos 3157 teacher_values_batch: tensor([0.0020, 0.0016, 0.0013, 1.0000, 1.0000, 1.0000, 1.0000, 1.0000, 1.0000,
-        1.0000, 1.0000, 1.0000, 1.0000, 1.0000, 1.0000], device='cuda:1')
-batch 0 efficient pos 3157 s_logpK: tensor([-12.1186, -11.7163, -11.9996,  -0.0000,  -0.0000,  -0.0000,  -0.0000,
-         -0.0000,  -0.0000,  -0.0000,  -0.0000,  -0.0000,  -0.0000,  -0.0000,
-         -0.0000], device='cuda:1') with logZ tensor([11.9878], device='cuda:1')
-batch 0 efficient pos 3157 kl_per_pos: 0.24110877513885498
-batch 0 efficient pos 3157 teacher_values_batch: tensor([0.7265, 0.0943, 0.0282, 0.0259, 0.0104, 0.0084, 0.0058, 0.0055, 0.0049,
-        0.0047, 0.0043, 0.0040, 0.0038, 0.0037, 0.0037, 0.0035, 0.0032, 0.0032,
-        0.0031, 0.0030, 0.0028, 0.0026, 0.0020, 0.0020, 0.0020, 0.0020, 0.0020,
-        0.0020, 0.0019, 0.0019, 0.0019, 0.0018, 0.0018, 0.0015, 0.0015, 0.0015,
-        0.0015, 0.0014, 0.0013, 0.0013, 0.0012, 0.0012, 0.0012, 0.0012, 0.0012,
-        0.0012, 0.0012, 1.0000, 1.0000, 1.0000], device='cuda:0')
-batch 0 efficient pos 3157 s_logpK: tensor([-12.0012, -11.6616, -12.0513, -11.8686, -11.5132, -12.3726, -11.5835,
-        -11.9824, -11.9053, -12.2300, -11.9053, -11.8169, -12.4253, -11.9639,
-        -12.2349, -11.8599, -12.2554, -11.8945, -12.0937, -12.1470, -12.0557,
-        -11.7964, -11.8823, -11.8442, -11.3940, -12.5308, -11.9611, -12.2075,
-        -11.9458, -12.4194, -11.8315, -12.1821, -11.4526, -11.7583, -11.8999,
-        -11.6909, -12.1509, -11.2222, -12.0027, -11.8784, -11.7876, -11.8227,
-        -11.5171, -12.0229, -12.1372, -11.9451, -11.3433,  -0.0000,  -0.0000,
-         -0.0000], device='cuda:0') with logZ tensor([11.9878], device='cuda:0')
-batch 0 efficient pos 3157 kl_per_pos: 95.11018371582031
-  Number of elements: 727
-  KL losses: 93.05135345458984
-  Number of elements: 727
-  KL losses: 93.05135345458984
-batch 0 traditional pos 3157 teacher_probs: tensor([0.7265, 0.0943, 0.0282, 0.0259, 0.0104, 0.0084, 0.0058, 0.0055, 0.0049,
-        0.0047, 0.0043, 0.0040, 0.0038, 0.0037, 0.0037, 0.0035, 0.0032, 0.0032,
-        0.0031, 0.0030, 0.0028, 0.0026, 0.0020, 0.0020, 0.0020, 0.0020, 0.0020,
-        0.0020, 0.0020, 0.0019, 0.0019, 0.0019, 0.0018, 0.0018, 0.0016, 0.0015,
-        0.0015, 0.0015, 0.0015, 0.0014, 0.0013, 0.0013, 0.0013, 0.0012, 0.0012,
-        0.0012, 0.0012, 0.0012, 0.0012, 0.0012], device='cuda:0')
-batch 0 traditional pos 3157 teacher_probs: tensor([0.7265, 0.0943, 0.0282, 0.0259, 0.0104, 0.0084, 0.0058, 0.0055, 0.0049,
-        0.0047, 0.0043, 0.0040, 0.0038, 0.0037, 0.0037, 0.0035, 0.0032, 0.0032,
-        0.0031, 0.0030, 0.0028, 0.0026, 0.0020, 0.0020, 0.0020, 0.0020, 0.0020,
-        0.0020, 0.0020, 0.0019, 0.0019, 0.0019, 0.0018, 0.0018, 0.0016, 0.0015,
-        0.0015, 0.0015, 0.0015, 0.0014, 0.0013, 0.0013, 0.0013, 0.0012, 0.0012,
-        0.0012, 0.0012, 0.0012, 0.0012, 0.0012], device='cuda:1')
-batch 0 traditional pos 3157 student_log_probs_teacher: tensor([-12.0013, -11.6618, -12.0514, -11.8688, -11.5133, -12.3727, -11.5836,
-        -11.9826, -11.9054, -12.2301, -11.9054, -11.8170, -12.4254, -11.9640,
-        -12.2350, -11.8600, -12.2555, -11.8947, -12.0939, -12.1471, -12.0558,
-        -11.7965, -11.8825, -11.8444, -11.3942, -12.5309, -11.9612, -12.2077,
-        -12.1198, -11.9459, -12.4196, -11.8317, -12.1823, -11.4528, -11.7165,
-        -11.7584, -11.9000, -11.6911, -12.1510, -11.2223, -12.0029, -11.8786,
-        -12.0003, -11.7877, -11.8229, -11.5172, -12.0231, -12.1374, -11.9452,
-        -11.3434], device='cuda:0') lse student: 11.987789154052734
-batch 0 traditional pos 3157 kl loss 95.35264587402344
-batch 0 traditional pos 3157 student_log_probs_teacher: tensor([-12.0013, -11.6618, -12.0514, -11.8688, -11.5133, -12.3727, -11.5836,
-        -11.9826, -11.9054, -12.2301, -11.9054, -11.8170, -12.4254, -11.9640,
-        -12.2350, -11.8600, -12.2555, -11.8947, -12.0939, -12.1471, -12.0558,
-        -11.7965, -11.8825, -11.8444, -11.3942, -12.5309, -11.9612, -12.2077,
-        -12.1198, -11.9459, -12.4196, -11.8317, -12.1823, -11.4528, -11.7165,
-        -11.7584, -11.9000, -11.6911, -12.1510, -11.2223, -12.0029, -11.8786,
-        -12.0003, -11.7877, -11.8229, -11.5172, -12.0231, -12.1374, -11.9452,
-        -11.3434], device='cuda:1') lse student: 11.987789154052734
-batch 0 traditional pos 3157 kl loss 95.35264587402344
-batch 0 traditional valid positions: 315.0, batch_kl_sum: 29362.708984375
-batch 0 traditional valid positions: 315.0, batch_kl_sum: 29362.708984375
-batch 1 traditional valid positions: 412.0, batch_kl_sum: 38285.65625
-KD loss: 93.05139923095703, valid positions: 727.0
-[MEM][FORWARD] dt=1.317s | alloc=3.93GB res=18.93GB peak_alloc=15.58GB peak_res=18.93GB
-batch 1 traditional valid positions: 412.0, batch_kl_sum: 38285.65625
-KD loss: 93.05139923095703, valid positions: 727.0
-[MEM][FORWARD] dt=1.319s | alloc=3.93GB res=18.93GB peak_alloc=15.58GB peak_res=18.93GB
-Evaluating iter 2/3
-Dropped 8026 teacher logits positions outside valid range [0, 4096)
-Dropped 14817 teacher logits positions outside valid range [0, 4096)
-[MEM][LOAD_BATCH] dt=0.144s | alloc=3.93GB res=18.93GB peak_alloc=3.93GB peak_res=18.93GB
-[MEM][LOAD_BATCH] dt=0.145s | alloc=3.93GB res=18.93GB peak_alloc=3.93GB peak_res=18.93GB
-batch 0 efficient pos 3157 teacher_values_batch: tensor([0.6485, 0.1508, 0.0337, 0.0114, 0.0089, 0.0089, 0.0082, 0.0082, 0.0075,
-        0.0061, 0.0058, 0.0056, 0.0052, 0.0052, 0.0050, 0.0046, 0.0037, 0.0034,
-        0.0033, 0.0033, 0.0031, 0.0029, 0.0029, 0.0028, 0.0028, 0.0028, 0.0028,
-        0.0025, 0.0024, 0.0023, 0.0023, 0.0022, 0.0022, 0.0022, 0.0021, 0.0020,
-        0.0019, 0.0019, 0.0018, 0.0018, 0.0016, 0.0016, 0.0015, 0.0015, 0.0015,
-        0.0015, 0.0015, 0.0015, 0.0015, 0.0015], device='cuda:0')
-batch 0 efficient pos 3157 s_logpK: tensor([-11.4377, -11.7092, -11.5022, -11.4885, -11.7961, -11.8469, -11.7893,
-        -11.8020, -12.1047, -12.3147, -11.7570, -11.2033, -11.7775, -12.0161,
-        -11.6272, -12.2561, -11.4963, -12.4768, -11.7111, -11.4865, -12.1760,
-        -11.3440, -12.5705, -11.1760, -11.6897, -11.6486, -11.7209, -12.0842,
-        -12.1525, -12.3811, -11.9555, -12.6213, -11.6525, -11.7609, -10.9729,
-        -11.8630, -12.0783, -12.5783, -11.7981, -12.0207, -11.8332, -11.7609,
-        -11.4807, -12.2678, -12.4846, -11.8776, -11.5373, -12.0407, -11.8410,
-        -11.9811], device='cuda:0') with logZ tensor([11.9729], device='cuda:0')
-batch 0 efficient pos 3157 kl_per_pos: 89.62743377685547
-  Number of elements: 263
-  KL losses: 94.85249328613281
-  Number of elements: 263
-  KL losses: 94.85249328613281
-batch 0 traditional pos 3157 teacher_probs: tensor([0.6485, 0.1508, 0.0337, 0.0114, 0.0089, 0.0089, 0.0082, 0.0082, 0.0075,
-        0.0061, 0.0058, 0.0056, 0.0052, 0.0052, 0.0050, 0.0046, 0.0037, 0.0034,
-        0.0033, 0.0033, 0.0031, 0.0029, 0.0029, 0.0028, 0.0028, 0.0028, 0.0028,
-        0.0025, 0.0024, 0.0023, 0.0023, 0.0022, 0.0022, 0.0022, 0.0021, 0.0020,
-        0.0019, 0.0019, 0.0018, 0.0018, 0.0016, 0.0016, 0.0015, 0.0015, 0.0015,
-        0.0015, 0.0015, 0.0015, 0.0015, 0.0015], device='cuda:0')
-batch 0 traditional pos 3157 teacher_probs: tensor([0.6485, 0.1508, 0.0337, 0.0114, 0.0089, 0.0089, 0.0082, 0.0082, 0.0075,
-        0.0061, 0.0058, 0.0056, 0.0052, 0.0052, 0.0050, 0.0046, 0.0037, 0.0034,
-        0.0033, 0.0033, 0.0031, 0.0029, 0.0029, 0.0028, 0.0028, 0.0028, 0.0028,
-        0.0025, 0.0024, 0.0023, 0.0023, 0.0022, 0.0022, 0.0022, 0.0021, 0.0020,
-        0.0019, 0.0019, 0.0018, 0.0018, 0.0016, 0.0016, 0.0015, 0.0015, 0.0015,
-        0.0015, 0.0015, 0.0015, 0.0015, 0.0015], device='cuda:1')
-batch 0 traditional pos 3157 student_log_probs_teacher: tensor([-11.4377, -11.7092, -11.5022, -11.4885, -11.7961, -11.8469, -11.7893,
-        -11.8020, -12.1047, -12.3147, -11.7570, -11.2033, -11.7776, -12.0161,
-        -11.6272, -12.2561, -11.4963, -12.4768, -11.7111, -11.4865, -12.1760,
-        -11.3440, -12.5705, -11.1760, -11.6897, -11.6486, -11.7209, -12.0842,
-        -12.1526, -12.3811, -11.9555, -12.6213, -11.6526, -11.7610, -10.9729,
-        -11.8630, -12.0783, -12.5783, -11.7981, -12.0207, -11.8332, -11.7610,
-        -11.4807, -12.2678, -12.4846, -11.8776, -11.5373, -12.0407, -11.8410,
-        -11.9811], device='cuda:0') lse student: 11.972862243652344
-batch 0 traditional pos 3157 kl loss 89.62744140625
-batch 0 traditional pos 3157 student_log_probs_teacher: tensor([-11.4377, -11.7092, -11.5022, -11.4885, -11.7961, -11.8469, -11.7893,
-        -11.8020, -12.1047, -12.3147, -11.7570, -11.2033, -11.7776, -12.0161,
-        -11.6272, -12.2561, -11.4963, -12.4768, -11.7111, -11.4865, -12.1760,
-        -11.3440, -12.5705, -11.1760, -11.6897, -11.6486, -11.7209, -12.0842,
-        -12.1526, -12.3811, -11.9555, -12.6213, -11.6526, -11.7610, -10.9729,
-        -11.8630, -12.0783, -12.5783, -11.7981, -12.0207, -11.8332, -11.7610,
-        -11.4807, -12.2678, -12.4846, -11.8776, -11.5373, -12.0407, -11.8410,
-        -11.9811], device='cuda:1') lse student: 11.972862243652344
-batch 0 traditional pos 3157 kl loss 89.62744140625
-batch 0 traditional valid positions: 90.0, batch_kl_sum: 8801.5634765625
-batch 0 traditional valid positions: 90.0, batch_kl_sum: 8801.5634765625
-batch 1 traditional valid positions: 173.0, batch_kl_sum: 16144.6552734375
-KD loss: 94.8525390625, valid positions: 263.0
-[MEM][FORWARD] dt=1.214s | alloc=3.93GB res=18.93GB peak_alloc=15.58GB peak_res=18.93GB
-batch 1 traditional valid positions: 173.0, batch_kl_sum: 16144.6552734375
-KD loss: 94.8525390625, valid positions: 263.0
-[MEM][FORWARD] dt=1.214s | alloc=3.93GB res=18.93GB peak_alloc=15.58GB peak_res=18.93GB
-Dropped 10271 teacher logits positions outside valid range [0, 4096)
-Dropped 12818 teacher logits positions outside valid range [0, 4096)
-[MEM][LOAD_BATCH] dt=0.192s | alloc=3.93GB res=18.93GB peak_alloc=3.93GB peak_res=18.93GB
-[MEM][LOAD_BATCH] dt=0.192s | alloc=3.93GB res=18.93GB peak_alloc=3.93GB peak_res=18.93GB
-batch 1 efficient pos 3157 teacher_values_batch: tensor([1.5236e-03, 7.1970e-04, 6.9033e-04, 6.3514e-04, 1.0000e+00, 1.0000e+00,
-        1.0000e+00, 1.0000e+00, 1.0000e+00, 1.0000e+00, 1.0000e+00, 1.0000e+00,
-        1.0000e+00, 1.0000e+00, 1.0000e+00, 1.0000e+00, 1.0000e+00, 1.0000e+00,
-        1.0000e+00, 1.0000e+00], device='cuda:1')
-batch 1 efficient pos 3157 s_logpK: tensor([-11.9811, -11.7678, -11.8835, -12.1457,  -0.0000,  -0.0000,  -0.0000,
-         -0.0000,  -0.0000,  -0.0000,  -0.0000,  -0.0000,  -0.0000,  -0.0000,
-         -0.0000,  -0.0000,  -0.0000,  -0.0000,  -0.0000,  -0.0000],
-       device='cuda:1') with logZ tensor([11.9738], device='cuda:1')
-batch 1 efficient pos 3157 kl_per_pos: 0.16065014898777008
-  Number of elements: 764
-batch 1 efficient pos 3157 teacher_values_batch: tensor([8.9434e-01, 2.4847e-02, 7.1189e-03, 6.8284e-03, 4.5015e-03, 4.3178e-03,
-        3.9726e-03, 3.8105e-03, 3.2255e-03, 3.2255e-03, 2.8465e-03, 2.6189e-03,
-        2.0396e-03, 1.6560e-03, 1.5884e-03, 1.5236e-03, 1.5236e-03, 1.4614e-03,
-        1.3446e-03, 1.2897e-03, 1.1866e-03, 1.1382e-03, 1.0917e-03, 1.0472e-03,
-        1.0472e-03, 1.0472e-03, 1.0472e-03, 1.0044e-03, 1.0044e-03, 9.2412e-04,
-        8.5023e-04, 8.5023e-04, 8.5023e-04, 8.1553e-04, 8.1553e-04, 7.8225e-04,
-        7.5032e-04, 6.9033e-04, 6.9033e-04, 6.9033e-04, 6.9033e-04, 6.9033e-04,
-        6.6216e-04, 6.6216e-04, 6.6216e-04, 6.6216e-04, 1.0000e+00, 1.0000e+00,
-        1.0000e+00, 1.0000e+00], device='cuda:0')
-batch 1 efficient pos 3157 s_logpK: tensor([-11.3332, -12.6418, -12.0568, -11.5969, -12.5558, -11.9666, -11.1183,
-        -12.0446, -12.2394, -11.9767, -11.4543, -11.7756, -11.9064, -11.9512,
-        -11.6711, -11.8879, -11.8845, -12.3722, -11.8976, -11.9189, -11.9949,
-        -11.9316, -11.5695, -11.5461, -11.8478, -12.3469, -12.0637, -11.3488,
-        -11.2199, -12.4426, -11.7023, -12.3351, -12.2804, -11.8967, -12.2785,
-        -12.3859, -11.7599, -11.5265, -12.4933, -11.8864, -11.7892, -12.4191,
-        -11.6144, -11.9510, -12.4738, -11.4738,  -0.0000,  -0.0000,  -0.0000,
-         -0.0000], device='cuda:0') with logZ tensor([11.9738], device='cuda:0')
-batch 1 efficient pos 3157 kl_per_pos: 96.39743041992188
-  KL losses: 94.61883544921875
-  Number of elements: 764
-  KL losses: 94.61883544921875
-batch 0 traditional valid positions: 420.0, batch_kl_sum: 40099.2421875
-batch 0 traditional valid positions: 420.0, batch_kl_sum: 40099.2421875
-batch 1 traditional pos 3157 teacher_probs: tensor([8.9434e-01, 2.4847e-02, 7.1189e-03, 6.8284e-03, 4.5015e-03, 4.3178e-03,
-        3.9726e-03, 3.8105e-03, 3.2255e-03, 3.2255e-03, 2.8465e-03, 2.6189e-03,
-        2.0396e-03, 1.6560e-03, 1.5884e-03, 1.5236e-03, 1.5236e-03, 1.5236e-03,
-        1.4614e-03, 1.3446e-03, 1.2897e-03, 1.1866e-03, 1.1382e-03, 1.0917e-03,
-        1.0472e-03, 1.0472e-03, 1.0472e-03, 1.0472e-03, 1.0044e-03, 1.0044e-03,
-        9.2412e-04, 8.5023e-04, 8.5023e-04, 8.5023e-04, 8.1553e-04, 8.1553e-04,
-        7.8225e-04, 7.5032e-04, 7.1970e-04, 6.9033e-04, 6.9033e-04, 6.9033e-04,
-        6.9033e-04, 6.9033e-04, 6.9033e-04, 6.6216e-04, 6.6216e-04, 6.6216e-04,
-        6.6216e-04, 6.3514e-04], device='cuda:0')
-batch 1 traditional pos 3157 student_log_probs_teacher: tensor([-11.3332, -12.6418, -12.0568, -11.5969, -12.5558, -11.9666, -11.1183,
-        -12.0446, -12.2394, -11.9767, -11.4543, -11.7756, -11.9064, -11.9512,
-        -11.6711, -11.8879, -11.8844, -11.9805, -12.3722, -11.8976, -11.9189,
-        -11.9949, -11.9316, -11.5695, -11.5461, -11.8478, -12.3469, -12.0636,
-        -11.3488, -11.2199, -12.4426, -11.7023, -12.3351, -12.2804, -11.8967,
-        -12.2785, -12.3859, -11.7599, -11.7697, -11.5265, -12.4933, -11.8864,
-        -11.7892, -12.4191, -11.8835, -11.6144, -11.9510, -12.4738, -11.4738,
-        -12.1457], device='cuda:0') lse student: 11.973806381225586
-batch 1 traditional pos 3157 kl loss 96.55809020996094
-batch 1 traditional pos 3157 teacher_probs: tensor([8.9434e-01, 2.4847e-02, 7.1189e-03, 6.8284e-03, 4.5015e-03, 4.3178e-03,
-        3.9726e-03, 3.8105e-03, 3.2255e-03, 3.2255e-03, 2.8465e-03, 2.6189e-03,
-        2.0396e-03, 1.6560e-03, 1.5884e-03, 1.5236e-03, 1.5236e-03, 1.5236e-03,
-        1.4614e-03, 1.3446e-03, 1.2897e-03, 1.1866e-03, 1.1382e-03, 1.0917e-03,
-        1.0472e-03, 1.0472e-03, 1.0472e-03, 1.0472e-03, 1.0044e-03, 1.0044e-03,
-        9.2412e-04, 8.5023e-04, 8.5023e-04, 8.5023e-04, 8.1553e-04, 8.1553e-04,
-        7.8225e-04, 7.5032e-04, 7.1970e-04, 6.9033e-04, 6.9033e-04, 6.9033e-04,
-        6.9033e-04, 6.9033e-04, 6.9033e-04, 6.6216e-04, 6.6216e-04, 6.6216e-04,
-        6.6216e-04, 6.3514e-04], device='cuda:1')
-batch 1 traditional pos 3157 student_log_probs_teacher: tensor([-11.3332, -12.6418, -12.0568, -11.5969, -12.5558, -11.9666, -11.1183,
-        -12.0446, -12.2394, -11.9767, -11.4543, -11.7756, -11.9064, -11.9512,
-        -11.6711, -11.8879, -11.8844, -11.9805, -12.3722, -11.8976, -11.9189,
-        -11.9949, -11.9316, -11.5695, -11.5461, -11.8478, -12.3469, -12.0636,
-        -11.3488, -11.2199, -12.4426, -11.7023, -12.3351, -12.2804, -11.8967,
-        -12.2785, -12.3859, -11.7599, -11.7697, -11.5265, -12.4933, -11.8864,
-        -11.7892, -12.4191, -11.8835, -11.6144, -11.9510, -12.4738, -11.4738,
-        -12.1457], device='cuda:1') lse student: 11.973806381225586
-batch 1 traditional pos 3157 kl loss 96.55809020996094
-batch 1 traditional valid positions: 344.0, batch_kl_sum: 32189.5546875
-KD loss: 94.61884307861328, valid positions: 764.0
-[MEM][FORWARD] dt=1.326s | alloc=3.93GB res=18.93GB peak_alloc=15.58GB peak_res=18.93GB
-batch 1 traditional valid positions: 344.0, batch_kl_sum: 32189.5546875
-KD loss: 94.61884307861328, valid positions: 764.0
-[MEM][FORWARD] dt=1.328s | alloc=3.93GB res=18.93GB peak_alloc=15.58GB peak_res=18.93GB
-Evaluating iter 3/3
-Dropped 15454 teacher logits positions outside valid range [0, 4096)
-Dropped 16666 teacher logits positions outside valid range [0, 4096)
-[MEM][LOAD_BATCH] dt=0.201s | alloc=3.93GB res=18.93GB peak_alloc=3.93GB peak_res=18.93GB
-[MEM][LOAD_BATCH] dt=0.202s | alloc=3.93GB res=18.93GB peak_alloc=3.93GB peak_res=18.93GB
-  Number of elements: 427
-  KL losses: 92.394775390625
-  Number of elements: 427
-  KL losses: 92.394775390625
-batch 0 traditional valid positions: 191.0, batch_kl_sum: 17918.43359375
-batch 0 traditional valid positions: 191.0, batch_kl_sum: 17918.43359375
-batch 1 traditional valid positions: 236.0, batch_kl_sum: 21534.146484375
-batch 1 traditional valid positions: 236.0, batch_kl_sum: 21534.146484375
-KD loss: 92.3947982788086, valid positions: 427.0
-KD loss: 92.3947982788086, valid positions: 427.0
-[MEM][FORWARD] dt=1.253s | alloc=3.93GB res=18.93GB peak_alloc=15.58GB peak_res=18.93GB
-[MEM][FORWARD] dt=1.253s | alloc=3.93GB res=18.93GB peak_alloc=15.58GB peak_res=18.93GB
-Dropped 11468 teacher logits positions outside valid range [0, 4096)
-Dropped 13389 teacher logits positions outside valid range [0, 4096)
-[MEM][LOAD_BATCH] dt=0.177s | alloc=3.93GB res=18.93GB peak_alloc=3.93GB peak_res=18.93GB
-[MEM][LOAD_BATCH] dt=0.178s | alloc=3.93GB res=18.93GB peak_alloc=3.93GB peak_res=18.93GB
-  Number of elements: 528
-batch 1 efficient pos 3157 teacher_values_batch: tensor([9.8417e-01, 2.4395e-03, 2.3400e-03, 1.3058e-03, 7.7566e-04, 6.8452e-04,
-        4.5126e-04, 4.2392e-04, 3.8199e-04, 3.2334e-04, 2.9749e-04, 2.7947e-04,
-        2.6806e-04, 2.6254e-04, 2.4663e-04, 2.4663e-04, 2.1765e-04, 2.1765e-04,
-        2.1765e-04, 2.1765e-04, 2.0877e-04, 2.0446e-04, 2.0025e-04, 1.8424e-04,
-        1.7307e-04, 1.6951e-04, 1.6259e-04, 1.5924e-04, 1.4650e-04, 1.4650e-04,
-        1.4348e-04, 1.4053e-04, 1.4053e-04, 1.3763e-04, 1.3479e-04, 1.3479e-04,
-        1.3201e-04, 1.2401e-04, 1.2146e-04, 1.2146e-04, 1.2146e-04, 1.1895e-04,
-        1.1895e-04, 1.1895e-04, 1.1895e-04, 1.1650e-04, 1.1410e-04, 1.0944e-04,
-        1.0497e-04, 1.0497e-04], device='cuda:0')
-batch 1 efficient pos 3157 s_logpK: tensor([-11.0405, -12.2085, -12.2231, -12.3198, -11.7007, -12.2163, -11.7515,
-        -11.7817, -11.8179, -11.8149, -12.0522, -11.4390, -11.9348, -11.8608,
-        -11.5972, -12.0654, -11.9717, -11.5737, -11.7983, -11.4077, -12.0464,
-        -11.9952, -11.5112, -11.8462, -11.7993, -11.3726, -11.2710, -11.5894,
-        -11.9033, -11.9528, -11.7944, -11.8867, -11.6401, -12.5640, -11.8745,
-        -11.8691, -11.9299, -11.9984, -12.2612, -12.1646, -11.7827, -11.6597,
-        -11.2280, -11.9402, -11.4429, -11.7446, -12.0757, -11.8555, -12.0732,
-        -11.9955], device='cuda:0') with logZ tensor([11.9741], device='cuda:0')
-batch 1 efficient pos 3157 kl_per_pos: 98.29227447509766
-  KL losses: 96.03533935546875
-  Number of elements: 528
-  KL losses: 96.03533935546875
-batch 0 traditional valid positions: 427.0, batch_kl_sum: 40803.26171875
-batch 0 traditional valid positions: 427.0, batch_kl_sum: 40803.26171875
-batch 1 traditional pos 3157 teacher_probs: tensor([9.8417e-01, 2.4395e-03, 2.3400e-03, 1.3058e-03, 7.7566e-04, 6.8452e-04,
-        4.5126e-04, 4.2392e-04, 3.8199e-04, 3.2334e-04, 2.9749e-04, 2.7947e-04,
-        2.6806e-04, 2.6254e-04, 2.4663e-04, 2.4663e-04, 2.1765e-04, 2.1765e-04,
-        2.1765e-04, 2.1765e-04, 2.0877e-04, 2.0446e-04, 2.0025e-04, 1.8424e-04,
-        1.7307e-04, 1.6951e-04, 1.6259e-04, 1.5924e-04, 1.4650e-04, 1.4650e-04,
-        1.4348e-04, 1.4053e-04, 1.4053e-04, 1.3763e-04, 1.3479e-04, 1.3479e-04,
-        1.3201e-04, 1.2401e-04, 1.2146e-04, 1.2146e-04, 1.2146e-04, 1.1895e-04,
-        1.1895e-04, 1.1895e-04, 1.1895e-04, 1.1650e-04, 1.1410e-04, 1.0944e-04,
-        1.0497e-04, 1.0497e-04], device='cuda:0')
-batch 1 traditional pos 3157 student_log_probs_teacher: tensor([-11.0405, -12.2085, -12.2231, -12.3198, -11.7007, -12.2163, -11.7515,
-        -11.7817, -11.8179, -11.8149, -12.0522, -11.4390, -11.9348, -11.8608,
-        -11.5972, -12.0654, -11.9717, -11.5737, -11.7983, -11.4077, -12.0464,
-        -11.9952, -11.5112, -11.8462, -11.7993, -11.3725, -11.2710, -11.5893,
-        -11.9033, -11.9527, -11.7944, -11.8867, -11.6401, -12.5640, -11.8745,
-        -11.8691, -11.9299, -11.9984, -12.2612, -12.1645, -11.7827, -11.6597,
-        -11.2280, -11.9402, -11.4429, -11.7446, -12.0757, -11.8555, -12.0732,
-        -11.9955], device='cuda:0') lse student: 11.974124908447266
-batch 1 traditional pos 3157 kl loss 98.29212188720703
-batch 1 traditional pos 3157 teacher_probs: tensor([9.8417e-01, 2.4395e-03, 2.3400e-03, 1.3058e-03, 7.7566e-04, 6.8452e-04,
-        4.5126e-04, 4.2392e-04, 3.8199e-04, 3.2334e-04, 2.9749e-04, 2.7947e-04,
-        2.6806e-04, 2.6254e-04, 2.4663e-04, 2.4663e-04, 2.1765e-04, 2.1765e-04,
-        2.1765e-04, 2.1765e-04, 2.0877e-04, 2.0446e-04, 2.0025e-04, 1.8424e-04,
-        1.7307e-04, 1.6951e-04, 1.6259e-04, 1.5924e-04, 1.4650e-04, 1.4650e-04,
-        1.4348e-04, 1.4053e-04, 1.4053e-04, 1.3763e-04, 1.3479e-04, 1.3479e-04,
-        1.3201e-04, 1.2401e-04, 1.2146e-04, 1.2146e-04, 1.2146e-04, 1.1895e-04,
-        1.1895e-04, 1.1895e-04, 1.1895e-04, 1.1650e-04, 1.1410e-04, 1.0944e-04,
-        1.0497e-04, 1.0497e-04], device='cuda:1')
-batch 1 traditional pos 3157 student_log_probs_teacher: tensor([-11.0405, -12.2085, -12.2231, -12.3198, -11.7007, -12.2163, -11.7515,
-        -11.7817, -11.8179, -11.8149, -12.0522, -11.4390, -11.9348, -11.8608,
-        -11.5972, -12.0654, -11.9717, -11.5737, -11.7983, -11.4077, -12.0464,
-        -11.9952, -11.5112, -11.8462, -11.7993, -11.3725, -11.2710, -11.5893,
-        -11.9033, -11.9527, -11.7944, -11.8867, -11.6401, -12.5640, -11.8745,
-        -11.8691, -11.9299, -11.9984, -12.2612, -12.1645, -11.7827, -11.6597,
-        -11.2280, -11.9402, -11.4429, -11.7446, -12.0757, -11.8555, -12.0732,
-        -11.9955], device='cuda:1') lse student: 11.974124908447266
-batch 1 traditional pos 3157 kl loss 98.29212188720703
-batch 1 traditional valid positions: 101.0, batch_kl_sum: 9903.40234375
-KD loss: 96.03534698486328, valid positions: 528.0
-[MEM][FORWARD] dt=1.274s | alloc=3.93GB res=18.93GB peak_alloc=15.58GB peak_res=18.93GB
-batch 1 traditional valid positions: 101.0, batch_kl_sum: 9903.40234375
-KD loss: 96.03534698486328, valid positions: 528.0
-[MEM][FORWARD] dt=1.277s | alloc=3.93GB res=18.93GB peak_alloc=15.58GB peak_res=18.93GB
-(min, max) time across ranks (ms):
-    evaluate .......................................: (8943.62, 8943.71)
-WARNING:megatron.core.rerun_state_machine:Setting RerunStateMachine mode RerunMode.VALIDATE_RESULTS
-WARNING:megatron.core.rerun_state_machine:Setting RerunStateMachine mode RerunMode.VALIDATE_RESULTS
----------------------------------------------------------------------------------------------------------
- validation loss at iteration 5 on test set | lm loss value: 3.222829E+00 | lm loss PPL: 2.509903E+01 | 
----------------------------------------------------------------------------------------------------------
+[before the start of training step] datetime: 2025-09-22 11:12:01 
+Dropped 10667 teacher logits positions outside valid range [0, 8192)
+[MEM][LOAD_BATCH] dt=0.148s | alloc=1.96GB res=2.85GB peak_alloc=1.96GB peak_res=2.85GB
+[MEM][LOAD_BATCH] dt=0.149s | alloc=1.96GB res=2.85GB peak_alloc=1.96GB peak_res=2.85GB
+  Number of elements: 469
+  KL losses: 94.48292541503906
+  Number of elements: 469
+  KL losses: 94.48292541503906
+[MEM][FORWARD] dt=1.556s | alloc=2.36GB res=2.86GB peak_alloc=2.80GB peak_res=2.86GB
+[MEM][FORWARD] dt=1.556s | alloc=2.33GB res=2.86GB peak_alloc=2.80GB peak_res=2.86GB

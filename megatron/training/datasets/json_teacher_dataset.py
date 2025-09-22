@@ -4,15 +4,13 @@ from __future__ import annotations
 
 import json
 import os
-from dataclasses import dataclass
 from typing import Any, Dict, Iterable, List, Optional, Sequence
 
+import numpy as np
 import torch
-import torch.distributed as dist
-from torch.utils.data import Dataset, DataLoader
-from torch.utils.data.distributed import DistributedSampler
-
-from megatron.core import mpu
+from megatron.core.datasets.gpt_dataset import GPTDatasetConfig
+from megatron.core.datasets.megatron_dataset import LowLevelDataset, MegatronDataset
+from megatron.core.datasets.utils import Split
 
 
 _LABEL_PAD_ID = -100
@@ -97,62 +95,115 @@ def _normalize_teacher_payload(
         "values": normalized_values,
     }
 
+class JsonTeacherLowLevelDataset:
+    """Minimal iterable over JSON teacher records."""
 
-@dataclass
-class JsonTeacherSample:
-    tokens: torch.Tensor
-    labels: torch.Tensor
-    loss_mask: torch.Tensor
-    position_ids: torch.Tensor
-    attention_mask: Optional[torch.Tensor]
-    teacher_data: Optional[Dict[str, List[List[float]]]]
+    def __init__(self, dataset_path: str) -> None:
+        if not os.path.isdir(dataset_path):
+            raise ValueError(f"JSON teacher data directory '{dataset_path}' does not exist")
+
+        file_paths = [
+            os.path.join(dataset_path, entry)
+            for entry in os.listdir(dataset_path)
+            if entry.endswith(".json")
+        ]
+
+        if not file_paths:
+            raise ValueError(f"No JSON files found in directory '{dataset_path}'")
+
+        self.file_paths = file_paths
+
+    def __len__(self) -> int:
+        print(f"Number of JSON files found: {len(self.file_paths)}")
+        return len(self.file_paths)
+
+    def __getitem__(self, idx: int) -> Dict[str, Any]:
+        file_path = self.file_paths[idx]
+        with open(file_path, "r", encoding="utf-8") as reader:
+            record = json.load(reader)
+        return record
 
 
-class JsonTeacherDataset(Dataset):
+class JsonTeacherDataset(MegatronDataset):
     """Dataset that reads one JSON file per training example."""
 
     def __init__(
         self,
-        data_dir: str,
-        seq_length: int,
+        dataset: LowLevelDataset,
+        dataset_path: Optional[str],
+        indices: np.ndarray,
+        num_samples: Optional[int],
+        index_split: Split,
+        config: GPTDatasetConfig,
         *,
-        pad_token_id: int,
         label_pad_id: int = _LABEL_PAD_ID,
-        create_attention_mask: bool = True,
     ) -> None:
-        self.seq_length = seq_length
-        self.pad_token_id = pad_token_id
+        super().__init__(dataset, dataset_path, indices, num_samples, index_split, config)
+
+        if self.config.tokenizer is None:
+            raise ValueError("JsonTeacherDataset requires a tokenizer in the config")
+
+        self.seq_length = self.config.sequence_length
         self.label_pad_id = label_pad_id
-        self.create_attention_mask = create_attention_mask
+        self.create_attention_mask = self.config.create_attention_mask
 
-        if not os.path.isdir(data_dir):
-            raise ValueError(f"JSON teacher data directory '{data_dir}' does not exist")
+        tokenizer = self.config.tokenizer
 
-        self.file_paths = sorted(
-            os.path.join(data_dir, entry)
-            for entry in os.listdir(data_dir)
-            if entry.endswith(".json")
-        )
-        if not self.file_paths:
-            raise ValueError(f"No JSON files found in directory '{data_dir}'")
+        pad_token = getattr(tokenizer, "pad", None)
+        eod_token = getattr(tokenizer, "eod", None)
 
-        base_mask = None
-        if create_attention_mask:
-            mask = torch.tril(torch.ones(seq_length, seq_length, dtype=torch.bool))
-            base_mask = mask.unsqueeze(0)  # [1, S, S]
-        self._attention_mask_template = base_mask
+        if pad_token is None and eod_token is None:
+            raise ValueError("Tokenizer must define either 'pad' or 'eod' token id")
+
+        if pad_token is None:
+            pad_token = eod_token
+        if eod_token is None:
+            eod_token = pad_token
+
+        self.pad_token_id = int(pad_token)
+        self.eod_token_id = int(eod_token)
+
+        if self.create_attention_mask:
+            mask = torch.tril(torch.ones(self.seq_length, self.seq_length, dtype=torch.bool))
+            self._attention_mask_template = mask.unsqueeze(0)  # [1, S, S]
+        else:
+            self._attention_mask_template = None
+
+        self._position_ids = torch.arange(self.seq_length, dtype=torch.long)
+        self.collate_fn = JsonTeacherCollator(create_attention_mask=self.create_attention_mask)
+
+        if len(self.indices) == 0:
+            self.num_samples = 0
 
     def __len__(self) -> int:
-        return len(self.file_paths)
+        if self.num_samples is not None:
+            return self.num_samples
+        return len(self.indices)
 
-    def __getitem__(self, index: int) -> JsonTeacherSample:
-        file_path = self.file_paths[index]
-        with open(file_path, "r", encoding="utf-8") as reader:
-            record = json.load(reader)
+    @staticmethod
+    def numel_low_level_dataset(low_level_dataset: LowLevelDataset) -> int:
+        return len(low_level_dataset)
+
+    @staticmethod
+    def build_low_level_dataset(dataset_path: str, config: GPTDatasetConfig) -> LowLevelDataset:
+        return JsonTeacherLowLevelDataset(dataset_path)
+
+    def __getitem__(self, idx: int) -> Dict[str, Any]:
+        dataset_length = len(self.indices)
+        if dataset_length == 0:
+            raise IndexError("JsonTeacherDataset has no indices to sample")
+
+        actual_index = int(self.indices[idx % dataset_length])
+        record = self.dataset[actual_index]
+
+        file_path = None
+        if hasattr(self.dataset, "file_paths"):
+            file_path = self.dataset.file_paths[actual_index]  # type: ignore[attr-defined]
 
         if "input_ids" not in record or "labels" not in record:
+            location = f" '{file_path}'" if file_path else ""
             raise KeyError(
-                f"Record '{file_path}' must contain 'input_ids' and 'labels' fields"
+                f"Record{location} must contain 'input_ids' and 'labels' fields"
             )
 
         tokens = _pad_or_trim_tensor(
@@ -183,19 +234,19 @@ class JsonTeacherDataset(Dataset):
         else:
             attention_mask = None
 
-        position_ids = torch.arange(self.seq_length, dtype=torch.long)
+        position_ids = self._position_ids.clone()
 
         teacher_raw = record.get("teacher_logits") or record.get("teacher_data")
         teacher_data = _normalize_teacher_payload(teacher_raw, self.seq_length)
 
-        return JsonTeacherSample(
-            tokens=tokens,
-            labels=labels,
-            loss_mask=loss_mask,
-            position_ids=position_ids,
-            attention_mask=attention_mask,
-            teacher_data=teacher_data,
-        )
+        return {
+            "tokens": tokens,
+            "labels": labels,
+            "loss_mask": loss_mask,
+            "position_ids": position_ids,
+            "attention_mask": attention_mask,
+            "teacher_data": teacher_data,
+        }
 
 
 class JsonTeacherCollator:
@@ -204,24 +255,24 @@ class JsonTeacherCollator:
     def __init__(self, create_attention_mask: bool) -> None:
         self.create_attention_mask = create_attention_mask
 
-    def __call__(self, samples: Iterable[JsonTeacherSample]) -> Dict[str, Any]:
+    def __call__(self, samples: Iterable[Dict[str, Any]]) -> Dict[str, Any]:
         sample_list = list(samples)
         if not sample_list:
             raise ValueError("JsonTeacherCollator received an empty batch")
 
-        tokens = torch.stack([sample.tokens for sample in sample_list])
-        labels = torch.stack([sample.labels for sample in sample_list])
-        loss_mask = torch.stack([sample.loss_mask for sample in sample_list])
-        position_ids = torch.stack([sample.position_ids for sample in sample_list])
+        tokens = torch.stack([sample["tokens"] for sample in sample_list])
+        labels = torch.stack([sample["labels"] for sample in sample_list])
+        loss_mask = torch.stack([sample["loss_mask"] for sample in sample_list])
+        position_ids = torch.stack([sample["position_ids"] for sample in sample_list])
 
         if self.create_attention_mask:
             attention = torch.stack([
-                sample.attention_mask for sample in sample_list
-            ])  # type: ignore[arg-type]
+                sample["attention_mask"] for sample in sample_list
+            ])
         else:
             attention = None
 
-        teacher_list = [sample.teacher_data for sample in sample_list]
+        teacher_list = [sample["teacher_data"] for sample in sample_list]
 
         return {
             "tokens": tokens,
@@ -231,50 +282,3 @@ class JsonTeacherCollator:
             "attention_mask": attention,
             "teacher_data": teacher_list,
         }
-
-
-def build_json_teacher_dataloader(
-    data_dir: str,
-    *,
-    seq_length: int,
-    micro_batch_size: int,
-    pad_token_id: int,
-    label_pad_id: int = _LABEL_PAD_ID,
-    create_attention_mask: bool,
-    num_workers: int,
-    shuffle: bool,
-    drop_last: bool,
-) -> DataLoader:
-    dataset = JsonTeacherDataset(
-        data_dir,
-        seq_length,
-        pad_token_id=pad_token_id,
-        label_pad_id=label_pad_id,
-        create_attention_mask=create_attention_mask,
-    )
-
-    if dist.is_available() and dist.is_initialized():
-        sampler = DistributedSampler(
-            dataset,
-            num_replicas=mpu.get_data_parallel_world_size(),
-            rank=mpu.get_data_parallel_rank(),
-            shuffle=shuffle,
-            drop_last=drop_last,
-        )
-        shuffle_flag = False
-    else:
-        sampler = None
-        shuffle_flag = shuffle
-
-    collate = JsonTeacherCollator(create_attention_mask=create_attention_mask)
-
-    return DataLoader(
-        dataset,
-        batch_size=micro_batch_size,
-        sampler=sampler,
-        shuffle=shuffle_flag,
-        num_workers=num_workers,
-        pin_memory=True,
-        persistent_workers=num_workers > 0,
-        collate_fn=collate,
-    )

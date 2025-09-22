@@ -439,9 +439,25 @@ class BlendedMegatronDatasetBuilder(object):
         split_indices = []
         for i, _ in enumerate(Split):
             if split[i] is not None:
-                beg = int(round(split[i][0] * float(num_elements)))
-                end = int(round(split[i][1] * float(num_elements)))
-                split_indices.append(numpy.arange(start=beg, stop=end, step=1, dtype=numpy.int32))
+                beg = int(math.floor(split[i][0] * float(num_elements)))
+                end = int(math.floor(split[i][1] * float(num_elements)))
+
+                beg = max(0, min(beg, num_elements))
+                end = max(beg, min(end, num_elements))
+
+                if i == len(Split) - 1:
+                    end = num_elements
+
+                if end == beg and sizes[i] and num_elements > 0:
+                    if beg >= num_elements:
+                        beg = num_elements - 1
+                        end = num_elements
+                    else:
+                        end = min(num_elements, beg + 1)
+
+                split_indices.append(
+                    numpy.arange(start=beg, stop=end, step=1, dtype=numpy.int32)
+                )
             else:
                 split_indices.append(None)
 

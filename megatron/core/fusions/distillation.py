@@ -142,12 +142,6 @@ def distillation_loss(
         dtype=torch.float32
     )
     
-    # Generate or validate teacher data
-    teacher_data = _prepare_teacher_data(
-        teacher_data, batch_size, vocab_size, 
-        labels, device, batch_first_embeddings.dtype, debug
-    )
-    
     # Process each batch element separately
     for batch_idx in range(batch_size):
         no_teacher_positions += _process_batch_element_kl_loss(
@@ -176,52 +170,7 @@ def distillation_loss(
     if debug:
         _print_debug_summary(kl_loss_tensor, no_teacher_positions)
 
-    return kl_loss_tensor, teacher_data
-
-
-def _prepare_teacher_data(
-    teacher_data: Optional[List[Dict[str, Any]]],
-    batch_size: int,
-    vocab_size: int,
-    labels: torch.Tensor,
-    device: torch.device,
-    dtype: torch.dtype,
-    debug: bool,
-) -> List[Dict[str, Any]]:
-    """
-    Prepare teacher data for distillation loss computation.
-    
-    Args:
-        teacher_data: Provided teacher data or None
-        batch_size: Number of batch elements
-        sequence_length: Length of sequences
-        vocab_size: Total vocabulary size
-        labels: Label tensor for sequence length inference
-        device: Device for tensor operations
-        dtype: Data type for generated values
-        debug: Enable debug output
-        
-    Returns:
-        List of teacher data dictionaries
-        
-    Raises:
-        ValueError: If teacher_data is None and cannot be inferred
-    """
-    if teacher_data is None:
-        if debug:
-            print("No teacher data provided, generating fake teacher data for testing...")
-        
-        inferred_sequence_length = labels.size(1)
-        return generate_fake_teacher_data(
-            batch_size=batch_size,
-            seq_length=inferred_sequence_length,
-            vocab_size=vocab_size,
-            num_teacher_tokens_per_pos=DEFAULT_NUM_TEACHER_TOKENS,
-            device=device,
-            dtype=dtype
-        )
-    
-    return teacher_data
+    return kl_loss_tensor
 
 
 def _process_batch_element_kl_loss(

@@ -2665,16 +2665,9 @@ def _add_data_args(parser):
     group.add_argument('--test-data-path', nargs='*', default=None,
                        help='The weight and prefix list for an independent test dataset. '
                        'Follows the same pattern rules as --data-path.')
-    group.add_argument('--json-teacher-train-dir', type=str, default=None,
-                       help='Directory of JSON files (one per sample) providing training data '
-                       'when using the external dataloader mode. Each file must contain '
-                       '`input_ids`, `labels`, and optional `teacher_logits`.')
-    group.add_argument('--json-teacher-valid-dir', type=str, default=None,
-                       help='Directory of JSON files for validation when using the external '
-                       'dataloader mode.')
-    group.add_argument('--json-teacher-test-dir', type=str, default=None,
-                       help='Directory of JSON files for test when using the external '
-                       'dataloader mode.')
+    group.add_argument('--distillation-loss', action='store_true',
+                       help='Enable knowledge distillation during training. When enabled, '
+                       'data paths should reference JSONL directories containing teacher logits.')
     group.add_argument('--data-args-path', type=str, default=None,
                        help='Path to data-args. Instead of feeding `--data-path` '
                        'with weighted dataset, we pass in a file path from which '

@@ -21,7 +21,7 @@ mkdir -p "$(dirname "$CHECKPOINT_PATH")"
 mkdir -p "$(dirname "$TENSORBOARD_LOGS_PATH")"
 
 # Distributed training setup
-GPUS_PER_NODE=1
+GPUS_PER_NODE=2
 NUM_NODES=1
 MASTER_ADDR=${MASTER_ADDR:-localhost}
 MASTER_PORT=${MASTER_PORT:-6000}
@@ -32,15 +32,15 @@ WORLD_SIZE=$(($GPUS_PER_NODE*$NUM_NODES))
 PRETRAIN_SCRIPT_PATH="pretrain_gpt.py"
 
 # Fixed model and training parameters for Qwen3-1.7B
-TP_SIZE=1    
-CP_SIZE=1     
-PP_SIZE=1     
-MICRO_BATCH_SIZE=1 # Increased from 1 due to smaller model size
-GLOBAL_BATCH_SIZE=1  # Increased from 128 for better efficiency with smaller model
-NUM_LAYERS=14  # Qwen3-1.7B has 28 layers
+TP_SIZE=2
+CP_SIZE=1
+PP_SIZE=1
+MICRO_BATCH_SIZE=2
+GLOBAL_BATCH_SIZE=4
+NUM_LAYERS=14
 DTYPE="bf16"
-SEQ_LENGTH=8192
-MAX_POSITION_EMBEDDINGS=40960  # Qwen3-1.7B supports up to 40960
+SEQ_LENGTH=4096 # 65000
+MAX_POSITION_EMBEDDINGS=40960 # 65000
 
 DISTRIBUTED_ARGS=(
     --nproc_per_node $GPUS_PER_NODE
@@ -89,8 +89,7 @@ TRAINING_ARGS=(
     --weight-decay 0.1
     --adam-beta1 0.9
     --adam-beta2 0.95
-    --cross-entropy-loss-fusion
-    --cross-entropy-fusion-impl te
+    --fused-linear-cross-entropy
     --calculate-per-token-loss 
     --manual-gc 
     --exit-duration-in-mins 235 
@@ -157,7 +156,7 @@ else
         "--split '99,1,0'"
         "--no-create-attention-mask-in-dataloader"
         "--no-mmap-bin-files"
-        "--num-workers 1"
+        "--num-workers 0"
         # Note: --vocab-size might be inferred by HuggingFaceTokenizer or might need to be explicit.
         "--vocab-size 151936"  # Qwen3-1.7B vocab size
     )
@@ -165,7 +164,7 @@ fi
 
 EVAL_AND_LOGGING_ARGS=(
     --log-interval 1
-    --eval-iters 32
+    --eval-iters 1
     --eval-interval 10
     --save-interval 1000
     --log-throughput

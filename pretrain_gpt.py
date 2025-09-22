@@ -29,9 +29,7 @@ from megatron.training.teacher_data_utils import (
     unpack_teacher_batch,
 )
 from megatron.training.datasets.sft_dataset import SFTDataset
-from megatron.training.datasets.json_teacher_dataset import (
-    build_json_teacher_dataloader,
-)
+from megatron.training.datasets.json_teacher_dataset import JsonTeacherDataset
 from model_provider import model_provider
 from gpt_builders import gpt_builder
 
@@ -355,54 +353,12 @@ def train_valid_test_datasets_provider(train_val_test_num_samples):
     """
     args = get_args()
 
-    if args.dataloader_type == 'external' and args.json_teacher_train_dir is not None:
-        tokenizer = get_tokenizer()
-        pad_token_id = getattr(tokenizer, 'pad', None)
-        if pad_token_id is None:
-            pad_token_id = getattr(tokenizer, 'eod', 0)
-
-        def _build_loader(data_dir: Optional[str], *, shuffle: bool, drop_last: bool):
-            if not data_dir:
-                return None
-            return build_json_teacher_dataloader(
-                data_dir,
-                seq_length=args.seq_length,
-                micro_batch_size=args.micro_batch_size,
-                pad_token_id=pad_token_id,
-                create_attention_mask=args.create_attention_mask_in_dataloader,
-                num_workers=args.num_workers,
-                shuffle=shuffle,
-                drop_last=drop_last,
-            )
-
-        train_loader = _build_loader(
-            args.json_teacher_train_dir,
-            shuffle=True,
-            drop_last=True,
-        )
-        if train_loader is None:
-            raise ValueError(
-                "--json-teacher-train-dir must be provided when using external dataloader"
-            )
-        valid_loader = _build_loader(
-            args.json_teacher_valid_dir,
-            shuffle=False,
-            drop_last=False,
-        )
-        test_loader = _build_loader(
-            args.json_teacher_test_dir,
-            shuffle=False,
-            drop_last=False,
-        )
-
-        valid_list = [valid_loader] if valid_loader is not None else [None]
-
-        return train_loader, valid_list, test_loader
-
     config = core_gpt_dataset_config_from_args(args)
 
     if args.sft:
         dataset_type = SFTDataset
+    elif args.distillation_loss:
+        dataset_type = JsonTeacherDataset
     else:
         if args.mock_data:
             dataset_type = MockGPTDataset
@@ -414,7 +370,9 @@ def train_valid_test_datasets_provider(train_val_test_num_samples):
     train_ds, valid_ds, test_ds = BlendedMegatronDatasetBuilder(
         dataset_type, train_val_test_num_samples, is_dataset_built_on_rank, config
     ).build()
-
+    print_rank_0(f"> train dataset: {train_ds} samples")
+    print_rank_0(f"> validation dataset: {valid_ds} samples")
+    print_rank_0(f"> test dataset: {test_ds} samples")
     print_rank_0("> finished creating GPT datasets ...")
 
     return train_ds, valid_ds, test_ds
