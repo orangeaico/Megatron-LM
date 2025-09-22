@@ -51,9 +51,9 @@ PRETRAIN_SCRIPT_PATH="pretrain_gpt.py"
 
 # Fixed model and training parameters for Qwen3-1.7B
 TP_SIZE=1
-CP_SIZE=2
+CP_SIZE=1
 EP_SIZE=1
-EXPERT_TP_SIZE=4
+EXPERT_TP_SIZE=1
 PP_SIZE=1
 LAYERS_PER_VP=1
 MICRO_BATCH_SIZE=1 
@@ -152,14 +152,17 @@ TRAINING_ARGS=(
     # data type arguments
     --bf16
     --use-distributed-optimizer
-    --use-precision-aware-optimizer
-    --overlap-grad-reduce
-    --overlap-param-gather
-    --main-params-dtype fp16
-    --main-grads-dtype bf16
-    --grad-reduce-in-bf16
-    --exp-avg-dtype fp16
-    --exp-avg-sq-dtype fp16
+    #--use-precision-aware-optimizer
+    #--overlap-grad-reduce
+    #--overlap-param-gather
+    #--main-params-dtype fp16
+    #--main-grads-dtype bf16
+    #--grad-reduce-in-bf16
+    #--exp-avg-dtype fp16
+    #--exp-avg-sq-dtype fp16
+
+    --use-megatron-fsdp
+    --data-parallel-sharding-strategy optim_grads_params
 )
 
 # Conditional arguments based on DTYPE (FP8)
