@@ -20,8 +20,8 @@ SAVE_CHECKPOINT_PATH="output/$MODEL_NAME/checkpoints"
 DATA_CACHE_PATH="output/$MODEL_NAME/benchmark_cache"
 TENSORBOARD_LOGS_PATH="output/$MODEL_NAME/tensorboard_logs"
 MEMORY_SNAPSHOT_PATH="output/$MODEL_NAME/memory_snapshots/memory_snapshot.pickle"
-TOKENIZER_ARG="MOCK" # Path to tokenizer model, or "MOCK"
-DATA_ARG="MOCK"     # Data prefix, or "MOCK"
+TOKENIZER_ARG="Qwen/Qwen3-1.7B" # Path to tokenizer model, or "MOCK"
+DATA_ARG="/workspace/training/teacher_data"    # Data prefix, or "MOCK"
 
 WANDB_API_KEY=''
 
@@ -32,7 +32,7 @@ mkdir -p "$(dirname "$MEMORY_SNAPSHOT_PATH")"
 mkdir -p "$DATA_CACHE_PATH"
 
 # Distributed training setup
-GPUS_PER_NODE=1
+GPUS_PER_NODE=2
 NUM_NODES=1
 MASTER_ADDR=${MASTER_ADDR:-localhost}
 MASTER_PORT=${MASTER_PORT:-6000}
@@ -45,12 +45,12 @@ PRETRAIN_SCRIPT_PATH="pretrain_gpt.py"
 # Fixed model and training parameters for Qwen3-1.7B
 TP_SIZE=1 
 CP_SIZE=1
-EP_SIZE=1
+EP_SIZE=2
 EXPERT_TP_SIZE=1
 PP_SIZE=1
 LAYERS_PER_VP=1
 MICRO_BATCH_SIZE=1 
-GLOBAL_BATCH_SIZE=1  
+GLOBAL_BATCH_SIZE=2 
 NUM_LAYERS=8  # Actual 32 layers
 DTYPE="bf16"
 SEQ_LENGTH=8192
@@ -192,14 +192,14 @@ if [[ "$TOKENIZER_ARG" == "MOCK" ]] || [[ "$DATA_ARG" == "MOCK" ]] || [[ -z "$TO
 else
     # Settings for real data
     DATA_ARGS_LIST+=(
+        "--distillation-loss"
         "--data-path $DATA_ARG"
         "--tokenizer-type HuggingFaceTokenizer" 
         "--tokenizer-model $TOKENIZER_ARG"
         "--data-cache-path ${DATA_CACHE_PATH}"
         "--split '99,1,0'"
-        "--no-create-attention-mask-in-dataloader"
         "--no-mmap-bin-files"
-        "--num-workers 1"
+        "--num-workers 0"
         # Note: --vocab-size might be inferred by HuggingFaceTokenizer or might need to be explicit.
         "--vocab-size 32064"  # Qwen3-1.7B vocab size
     )

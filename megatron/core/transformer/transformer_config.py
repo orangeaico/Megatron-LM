@@ -698,7 +698,7 @@ class TransformerConfig(ModelParallelConfig):
     distillation_loss: bool = False
 
     # Calculate using traditional method
-    distillation_with_traditional: bool = False
+    distillation_with_traditional: bool = True
 
     # Distillation Temperature
     distillation_temp: float = 3.0
