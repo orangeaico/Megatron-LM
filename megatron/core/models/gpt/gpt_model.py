@@ -372,9 +372,7 @@ class GPTModel(LanguageModule):
             runtime_gather_output (bool): Gather output at runtime. Default None means
                 `parallel_output` arg in the constructor will be used.
         """
-
         inference_context = deprecate_inference_params(inference_context, inference_params)
-
         decoder_input, rotary_pos_emb, rotary_pos_cos, rotary_pos_sin, sequence_len_offset = (
             self._preprocess(
                 input_ids=input_ids,
@@ -550,7 +548,24 @@ class GPTModel(LanguageModule):
             # Global (padded) vocab size if present; else actual weight rows.
             vocab_size = getattr(self, "padded_vocab_size", None) or \
                          getattr(self, "vocab_size", classifier_weight.size(0))
-            
+
+            if self.config.debug_cce_loss:
+                tp_rank = parallel_state.get_tensor_model_parallel_rank()
+                world_rank = torch.distributed.get_rank()
+                print(
+                    f"[CCE debug] rank={world_rank} tp_rank={tp_rank} vocab_size={vocab_size}"
+                )
+
+            token_losses = cce_per_token_loss(
+                embeddings=hidden_states,             # [B, T, H]
+                classifier_weight=classifier_weight,  # [V, H] (or [V_local, H])
+                labels=labels,                        # [B, T]
+                vocab_size=vocab_size,
+                impl=self.config.linear_ce_impl,
+                reduction=self.config.linear_ce_reduction,
+                shift=self.config.linear_ce_shift,
+                ignore_index=self.config.linear_ce_ignore_index,
+            )
 
             if self.config.distillation_loss:
                 kl_loss = distillation_loss(
@@ -575,26 +590,6 @@ class GPTModel(LanguageModule):
                     logits = gather_from_tensor_model_parallel_region(logits, group=self.pg_collection.tp)
                     traditional_distillation_loss(logits, teacher_data, labels, T=self.config.distillation_temp, ignore_index=self.config.linear_ce_ignore_index)
 
-                return kl_loss
-
-            if self.config.debug_cce_loss:
-                tp_rank = parallel_state.get_tensor_model_parallel_rank()
-                world_rank = torch.distributed.get_rank()
-                print(
-                    f"[CCE debug] rank={world_rank} tp_rank={tp_rank} vocab_size={vocab_size}"
-                )
-
-            token_losses = cce_per_token_loss(
-                embeddings=hidden_states,             # [B, T, H]
-                classifier_weight=classifier_weight,  # [V, H] (or [V_local, H])
-                labels=labels,                        # [B, T]
-                vocab_size=vocab_size,
-                impl=self.config.linear_ce_impl,
-                reduction=self.config.linear_ce_reduction,
-                shift=self.config.linear_ce_shift,
-                ignore_index=self.config.linear_ce_ignore_index,
-            )
-        
             if self.config.debug_cce_loss:
                 if parallel_state.get_tensor_model_parallel_world_size() > 1:
                     tp_rank_local = parallel_state.get_tensor_model_parallel_rank()
@@ -701,6 +696,10 @@ class GPTModel(LanguageModule):
             # Default: return per-token losses for Megatron's loss masking/reduction.
             if sequence_parallel_override:
                 self.output_layer.sequence_parallel = True
+
+            if self.config.distillation_loss:
+                alpha = self.config.distillation_loss_alpha
+                return alpha * token_losses + (1 - alpha) * kl_loss
 
             return token_losses
 

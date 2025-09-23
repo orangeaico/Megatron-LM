@@ -53,10 +53,10 @@ TP_SIZE=2
 CP_SIZE=1
 PP_SIZE=1
 MICRO_BATCH_SIZE=1
-GLOBAL_BATCH_SIZE=2
+GLOBAL_BATCH_SIZE=1
 NUM_LAYERS=14
 DTYPE="bf16"
-SEQ_LENGTH=8192 # 65000
+SEQ_LENGTH=16384 # 65000
 MAX_POSITION_EMBEDDINGS=40960 # 65000
 
 DISTRIBUTED_ARGS=(
@@ -97,7 +97,7 @@ TRAINING_ARGS=(
     --micro-batch-size $MICRO_BATCH_SIZE
     --global-batch-size $GLOBAL_BATCH_SIZE
     --train-samples 44
-    --lr-decay-samples 300
+    --lr-decay-samples 1
     --exit-duration-in-mins 235
 
     # Learning rate args

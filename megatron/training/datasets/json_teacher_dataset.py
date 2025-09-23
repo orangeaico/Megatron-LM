@@ -14,6 +14,7 @@ from megatron.core.datasets.utils import Split
 
 
 _LABEL_PAD_ID = -100
+DEBUG = True
 
 
 def _to_sequence(value: Any) -> List[Any]:
@@ -238,6 +239,9 @@ class JsonTeacherDataset(MegatronDataset):
 
         teacher_raw = record.get("teacher_logits") or record.get("teacher_data")
         teacher_data = _normalize_teacher_payload(teacher_raw, self.seq_length)
+
+        if DEBUG:
+            print(f"Loaded record from {file_path if file_path else 'in-memory'}")
 
         return {
             "tokens": tokens,

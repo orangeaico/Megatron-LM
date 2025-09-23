@@ -1,4 +1,4 @@
-using world size: 2, data-parallel size: 2, context-parallel size: 1, hierarchical context-parallel sizes: None, tensor-model-parallel size: 1, pipeline-model-parallel size: 1
+using world size: 2, data-parallel size: 1, context-parallel size: 1, hierarchical context-parallel sizes: None, tensor-model-parallel size: 2, pipeline-model-parallel size: 1
 WARNING: overriding default arguments for tokenizer_type:GPT2BPETokenizer                        with tokenizer_type:HuggingFaceTokenizer
 Number of virtual stages per pipeline stage: None
 using torch.bfloat16 for parameters ...
@@ -69,10 +69,10 @@ using torch.bfloat16 for parameters ...
   cuda_graph_scope ................................ full
   cuda_graph_warmup_steps ......................... 3
   data_args_path .................................. None
-  data_cache_path ................................. output/phi_tiny_moe_instruct/benchmark_cache
+  data_cache_path ................................. output/qwen3_1.7b/benchmark_cache
   data_parallel_random_init ....................... False
   data_parallel_sharding_strategy ................. no_shard
-  data_parallel_size .............................. 2
+  data_parallel_size .............................. 1
   data_path ....................................... ['/workspace/training/teacher_data']
   data_per_class_fraction ......................... 1.0
   data_sharding ................................... True
@@ -122,23 +122,23 @@ using torch.bfloat16 for parameters ...
   enable_gloo_process_groups ...................... True
   enable_msc ...................................... True
   enable_one_logger ............................... True
-  encoder_num_layers .............................. 8
-  encoder_seq_length .............................. 8192
-  end_weight_decay ................................ 0.1
+  encoder_num_layers .............................. 14
+  encoder_seq_length .............................. 16384
+  end_weight_decay ................................ 0.0
   eod_mask_loss ................................... False
   error_injection_rate ............................ 0
   error_injection_type ............................ transient_error
-  eval_interval ................................... 100
-  eval_iters ...................................... 32
+  eval_interval ................................... 1
+  eval_iters ...................................... 1
   evidence_data_path .............................. None
   exit_duration_in_mins ........................... 235
   exit_interval ................................... None
-  exit_on_missing_checkpoint ...................... True
+  exit_on_missing_checkpoint ...................... False
   exit_signal_handler ............................. False
   exp_avg_dtype ................................... torch.float16
   exp_avg_sq_dtype ................................ torch.float16
-  expert_model_parallel_size ...................... 2
-  expert_tensor_parallel_size ..................... 1
+  expert_model_parallel_size ...................... 1
+  expert_tensor_parallel_size ..................... 2
   export_force_local_attention .................... False
   export_kd_cfg ................................... None
   export_kd_teacher_ckpt_format ................... None
@@ -152,7 +152,7 @@ using torch.bfloat16 for parameters ...
   export_real_quant_cfg ........................... None
   export_te_mcore_model ........................... False
   external_cuda_graph ............................. False
-  ffn_hidden_size ................................. 448
+  ffn_hidden_size ................................. 6144
   finetune ........................................ True
   finetune_data_split ............................. train
   finetune_hf_dataset ............................. None
@@ -172,7 +172,7 @@ using torch.bfloat16 for parameters ...
   fsdp_double_buffer .............................. False
   full_validation ................................. False
   generate_fake_teacher_data ...................... False
-  global_batch_size ............................... 2
+  global_batch_size ............................... 1
   grad_reduce_in_bf16 ............................. True
   gradient_accumulation_fusion .................... True
   gradient_reduce_div_fusion ...................... True
@@ -191,7 +191,7 @@ using torch.bfloat16 for parameters ...
   heterogeneous_layers_config_encoded_json ........ None
   heterogeneous_layers_config_path ................ None
   hidden_dropout .................................. 0.0
-  hidden_size ..................................... 4096
+  hidden_size ..................................... 2048
   hierarchical_context_parallel_sizes ............. None
   high_priority_stream_groups ..................... []
   hybrid_attention_ratio .......................... 0.0
@@ -250,7 +250,7 @@ using torch.bfloat16 for parameters ...
   langrl_inference_server_type .................... inplace_megatron
   lazy_mpu_init ................................... None
   legacy_tokenizer ................................ False
-  load ............................................ None
+  load ............................................ /workspace/data//mega-models/Qwen3-1.7B
   load_main_params_from_ckpt ...................... None
   load_model_opt_format ........................... False
   local_rank ...................................... 0
@@ -269,20 +269,20 @@ using torch.bfloat16 for parameters ...
   logging_level ................................... None
   loss_scale ...................................... None
   loss_scale_window ............................... 1000
-  lr .............................................. 0.00012
+  lr .............................................. 5e-05
   lr_decay_iters .................................. None
-  lr_decay_samples ................................ 10
+  lr_decay_samples ................................ 1
   lr_decay_style .................................. cosine
   lr_warmup_fraction .............................. None
   lr_warmup_init .................................. 0.0
   lr_warmup_iters ................................. 0
-  lr_warmup_samples ............................... 5
+  lr_warmup_samples ............................... 0
   lr_wsd_decay_iters .............................. None
   lr_wsd_decay_samples ............................ None
   lr_wsd_decay_style .............................. exponential
   main_grads_dtype ................................ torch.bfloat16
   main_params_dtype ............................... torch.float16
-  make_vocab_size_divisible_by .................... 128
+  make_vocab_size_divisible_by .................... 1187
   mamba_head_dim .................................. 64
   mamba_num_groups ................................ 8
   mamba_num_heads ................................. None
@@ -296,30 +296,30 @@ using torch.bfloat16 for parameters ...
   masked_softmax_fusion ........................... True
   max_position_embeddings ......................... 40960
   max_tokens_to_oom ............................... 12000
-  memory_snapshot_path ............................ output/phi_tiny_moe_instruct/memory_snapshots/memory_snapshot.pickle
+  memory_snapshot_path ............................ output/qwen3_1.7b/memory_snapshots/memory_snapshot.pickle
   merge_file ...................................... None
   micro_batch_size ................................ 1
   microbatch_group_size_per_vp_stage .............. None
   mid_level_dataset_surplus ....................... 0.005
   min_loss_scale .................................. 1.0
-  min_lr .......................................... 1.2e-05
+  min_lr .......................................... 1e-07
   mlp_chunks_for_prefill .......................... 1
-  mmap_bin_files .................................. False
+  mmap_bin_files .................................. True
   mock_data ....................................... False
   moe_apply_probs_on_input ........................ False
-  moe_aux_loss_coeff .............................. 0.001
+  moe_aux_loss_coeff .............................. 0.0
   moe_deepep_num_sms .............................. 20
   moe_enable_deepep ............................... False
   moe_expert_capacity_factor ...................... None
   moe_extended_tp ................................. False
-  moe_ffn_hidden_size ............................. 448
-  moe_grouped_gemm ................................ True
+  moe_ffn_hidden_size ............................. None
+  moe_grouped_gemm ................................ False
   moe_input_jitter_eps ............................ None
   moe_layer_freq .................................. 1
   moe_layer_recompute ............................. False
   moe_pad_expert_input_to_capacity ................ False
   moe_per_layer_logging ........................... False
-  moe_permute_fusion .............................. True
+  moe_permute_fusion .............................. False
   moe_router_bias_update_rate ..................... 0.001
   moe_router_dtype ................................ None
   moe_router_enable_expert_bias ................... False
@@ -335,7 +335,7 @@ using torch.bfloat16 for parameters ...
   moe_router_topk_scaling_factor .................. None
   moe_shared_expert_intermediate_size ............. None
   moe_shared_expert_overlap ....................... False
-  moe_token_dispatcher_type ....................... alltoall
+  moe_token_dispatcher_type ....................... allgather
   moe_token_drop_policy ........................... probs
   moe_upcycling_granularity ....................... 1
   moe_use_legacy_grouped_gemm ..................... False
@@ -351,12 +351,12 @@ using torch.bfloat16 for parameters ...
   nccl_all_reduce_for_prefill ..................... False
   nccl_communicator_config_path ................... None
   nccl_ub ......................................... False
-  no_load_optim ................................... None
-  no_load_rng ..................................... None
+  no_load_optim ................................... True
+  no_load_rng ..................................... True
   no_persist_layer_norm ........................... False
   no_rope_freq .................................... None
-  no_save_optim ................................... None
-  no_save_rng ..................................... None
+  no_save_optim ................................... True
+  no_save_rng ..................................... True
   non_persistent_ckpt_type ........................ None
   non_persistent_global_ckpt_dir .................. None
   non_persistent_local_ckpt_algo .................. fully_parallel
@@ -369,12 +369,12 @@ using torch.bfloat16 for parameters ...
   num_classes ..................................... 1000
   num_dataset_builder_threads ..................... 1
   num_distributed_optimizer_instances ............. 1
-  num_experts ..................................... 16
-  num_layers ...................................... 8
+  num_experts ..................................... None
+  num_layers ...................................... 14
   num_layers_at_end_in_bf16 ....................... 1
   num_layers_at_start_in_bf16 ..................... 1
   num_layers_per_virtual_pipeline_stage ........... None
-  num_query_groups ................................ 4
+  num_query_groups ................................ 8
   num_virtual_stages_per_pipeline_rank ............ None
   num_workers ..................................... 0
   object_storage_cache_path ....................... None
@@ -459,13 +459,13 @@ using torch.bfloat16 for parameters ...
   rotary_seq_len_interpolation_factor ............. 1
   run_workload_inspector_server ................... False
   sample_rate ..................................... 1.0
-  save ............................................ output/phi_tiny_moe_instruct/checkpoints
+  save ............................................ /workspace/data//himanshu/output/qwen3_1.7b/checkpoints
   save_interval ................................... 1000
   save_retain_interval ............................ None
   scatter_gather_tensors_in_pipeline .............. True
   seed ............................................ 1234
-  seq_length ...................................... 8192
-  sequence_parallel ............................... False
+  seq_length ...................................... 16384
+  sequence_parallel ............................... True
   sft ............................................. False
   sft_tokenizer_prompt_format ..................... nemotron-h-aligned
   sgd_momentum .................................... 0.9
@@ -476,7 +476,7 @@ using torch.bfloat16 for parameters ...
   spec ............................................ None
   split ........................................... '99,1,0'
   squared_relu .................................... False
-  start_weight_decay .............................. 0.1
+  start_weight_decay .............................. 0.0
   straggler_ctrlr_port ............................ 65535
   straggler_minmax_count .......................... 1
   strict_fsdp_dtensor_load ........................ True
@@ -485,8 +485,8 @@ using torch.bfloat16 for parameters ...
   swin_backbone_type .............................. tiny
   symmetric_ar_type ............................... None
   te_rng_tracker .................................. False
-  tensor_model_parallel_size ...................... 1
-  tensorboard_dir ................................. output/phi_tiny_moe_instruct/tensorboard_logs
+  tensor_model_parallel_size ...................... 2
+  tensorboard_dir ................................. output/qwen3_1.7b/tensorboard_logs
   tensorboard_log_interval ........................ 1
   tensorboard_queue_size .......................... 1000
   test_data_path .................................. None
@@ -513,12 +513,12 @@ using torch.bfloat16 for parameters ...
   tp_comm_split_rs ................................ True
   train_data_path ................................. None
   train_iters ..................................... None
-  train_samples ................................... 20
+  train_samples ................................... 44
   train_sync_interval ............................. None
   transformer_impl ................................ transformer_engine
   transformer_pipeline_model_parallel_size ........ 1
   trust_remote_code ............................... False
-  untie_embeddings_and_output_weights ............. True
+  untie_embeddings_and_output_weights ............. False
   use_checkpoint_args ............................. False
   use_checkpoint_opt_param_scheduler .............. False
   use_cpu_initialization .......................... None
@@ -553,12 +553,12 @@ using torch.bfloat16 for parameters ...
   vision_pretraining_type ......................... classify
   vocab_extra_ids ................................. 0
   vocab_file ...................................... None
-  vocab_size ...................................... 32064
+  vocab_size ...................................... 151936
   wandb_entity .................................... 
   wandb_exp_name .................................. 
   wandb_project ................................... 
   wandb_save_dir .................................. 
-  weight_decay .................................... 0.1
+  weight_decay .................................... 0.0
   weight_decay_incr_style ......................... constant
   wgrad_deferral_limit ............................ 0
   world_size ...................................... 2
@@ -566,295 +566,359 @@ using torch.bfloat16 for parameters ...
 -------------------- end of arguments ---------------------
 INFO:megatron.core.num_microbatches_calculator:setting number of microbatches to constant 1
 > building HuggingFaceTokenizer tokenizer ...
- > padded vocab (size: 151669) with 11 dummy tokens (new size: 151680)
-WARNING:megatron.core.rerun_state_machine:RerunStateMachine initialized in mode RerunMode.VALIDATE_RESULTS
-> initializing torch distributed ...
 > setting tensorboard ...
 WARNING: one_logger package is required to enable e2e metrics tracking. please go to https://confluence.nvidia.com/display/MLWFO/Package+Repositories for details to install it
-> initialized tensor model parallel with size 1
+ > padded vocab (size: 151669) with 267 dummy tokens (new size: 151936)
+WARNING:megatron.core.rerun_state_machine:RerunStateMachine initialized in mode RerunMode.VALIDATE_RESULTS
+> initializing torch distributed ...
+> initialized tensor model parallel with size 2
 > initialized pipeline model parallel with size 1
 > setting random seeds to 1234 ...
 > compiling dataset index builder ...
 make: Entering directory '/workspace/training/Megatron-LM/megatron/core/datasets'
 make: Nothing to be done for 'default'.
 make: Leaving directory '/workspace/training/Megatron-LM/megatron/core/datasets'
->>> done with dataset index builder. Compilation time: 0.015 seconds
+>>> done with dataset index builder. Compilation time: 0.012 seconds
 > compiling and loading fused kernels ...
->>> done with compiling and loading fused kernels. Compilation time: 0.121 seconds
-time to initialize megatron (seconds): 2.203
-[after megatron is initialized] datetime: 2025-09-22 12:29:12 
+>>> done with compiling and loading fused kernels. Compilation time: 0.210 seconds
+time to initialize megatron (seconds): 1.670
+[after megatron is initialized] datetime: 2025-09-23 07:33:35 
 building GPT model ...
- > number of parameters on (tensor, pipeline) model parallel rank (0, 0): 1763252224
+ > number of parameters on (tensor, pipeline) model parallel rank (0, 0): 507966976
+ > number of parameters on (tensor, pipeline) model parallel rank (1, 0): 507966976
 INFO:megatron.core.distributed.distributed_data_parallel:Setting up DistributedDataParallel with config DistributedDataParallelConfig(grad_reduce_in_fp32=False, overlap_grad_reduce=True, overlap_param_gather=True, align_param_gather=False, use_distributed_optimizer=True, num_distributed_optimizer_instances=1, check_for_nan_in_grad=True, check_for_large_grads=False, bucket_size=40000000, pad_buckets_for_high_nccl_busbw=False, average_in_collective=False, fp8_param_gather=False, reuse_grad_buf_for_mxfp8_param_ag=False, use_megatron_fsdp=False, use_custom_fsdp=False, data_parallel_sharding_strategy='no_shard', gradient_reduce_div_fusion=True, suggested_communication_unit_size=None, preserve_fp32_weights=True, keep_fp8_transpose_cache=False, nccl_ub=False, fsdp_double_buffer=False, outer_dp_sharding_strategy='no_shard', disable_symmetric_registration=False, delay_wgrad_compute=False)
-INFO:megatron.core.distributed.param_and_grad_buffer:Number of buckets for gradient all-reduce / reduce-scatter: 6
-Params for bucket 1 (621281280 elements, 621281280 padded size):
-	module.output_layer.weight
-Params for bucket 2 (42095104 elements, 42095104 padded size):
+INFO:megatron.core.distributed.param_and_grad_buffer:Number of buckets for gradient all-reduce / reduce-scatter: 8
+Params for bucket 1 (44046592 elements, 44046592 padded size):
+	module.decoder.layers.13.self_attention.k_layernorm.weight
+	module.decoder.layers.13.mlp.linear_fc1.layer_norm_weight
+	module.decoder.layers.13.self_attention.q_layernorm.weight
+	module.decoder.layers.13.self_attention.linear_proj.weight
+	module.decoder.layers.12.mlp.linear_fc1.weight
 	module.decoder.final_layernorm.weight
+	module.decoder.layers.13.mlp.linear_fc1.weight
+	module.decoder.layers.13.mlp.linear_fc2.weight
+	module.decoder.layers.13.self_attention.linear_qkv.weight
+	module.decoder.layers.13.self_attention.linear_qkv.layer_norm_weight
+	module.decoder.layers.12.mlp.linear_fc2.weight
+Params for bucket 2 (50340352 elements, 50340352 padded size):
+	module.decoder.layers.12.mlp.linear_fc1.layer_norm_weight
+	module.decoder.layers.12.self_attention.q_layernorm.weight
+	module.decoder.layers.12.self_attention.k_layernorm.weight
+	module.decoder.layers.12.self_attention.linear_proj.weight
+	module.decoder.layers.11.mlp.linear_fc1.weight
+	module.decoder.layers.11.mlp.linear_fc1.layer_norm_weight
+	module.decoder.layers.11.self_attention.k_layernorm.weight
+	module.decoder.layers.11.self_attention.q_layernorm.weight
+	module.decoder.layers.11.self_attention.linear_proj.weight
+	module.decoder.layers.10.mlp.linear_fc1.weight
+	module.decoder.layers.12.self_attention.linear_qkv.layer_norm_weight
+	module.decoder.layers.12.self_attention.linear_qkv.weight
+	module.decoder.layers.11.mlp.linear_fc2.weight
+	module.decoder.layers.11.self_attention.linear_qkv.weight
+	module.decoder.layers.11.self_attention.linear_qkv.layer_norm_weight
+	module.decoder.layers.10.mlp.linear_fc2.weight
+Params for bucket 3 (50340352 elements, 50340352 padded size):
+	module.decoder.layers.10.mlp.linear_fc1.layer_norm_weight
+	module.decoder.layers.10.self_attention.q_layernorm.weight
+	module.decoder.layers.10.self_attention.k_layernorm.weight
+	module.decoder.layers.10.self_attention.linear_proj.weight
+	module.decoder.layers.9.mlp.linear_fc1.weight
+	module.decoder.layers.9.mlp.linear_fc1.layer_norm_weight
+	module.decoder.layers.9.self_attention.k_layernorm.weight
+	module.decoder.layers.9.self_attention.q_layernorm.weight
+	module.decoder.layers.9.self_attention.linear_proj.weight
+	module.decoder.layers.8.mlp.linear_fc1.weight
+	module.decoder.layers.10.self_attention.linear_qkv.layer_norm_weight
+	module.decoder.layers.10.self_attention.linear_qkv.weight
+	module.decoder.layers.9.mlp.linear_fc2.weight
+	module.decoder.layers.9.self_attention.linear_qkv.weight
+	module.decoder.layers.9.self_attention.linear_qkv.layer_norm_weight
+	module.decoder.layers.8.mlp.linear_fc2.weight
+Params for bucket 4 (50340352 elements, 50340352 padded size):
+	module.decoder.layers.8.mlp.linear_fc1.layer_norm_weight
+	module.decoder.layers.8.self_attention.q_layernorm.weight
+	module.decoder.layers.8.self_attention.k_layernorm.weight
+	module.decoder.layers.8.self_attention.linear_proj.weight
+	module.decoder.layers.7.mlp.linear_fc1.weight
 	module.decoder.layers.7.self_attention.k_layernorm.weight
-	module.decoder.layers.7.pre_mlp_layernorm.weight
-	module.decoder.layers.7.self_attention.q_layernorm.weight
-	module.decoder.layers.6.mlp.router.weight
-	module.decoder.layers.6.self_attention.linear_qkv.weight
-	module.decoder.layers.6.self_attention.linear_qkv.layer_norm_weight
-	module.decoder.layers.6.self_attention.linear_proj.weight
-	module.decoder.layers.7.mlp.router.weight
 	module.decoder.layers.7.self_attention.linear_qkv.weight
 	module.decoder.layers.7.self_attention.linear_qkv.layer_norm_weight
 	module.decoder.layers.7.self_attention.linear_proj.weight
-	module.decoder.layers.6.pre_mlp_layernorm.weight
-	module.decoder.layers.6.self_attention.k_layernorm.weight
+	module.decoder.layers.6.mlp.linear_fc2.weight
+	module.decoder.layers.8.self_attention.linear_qkv.layer_norm_weight
+	module.decoder.layers.8.self_attention.linear_qkv.weight
+	module.decoder.layers.7.mlp.linear_fc2.weight
+	module.decoder.layers.7.mlp.linear_fc1.layer_norm_weight
+	module.decoder.layers.7.self_attention.q_layernorm.weight
+	module.decoder.layers.6.mlp.linear_fc1.weight
+Params for bucket 5 (50340352 elements, 50340352 padded size):
 	module.decoder.layers.6.self_attention.q_layernorm.weight
-Params for bucket 3 (42091008 elements, 42091008 padded size):
+	module.decoder.layers.6.self_attention.linear_qkv.weight
+	module.decoder.layers.6.self_attention.linear_qkv.layer_norm_weight
+	module.decoder.layers.5.mlp.linear_fc2.weight
 	module.decoder.layers.5.self_attention.k_layernorm.weight
 	module.decoder.layers.5.self_attention.q_layernorm.weight
-	module.decoder.layers.5.pre_mlp_layernorm.weight
-	module.decoder.layers.4.pre_mlp_layernorm.weight
-	module.decoder.layers.4.self_attention.k_layernorm.weight
-	module.decoder.layers.4.self_attention.q_layernorm.weight
-	module.decoder.layers.5.mlp.router.weight
+	module.decoder.layers.5.self_attention.linear_proj.weight
+	module.decoder.layers.6.mlp.linear_fc1.layer_norm_weight
+	module.decoder.layers.6.self_attention.k_layernorm.weight
+	module.decoder.layers.6.self_attention.linear_proj.weight
+	module.decoder.layers.5.mlp.linear_fc1.weight
+	module.decoder.layers.5.mlp.linear_fc1.layer_norm_weight
 	module.decoder.layers.5.self_attention.linear_qkv.weight
 	module.decoder.layers.5.self_attention.linear_qkv.layer_norm_weight
-	module.decoder.layers.5.self_attention.linear_proj.weight
-	module.decoder.layers.4.mlp.router.weight
+	module.decoder.layers.4.mlp.linear_fc2.weight
+	module.decoder.layers.4.mlp.linear_fc1.weight
+Params for bucket 6 (50340352 elements, 50340352 padded size):
+	module.decoder.layers.4.mlp.linear_fc1.layer_norm_weight
 	module.decoder.layers.4.self_attention.linear_qkv.weight
 	module.decoder.layers.4.self_attention.linear_qkv.layer_norm_weight
 	module.decoder.layers.4.self_attention.linear_proj.weight
-Params for bucket 4 (42091008 elements, 42091008 padded size):
-	module.decoder.layers.3.mlp.router.weight
+	module.decoder.layers.3.mlp.linear_fc2.weight
+	module.decoder.layers.3.mlp.linear_fc1.layer_norm_weight
+	module.decoder.layers.3.self_attention.q_layernorm.weight
 	module.decoder.layers.3.self_attention.linear_qkv.weight
 	module.decoder.layers.3.self_attention.linear_qkv.layer_norm_weight
-	module.decoder.layers.3.self_attention.linear_proj.weight
-	module.decoder.layers.2.mlp.router.weight
-	module.decoder.layers.2.pre_mlp_layernorm.weight
-	module.decoder.layers.2.self_attention.k_layernorm.weight
-	module.decoder.layers.2.self_attention.linear_proj.weight
+	module.decoder.layers.4.self_attention.q_layernorm.weight
+	module.decoder.layers.4.self_attention.k_layernorm.weight
+	module.decoder.layers.3.mlp.linear_fc1.weight
 	module.decoder.layers.3.self_attention.k_layernorm.weight
-	module.decoder.layers.3.pre_mlp_layernorm.weight
-	module.decoder.layers.3.self_attention.q_layernorm.weight
-	module.decoder.layers.2.self_attention.q_layernorm.weight
+	module.decoder.layers.3.self_attention.linear_proj.weight
+	module.decoder.layers.2.mlp.linear_fc2.weight
+	module.decoder.layers.2.mlp.linear_fc1.weight
+Params for bucket 7 (50340352 elements, 50340352 padded size):
+	module.decoder.layers.2.mlp.linear_fc1.layer_norm_weight
 	module.decoder.layers.2.self_attention.linear_qkv.weight
 	module.decoder.layers.2.self_attention.linear_qkv.layer_norm_weight
-Params for bucket 5 (42091008 elements, 42091008 padded size):
-	module.decoder.layers.1.mlp.router.weight
-	module.decoder.layers.1.self_attention.k_layernorm.weight
+	module.decoder.layers.2.self_attention.linear_proj.weight
+	module.decoder.layers.1.mlp.linear_fc2.weight
 	module.decoder.layers.1.self_attention.q_layernorm.weight
 	module.decoder.layers.1.self_attention.linear_qkv.weight
 	module.decoder.layers.1.self_attention.linear_qkv.layer_norm_weight
+	module.decoder.layers.0.mlp.linear_fc2.weight
+	module.decoder.layers.2.self_attention.k_layernorm.weight
+	module.decoder.layers.2.self_attention.q_layernorm.weight
+	module.decoder.layers.1.mlp.linear_fc1.weight
+	module.decoder.layers.1.mlp.linear_fc1.layer_norm_weight
+	module.decoder.layers.1.self_attention.k_layernorm.weight
 	module.decoder.layers.1.self_attention.linear_proj.weight
+	module.decoder.layers.0.mlp.linear_fc1.weight
+Params for bucket 8 (161878272 elements, 161878272 padded size):
+	module.decoder.layers.0.mlp.linear_fc1.layer_norm_weight
 	module.decoder.layers.0.self_attention.k_layernorm.weight
-	module.decoder.layers.0.self_attention.linear_qkv.layer_norm_weight
-	module.decoder.layers.1.pre_mlp_layernorm.weight
-	module.decoder.layers.0.mlp.router.weight
-	module.decoder.layers.0.pre_mlp_layernorm.weight
-	module.decoder.layers.0.self_attention.q_layernorm.weight
-	module.decoder.layers.0.self_attention.linear_qkv.weight
 	module.decoder.layers.0.self_attention.linear_proj.weight
-Params for bucket 6 (621281280 elements, 621281280 padded size):
 	module.embedding.word_embeddings.weight
-INFO:megatron.core.distributed.param_and_grad_buffer:Number of buckets for gradient all-reduce / reduce-scatter: 9
-Params for bucket 1 (40370176 elements, 40370176 padded size):
-	module.decoder.layers.7.mlp.experts.linear_fc2.weight7
-	module.decoder.layers.7.mlp.experts.linear_fc2.weight3
-	module.decoder.layers.7.mlp.experts.linear_fc2.weight5
-	module.decoder.layers.7.mlp.experts.linear_fc2.weight0
-	module.decoder.layers.7.mlp.experts.linear_fc1.weight7
-	module.decoder.layers.7.mlp.experts.linear_fc1.weight5
-	module.decoder.layers.7.mlp.experts.linear_fc1.weight2
-	module.decoder.layers.7.mlp.experts.linear_fc1.weight1
-	module.decoder.layers.7.mlp.experts.linear_fc2.weight6
-	module.decoder.layers.7.mlp.experts.linear_fc2.weight4
-	module.decoder.layers.7.mlp.experts.linear_fc2.weight2
-	module.decoder.layers.7.mlp.experts.linear_fc2.weight1
-	module.decoder.layers.7.mlp.experts.linear_fc1.weight6
-	module.decoder.layers.7.mlp.experts.linear_fc1.weight4
-	module.decoder.layers.7.mlp.experts.linear_fc1.weight3
-Params for bucket 2 (40370176 elements, 40370176 padded size):
-	module.decoder.layers.6.mlp.experts.linear_fc2.weight6
-	module.decoder.layers.6.mlp.experts.linear_fc2.weight4
-	module.decoder.layers.6.mlp.experts.linear_fc2.weight2
-	module.decoder.layers.6.mlp.experts.linear_fc2.weight1
-	module.decoder.layers.6.mlp.experts.linear_fc1.weight6
-	module.decoder.layers.6.mlp.experts.linear_fc1.weight5
-	module.decoder.layers.6.mlp.experts.linear_fc1.weight4
-	module.decoder.layers.7.mlp.experts.linear_fc1.weight0
-	module.decoder.layers.6.mlp.experts.linear_fc2.weight5
-	module.decoder.layers.6.mlp.experts.linear_fc2.weight7
-	module.decoder.layers.6.mlp.experts.linear_fc2.weight3
-	module.decoder.layers.6.mlp.experts.linear_fc2.weight0
-	module.decoder.layers.6.mlp.experts.linear_fc1.weight7
-	module.decoder.layers.6.mlp.experts.linear_fc1.weight3
-	module.decoder.layers.6.mlp.experts.linear_fc1.weight2
-Params for bucket 3 (40370176 elements, 40370176 padded size):
-	module.decoder.layers.5.mlp.experts.linear_fc2.weight7
-	module.decoder.layers.6.mlp.experts.linear_fc1.weight0
-	module.decoder.layers.5.mlp.experts.linear_fc2.weight5
-	module.decoder.layers.5.mlp.experts.linear_fc2.weight3
-	module.decoder.layers.5.mlp.experts.linear_fc2.weight0
-	module.decoder.layers.5.mlp.experts.linear_fc1.weight7
-	module.decoder.layers.5.mlp.experts.linear_fc1.weight5
-	module.decoder.layers.6.mlp.experts.linear_fc1.weight1
-	module.decoder.layers.5.mlp.experts.linear_fc2.weight6
-	module.decoder.layers.5.mlp.experts.linear_fc2.weight4
-	module.decoder.layers.5.mlp.experts.linear_fc2.weight2
-	module.decoder.layers.5.mlp.experts.linear_fc2.weight1
-	module.decoder.layers.5.mlp.experts.linear_fc1.weight6
-	module.decoder.layers.5.mlp.experts.linear_fc1.weight4
-	module.decoder.layers.5.mlp.experts.linear_fc1.weight3
-Params for bucket 4 (40370176 elements, 40370176 padded size):
-	module.decoder.layers.5.mlp.experts.linear_fc1.weight2
-	module.decoder.layers.4.mlp.experts.linear_fc2.weight6
-	module.decoder.layers.5.mlp.experts.linear_fc1.weight1
-	module.decoder.layers.4.mlp.experts.linear_fc2.weight4
-	module.decoder.layers.4.mlp.experts.linear_fc2.weight1
-	module.decoder.layers.4.mlp.experts.linear_fc1.weight7
-	module.decoder.layers.4.mlp.experts.linear_fc1.weight5
-	module.decoder.layers.5.mlp.experts.linear_fc1.weight0
-	module.decoder.layers.4.mlp.experts.linear_fc2.weight7
-	module.decoder.layers.4.mlp.experts.linear_fc2.weight5
-	module.decoder.layers.4.mlp.experts.linear_fc2.weight3
-	module.decoder.layers.4.mlp.experts.linear_fc2.weight2
-	module.decoder.layers.4.mlp.experts.linear_fc2.weight0
-	module.decoder.layers.4.mlp.experts.linear_fc1.weight6
-	module.decoder.layers.4.mlp.experts.linear_fc1.weight4
-Params for bucket 5 (40370176 elements, 40370176 padded size):
-	module.decoder.layers.4.mlp.experts.linear_fc1.weight2
-	module.decoder.layers.4.mlp.experts.linear_fc1.weight1
-	module.decoder.layers.3.mlp.experts.linear_fc2.weight6
-	module.decoder.layers.3.mlp.experts.linear_fc2.weight4
-	module.decoder.layers.3.mlp.experts.linear_fc2.weight2
-	module.decoder.layers.3.mlp.experts.linear_fc2.weight1
-	module.decoder.layers.3.mlp.experts.linear_fc1.weight6
-	module.decoder.layers.4.mlp.experts.linear_fc1.weight3
-	module.decoder.layers.4.mlp.experts.linear_fc1.weight0
-	module.decoder.layers.3.mlp.experts.linear_fc2.weight7
-	module.decoder.layers.3.mlp.experts.linear_fc2.weight5
-	module.decoder.layers.3.mlp.experts.linear_fc2.weight3
-	module.decoder.layers.3.mlp.experts.linear_fc2.weight0
-	module.decoder.layers.3.mlp.experts.linear_fc1.weight7
-	module.decoder.layers.3.mlp.experts.linear_fc1.weight5
-Params for bucket 6 (40370176 elements, 40370176 padded size):
-	module.decoder.layers.3.mlp.experts.linear_fc1.weight4
-	module.decoder.layers.3.mlp.experts.linear_fc1.weight3
-	module.decoder.layers.3.mlp.experts.linear_fc1.weight1
-	module.decoder.layers.2.mlp.experts.linear_fc2.weight4
-	module.decoder.layers.2.mlp.experts.linear_fc2.weight3
-	module.decoder.layers.2.mlp.experts.linear_fc2.weight0
-	module.decoder.layers.2.mlp.experts.linear_fc1.weight7
-	module.decoder.layers.2.mlp.experts.linear_fc1.weight6
-	module.decoder.layers.3.mlp.experts.linear_fc1.weight2
-	module.decoder.layers.3.mlp.experts.linear_fc1.weight0
-	module.decoder.layers.2.mlp.experts.linear_fc2.weight7
-	module.decoder.layers.2.mlp.experts.linear_fc2.weight6
-	module.decoder.layers.2.mlp.experts.linear_fc2.weight5
-	module.decoder.layers.2.mlp.experts.linear_fc2.weight2
-	module.decoder.layers.2.mlp.experts.linear_fc2.weight1
-Params for bucket 7 (40370176 elements, 40370176 padded size):
-	module.decoder.layers.2.mlp.experts.linear_fc1.weight2
-	module.decoder.layers.2.mlp.experts.linear_fc1.weight4
-	module.decoder.layers.2.mlp.experts.linear_fc1.weight1
-	module.decoder.layers.2.mlp.experts.linear_fc1.weight0
-	module.decoder.layers.1.mlp.experts.linear_fc2.weight4
-	module.decoder.layers.1.mlp.experts.linear_fc2.weight2
-	module.decoder.layers.1.mlp.experts.linear_fc2.weight0
-	module.decoder.layers.2.mlp.experts.linear_fc1.weight5
-	module.decoder.layers.2.mlp.experts.linear_fc1.weight3
-	module.decoder.layers.1.mlp.experts.linear_fc2.weight7
-	module.decoder.layers.1.mlp.experts.linear_fc2.weight6
-	module.decoder.layers.1.mlp.experts.linear_fc2.weight5
-	module.decoder.layers.1.mlp.experts.linear_fc2.weight3
-	module.decoder.layers.1.mlp.experts.linear_fc2.weight1
-	module.decoder.layers.1.mlp.experts.linear_fc1.weight7
-Params for bucket 8 (40370176 elements, 40370176 padded size):
-	module.decoder.layers.1.mlp.experts.linear_fc1.weight4
-	module.decoder.layers.1.mlp.experts.linear_fc1.weight1
-	module.decoder.layers.0.mlp.experts.linear_fc2.weight6
-	module.decoder.layers.0.mlp.experts.linear_fc2.weight5
-	module.decoder.layers.0.mlp.experts.linear_fc2.weight4
-	module.decoder.layers.0.mlp.experts.linear_fc2.weight1
-	module.decoder.layers.0.mlp.experts.linear_fc2.weight0
-	module.decoder.layers.1.mlp.experts.linear_fc1.weight6
-	module.decoder.layers.1.mlp.experts.linear_fc1.weight2
-	module.decoder.layers.1.mlp.experts.linear_fc1.weight3
-	module.decoder.layers.1.mlp.experts.linear_fc1.weight5
-	module.decoder.layers.1.mlp.experts.linear_fc1.weight0
-	module.decoder.layers.0.mlp.experts.linear_fc2.weight7
-	module.decoder.layers.0.mlp.experts.linear_fc2.weight3
-	module.decoder.layers.0.mlp.experts.linear_fc2.weight2
-Params for bucket 9 (29360128 elements, 29360128 padded size):
-	module.decoder.layers.0.mlp.experts.linear_fc1.weight7
-	module.decoder.layers.0.mlp.experts.linear_fc1.weight5
-	module.decoder.layers.0.mlp.experts.linear_fc1.weight2
-	module.decoder.layers.0.mlp.experts.linear_fc1.weight1
-	module.decoder.layers.0.mlp.experts.linear_fc1.weight3
-	module.decoder.layers.0.mlp.experts.linear_fc1.weight6
-	module.decoder.layers.0.mlp.experts.linear_fc1.weight4
-	module.decoder.layers.0.mlp.experts.linear_fc1.weight0
-INFO:megatron.core.optimizer:Setting up optimizer with config OptimizerConfig(optimizer='adam', lr=0.00012, min_lr=1.2e-05, decoupled_lr=None, decoupled_min_lr=None, weight_decay=0.1, fp8_recipe='delayed', fp16=False, bf16=True, reuse_grad_buf_for_mxfp8_param_ag=False, params_dtype=torch.bfloat16, use_precision_aware_optimizer=True, store_param_remainders=True, main_grads_dtype=torch.bfloat16, main_params_dtype=torch.float16, exp_avg_dtype=torch.float16, exp_avg_sq_dtype=torch.float16, loss_scale=None, initial_loss_scale=4294967296, min_loss_scale=1.0, loss_scale_window=1000, hysteresis=2, adam_beta1=0.9, adam_beta2=0.95, adam_eps=1e-08, sgd_momentum=0.9, use_distributed_optimizer=True, overlap_param_gather=True, overlap_param_gather_with_optimizer_step=False, use_megatron_fsdp=False, optimizer_cpu_offload=False, optimizer_offload_fraction=1.0, use_torch_optimizer_for_cpu_offload=False, overlap_cpu_optimizer_d2h_h2d=False, pin_cpu_grads=True, pin_cpu_params=True, clip_grad=1.0, log_num_zeros_in_grad=True, barrier_with_L1_time=True, timers=<megatron.core.timers.Timers object at 0x7106b0f23a40>, config_logger_dir='')
-setting training iterations to 10
+	module.decoder.layers.0.self_attention.linear_qkv.layer_norm_weight
+	module.decoder.layers.0.self_attention.linear_qkv.weight
+	module.decoder.layers.0.self_attention.q_layernorm.weight
+INFO:megatron.core.optimizer:Setting up optimizer with config OptimizerConfig(optimizer='adam', lr=5e-05, min_lr=1e-07, decoupled_lr=None, decoupled_min_lr=None, weight_decay=0.0, fp8_recipe='delayed', fp16=False, bf16=True, reuse_grad_buf_for_mxfp8_param_ag=False, params_dtype=torch.bfloat16, use_precision_aware_optimizer=True, store_param_remainders=True, main_grads_dtype=torch.bfloat16, main_params_dtype=torch.float16, exp_avg_dtype=torch.float16, exp_avg_sq_dtype=torch.float16, loss_scale=None, initial_loss_scale=4294967296, min_loss_scale=1.0, loss_scale_window=1000, hysteresis=2, adam_beta1=0.9, adam_beta2=0.95, adam_eps=1e-08, sgd_momentum=0.9, use_distributed_optimizer=True, overlap_param_gather=True, overlap_param_gather_with_optimizer_step=False, use_megatron_fsdp=False, optimizer_cpu_offload=False, optimizer_offload_fraction=1.0, use_torch_optimizer_for_cpu_offload=False, overlap_cpu_optimizer_d2h_h2d=False, pin_cpu_grads=True, pin_cpu_params=True, clip_grad=1.0, log_num_zeros_in_grad=True, barrier_with_L1_time=True, timers=<megatron.core.timers.Timers object at 0x79383babf1a0>, config_logger_dir='')
+setting training iterations to 44
 INFO:megatron.core.optimizer_param_scheduler:> learning rate decay style: cosine
-[after model, optimizer, and learning rate scheduler are built] datetime: 2025-09-22 12:29:12 
+WARNING: could not find the metadata file /workspace/data//mega-models/Qwen3-1.7B/latest_checkpointed_iteration.txt
+    will not load any checkpoints and will start from random
+(min, max) time across ranks (ms):
+    load-checkpoint ................................: (0.11, 0.11)
+[after model, optimizer, and learning rate scheduler are built] datetime: 2025-09-23 07:33:35 
 > building train, validation, and test datasets ...
  > datasets target sizes (minimum size):
-    train:      20
-    validation: 64
-    test:       64
+    train:      44
+    validation: 45
+    test:       1
 INFO:megatron.core.datasets.blended_megatron_dataset_config:Let split_matrix = [(0, 0.99), (0.99, 1.0), None]
 > building train, validation, and test datasets for GPT ...
-INFO:megatron.core.datasets.blended_megatron_dataset_builder:Building JsonTeacherDataset splits with sizes=(20, 64, 64) and config=GPTDatasetConfig(random_seed=1234, sequence_length=8192, blend=(['/workspace/training/teacher_data'], None), blend_per_split=None, multiple_validation_sets=False, full_validation=False, split="'99,1,0'", split_matrix=[(0, 0.99), (0.99, 1.0), None], num_dataset_builder_threads=1, path_to_cache='output/phi_tiny_moe_instruct/benchmark_cache', mmap_bin_files=False, mock=False, tokenizer=<megatron.training.tokenizer.tokenizer._HuggingFaceTokenizer object at 0x7106b11be330>, mid_level_dataset_surplus=0.005, reset_position_ids=False, reset_attention_mask=False, eod_mask_loss=False, create_attention_mask=True, drop_last_partial_validation_sequence=True, add_extra_token_to_sequence=True, object_storage_cache_path=None)
-Number of JSON files found: 44Number of JSON files found: 44
-
-> train dataset: <megatron.training.datasets.json_teacher_dataset.JsonTeacherDataset object at 0x710688473650> samples
-> validation dataset: <megatron.training.datasets.json_teacher_dataset.JsonTeacherDataset object at 0x710688473b60> samples
+INFO:megatron.core.datasets.blended_megatron_dataset_builder:Building JsonTeacherDataset splits with sizes=(44, 45, 1) and config=GPTDatasetConfig(random_seed=1234, sequence_length=16384, blend=(['/workspace/training/teacher_data'], None), blend_per_split=None, multiple_validation_sets=False, full_validation=False, split="'99,1,0'", split_matrix=[(0, 0.99), (0.99, 1.0), None], num_dataset_builder_threads=1, path_to_cache='output/qwen3_1.7b/benchmark_cache', mmap_bin_files=True, mock=False, tokenizer=<megatron.training.tokenizer.tokenizer._HuggingFaceTokenizer object at 0x79383cb04260>, mid_level_dataset_surplus=0.005, reset_position_ids=False, reset_attention_mask=False, eod_mask_loss=False, create_attention_mask=True, drop_last_partial_validation_sequence=True, add_extra_token_to_sequence=True, object_storage_cache_path=None)
+Number of JSON files found: 44
+> train dataset: <megatron.training.datasets.json_teacher_dataset.JsonTeacherDataset object at 0x79382026e7b0> samples
+> validation dataset: <megatron.training.datasets.json_teacher_dataset.JsonTeacherDataset object at 0x79382026ed20> samples
 > test dataset: None samples
 > finished creating GPT datasets ...
-[after dataloaders are built] datetime: 2025-09-22 12:29:12 
+[after dataloaders are built] datetime: 2025-09-23 07:33:36 
 done with setup ...
-(min, max) time across ranks (ms):
-    model-and-optimizer-setup ......................: (88.79, 88.85)
-    train/valid/test-data-iterators-setup ..........: (139.09, 206.36)
-training ...
-Overwriting rerun_state_machine.current_iteration from -1 to 0...
-[before the start of training step] datetime: 2025-09-22 12:29:12 
-Dropped 9060 teacher logits positions outside valid range [0, 8192)
-Dropped 10667 teacher logits positions outside valid range [0, 8192)
-[MEM][LOAD_BATCH] dt=0.147s | alloc=6.63GB res=9.88GB peak_alloc=6.63GB peak_res=9.88GB
-  Number of elements: 773
-  KL losses: 93.12130737304688
-batch 0 traditional valid positions: 773.0, batch_kl_sum: 71982.7578125
-KD loss: 93.12129211425781, valid positions: 773.0
-  Number of elements: 469
-  KL losses: 94.48208618164062
-batch 0 traditional valid positions: 469.0, batch_kl_sum: 44312.09765625
-KD loss: 94.48208618164062, valid positions: 469.0
-[MEM][FORWARD] dt=4.227s | alloc=7.62GB res=10.71GB peak_alloc=10.20GB peak_res=10.71GB
-WARNING:megatron.core.rerun_state_machine:Result validation enabled
-Number of parameters in transformer block in billions:  0.87
-Number of parameters in embedding layers in billions: 1.24
-Total number of parameters in billions: 2.12
-Number of parameters in most loaded shard in billions: 2.1151
-compute_activation_memory_without_sp
-Activation memory footprint per transformer layer (precise, without SP): 1088.0 MB
-Theoretical memory footprints: weight and optimizer=24205.59 MB, activation=11728.57 MB, total=35934.16 MB
+training ...(min, max) time across ranks (ms):
+    model-and-optimizer-setup ......................: (87.54, 87.82)
+    train/valid/test-data-iterators-setup ..........: (537.29, 537.40)
 
- [2025-09-22 12:29:22] iteration        1/      10 | consumed samples:            2 | elapsed time per iteration (ms): 9450.2 | throughput per GPU (TFLOP/s/GPU): 5.3 | learning rate: 4.800000E-05 | global batch size:     2 | lm loss: 1.505645E-01 | load_balancing_loss: 2.559168E+00 | loss scale: 1.0 | grad norm: 16.656 | num zeros: 700608384.0 | params norm: 440.206 | number of skipped iterations:   0 | number of nan iterations:   0 |
-[Rank 0] (after 1 iterations) memory (MB) | allocated: 11976.83837890625 | max allocated: 16014.9853515625 | reserved: 16348.0 | max reserved: 16348.0
-Dropped 8358 teacher logits positions outside valid range [0, 8192)
-Dropped 19870 teacher logits positions outside valid range [0, 8192)
-[MEM][LOAD_BATCH] dt=0.410s | alloc=11.76GB res=15.96GB peak_alloc=11.76GB peak_res=15.96GB
-  Number of elements: 549
-  KL losses: 96.91484832763672
-batch 0 traditional valid positions: 549.0, batch_kl_sum: 53206.26953125
-KD loss: 96.91487884521484, valid positions: 549.0
-  Number of elements: 872
-  KL losses: 98.02207946777344
-batch 0 traditional valid positions: 872.0, batch_kl_sum: 85475.515625
-KD loss: 98.02237701416016, valid positions: 872.0
-[MEM][FORWARD] dt=1.712s | alloc=11.75GB res=17.82GB peak_alloc=14.56GB peak_res=17.82GB
- [2025-09-22 12:29:25] iteration        2/      10 | consumed samples:            4 | elapsed time per iteration (ms): 3506.0 | throughput per GPU (TFLOP/s/GPU): 14.2 | learning rate: 9.600000E-05 | global batch size:     2 | lm loss: 1.363195E-01 | load_balancing_loss: 2.620266E+00 | loss scale: 1.0 | grad norm: 15.192 | num zeros: 711023104.0 | params norm: 440.206 | number of skipped iterations:   0 | number of nan iterations:   0 |
-Dropped 7717 teacher logits positions outside valid range [0, 8192)
-Dropped 12814 teacher logits positions outside valid range [0, 8192)
-[MEM][LOAD_BATCH] dt=0.121s | alloc=11.76GB res=20.12GB peak_alloc=11.76GB peak_res=20.12GB
+Overwriting rerun_state_machine.current_iteration from -1 to 0...
+[before the start of training step] datetime: 2025-09-23 07:33:36 
+Dropped 10295 teacher logits positions outside valid range [0, 16384)
+Loaded record from /workspace/training/teacher_data/pytest-dev__pytest-7490_logprobs.json
+[MEM][LOAD_BATCH] dt=0.327s | alloc=2.14GB res=2.85GB peak_alloc=2.14GB peak_res=2.85GB
+[MEM][LOAD_BATCH] dt=0.328s | alloc=2.14GB res=2.85GB peak_alloc=2.14GB peak_res=2.85GB
+  KL losses: 80481.578125
+  KL losses: 80481.578125
+batch 0 traditional valid positions: 834.0, batch_kl_sum: 80481.5703125
+KD loss: 80481.5703125, valid positions: 834.0
+[MEM][FORWARD] dt=3.354s | alloc=3.10GB res=26.83GB peak_alloc=26.31GB peak_res=26.83GB
+batch 0 traditional valid positions: 834.0, batch_kl_sum: 80481.5703125
+KD loss: 80481.5703125, valid positions: 834.0
+[MEM][FORWARD] dt=3.369s | alloc=3.14GB res=26.87GB peak_alloc=26.36GB peak_res=26.87GB
+WARNING:megatron.core.rerun_state_machine:Result validation enabled
+Number of parameters in transformer block in billions:  0.70
+Number of parameters in embedding layers in billions: 0.31
+Total number of parameters in billions: 1.02
+Number of parameters in most loaded shard in billions: 0.5080
+compute_activation_memory_without_sp
+Activation memory footprint per transformer layer (precise, without SP): 704.0 MB
+Theoretical memory footprints: weight and optimizer=8719.77 MB, activation=12942.43 MB, total=21662.20 MB
+
+ [2025-09-23 07:33:42] iteration        1/      44 | consumed samples:            1 | elapsed time per iteration (ms): 6070.8 | throughput per GPU (TFLOP/s/GPU): 12.0 | learning rate: 1.000000E-07 | global batch size:     1 | lm loss: 5.324266E+01 | loss scale: 1.0 | grad norm: 142.153 | num zeros: 24789.0 | params norm: 0.000 | number of skipped iterations:   0 | number of nan iterations:   0 |
+[Rank 0] (after 1 iterations) memory (MB) | allocated: 4059.85986328125 | max allocated: 26991.27197265625 | reserved: 27512.0 | max reserved: 27512.0
+[Rank 1] (after 1 iterations) memory (MB) | allocated: 4059.85986328125 | max allocated: 26942.2939453125 | reserved: 27472.0 | max reserved: 27472.0
+WARNING:megatron.core.rerun_state_machine:Setting RerunStateMachine mode RerunMode.DISABLED
+Dropped 16814 teacher logits positions outside valid range [0, 16384)
+Loaded record from /workspace/training/teacher_data/django__django-16032_logprobs.json
+[MEM][LOAD_BATCH] dt=0.445s | alloc=4.22GB res=26.87GB peak_alloc=4.22GB peak_res=26.87GB
+[MEM][LOAD_BATCH] dt=0.446s | alloc=4.22GB res=26.83GB peak_alloc=4.22GB peak_res=26.83GB
+  KL losses: 185676.625
+  KL losses: 185676.625
+batch 0 traditional valid positions: 2054.0, batch_kl_sum: 185676.09375
+KD loss: 185676.09375, valid positions: 2054.0
+[MEM][FORWARD] dt=3.335s | alloc=4.22GB res=28.48GB peak_alloc=27.52GB peak_res=28.48GB
+batch 0 traditional valid positions: 2054.0, batch_kl_sum: 185676.09375
+KD loss: 185676.09375, valid positions: 2054.0
+[MEM][FORWARD] dt=3.342s | alloc=4.22GB res=28.48GB peak_alloc=27.52GB peak_res=28.48GB
+(min, max) time across ranks (ms):
+    evaluate .......................................: (3809.63, 3809.65)
+WARNING:megatron.core.rerun_state_machine:Setting RerunStateMachine mode RerunMode.VALIDATE_RESULTS
+WARNING:megatron.core.rerun_state_machine:Setting RerunStateMachine mode RerunMode.VALIDATE_RESULTS
+---------------------------------------------------------------------------------------------
+ validation loss at iteration 1 | lm loss value: 4.914897E+01 | lm loss PPL: 4.851652E+08 | 
+---------------------------------------------------------------------------------------------
+Dropped 8937 teacher logits positions outside valid range [0, 16384)
+Loaded record from /workspace/training/teacher_data/psf__requests-1724_logprobs.json
+[MEM][LOAD_BATCH] dt=0.502s | alloc=4.22GB res=28.48GB peak_alloc=4.22GB peak_res=28.48GB
+[MEM][LOAD_BATCH] dt=0.503s | alloc=4.22GB res=28.48GB peak_alloc=4.22GB peak_res=28.48GB
+  KL losses: 79970.296875
+  KL losses: 79970.296875
+batch 0 traditional valid positions: 894.0, batch_kl_sum: 79970.28125
+KD loss: 79970.28125, valid positions: 894.0
+[MEM][FORWARD] dt=5.985s | alloc=5.01GB res=29.59GB peak_alloc=28.23GB peak_res=29.59GB
+batch 0 traditional valid positions: 894.0, batch_kl_sum: 79970.28125
+KD loss: 79970.28125, valid positions: 894.0
+[MEM][FORWARD] dt=6.029s | alloc=5.06GB res=29.55GB peak_alloc=28.27GB peak_res=29.55GB
+ [2025-09-23 07:33:54] iteration        2/      44 | consumed samples:            2 | elapsed time per iteration (ms): 8422.4 | throughput per GPU (TFLOP/s/GPU): 8.7 | learning rate: 1.000000E-07 | global batch size:     1 | lm loss: 4.927380E+01 | loss scale: 1.0 | grad norm: 81.437 | num zeros: 10234.0 | params norm: 0.000 | number of skipped iterations:   0 | number of nan iterations:   0 |
+WARNING:megatron.core.rerun_state_machine:Setting RerunStateMachine mode RerunMode.DISABLED
+Dropped 16814 teacher logits positions outside valid range [0, 16384)
+Loaded record from /workspace/training/teacher_data/django__django-16032_logprobs.json
+[MEM][LOAD_BATCH] dt=0.911s | alloc=4.22GB res=29.60GB peak_alloc=4.22GB peak_res=29.60GB
+[MEM][LOAD_BATCH] dt=0.911s | alloc=4.22GB res=29.56GB peak_alloc=4.22GB peak_res=29.56GB
+  KL losses: 185674.53125
+  KL losses: 185674.53125
+batch 0 traditional valid positions: 2054.0, batch_kl_sum: 185675.859375
+KD loss: 185675.859375, valid positions: 2054.0
+[MEM][FORWARD] dt=3.122s | alloc=4.22GB res=29.60GB peak_alloc=27.52GB peak_res=29.60GB
+batch 0 traditional valid positions: 2054.0, batch_kl_sum: 185675.859375
+KD loss: 185675.859375, valid positions: 2054.0
+[MEM][FORWARD] dt=3.178s | alloc=4.22GB res=29.56GB peak_alloc=27.52GB peak_res=29.56GB
+(min, max) time across ranks (ms):
+    evaluate .......................................: (4134.90, 4135.83)
+WARNING:megatron.core.rerun_state_machine:Setting RerunStateMachine mode RerunMode.VALIDATE_RESULTS
+WARNING:megatron.core.rerun_state_machine:Setting RerunStateMachine mode RerunMode.VALIDATE_RESULTS
+---------------------------------------------------------------------------------------------
+ validation loss at iteration 2 | lm loss value: 4.914830E+01 | lm loss PPL: 4.851652E+08 | 
+---------------------------------------------------------------------------------------------
+Dropped 19189 teacher logits positions outside valid range [0, 16384)
+Loaded record from /workspace/training/teacher_data/astropy__astropy-12907_logprobs.json
+[MEM][LOAD_BATCH] dt=0.379s | alloc=4.22GB res=29.56GB peak_alloc=4.22GB peak_res=29.56GB
+[MEM][LOAD_BATCH] dt=0.380s | alloc=4.22GB res=29.60GB peak_alloc=4.22GB peak_res=29.60GB
+  KL losses: 145616.953125
+  KL losses: 145616.953125
+batch 0 traditional valid positions: 1545.0, batch_kl_sum: 145616.84375
+KD loss: 145616.84375, valid positions: 1545.0
+batch 0 traditional valid positions: 1545.0, batch_kl_sum: 145616.84375
+KD loss: 145616.84375, valid positions: 1545.0
+[MEM][FORWARD] dt=2.990s | alloc=5.30GB res=16.25GB peak_alloc=28.52GB peak_res=29.63GB
+[MEM][FORWARD] dt=2.995s | alloc=5.21GB res=16.26GB peak_alloc=28.42GB peak_res=29.72GB
+ [2025-09-23 07:34:31] iteration        3/      44 | consumed samples:            3 | elapsed time per iteration (ms): 32791.2 | throughput per GPU (TFLOP/s/GPU): 2.2 | learning rate: 1.000000E-07 | global batch size:     1 | lm loss: 5.149220E+01 | loss scale: 1.0 | grad norm: 88.341 | num zeros: 13743.0 | params norm: 0.000 | number of skipped iterations:   0 | number of nan iterations:   0 |
+WARNING:megatron.core.rerun_state_machine:Setting RerunStateMachine mode RerunMode.DISABLED
+Dropped 16814 teacher logits positions outside valid range [0, 16384)
+Loaded record from /workspace/training/teacher_data/django__django-16032_logprobs.json
+[MEM][LOAD_BATCH] dt=0.405s | alloc=4.22GB res=16.26GB peak_alloc=4.22GB peak_res=16.26GB
+[MEM][LOAD_BATCH] dt=0.405s | alloc=4.22GB res=16.26GB peak_alloc=4.22GB peak_res=16.26GB
+  KL losses: 185674.9375
+  KL losses: 185674.9375
+batch 0 traditional valid positions: 2054.0, batch_kl_sum: 185674.796875
+KD loss: 185674.796875, valid positions: 2054.0
+[MEM][FORWARD] dt=2.963s | alloc=4.22GB res=29.38GB peak_alloc=27.52GB peak_res=29.38GB
+batch 0 traditional valid positions: 2054.0, batch_kl_sum: 185674.796875
+KD loss: 185674.796875, valid positions: 2054.0
+[MEM][FORWARD] dt=2.972s | alloc=4.22GB res=29.38GB peak_alloc=27.52GB peak_res=29.38GB
+(min, max) time across ranks (ms):
+    evaluate .......................................: (3399.40, 3399.41)
+WARNING:megatron.core.rerun_state_machine:Setting RerunStateMachine mode RerunMode.VALIDATE_RESULTS
+WARNING:megatron.core.rerun_state_machine:Setting RerunStateMachine mode RerunMode.VALIDATE_RESULTS
+---------------------------------------------------------------------------------------------
+ validation loss at iteration 3 | lm loss value: 4.914833E+01 | lm loss PPL: 4.851652E+08 | 
+---------------------------------------------------------------------------------------------
+Dropped 7019 teacher logits positions outside valid range [0, 16384)
+Loaded record from /workspace/training/teacher_data/matplotlib__matplotlib-24627_logprobs.json
+[MEM][LOAD_BATCH] dt=0.349s | alloc=4.22GB res=29.38GB peak_alloc=4.22GB peak_res=29.38GB
+[MEM][LOAD_BATCH] dt=0.349s | alloc=4.22GB res=29.38GB peak_alloc=4.22GB peak_res=29.38GB
+  KL losses: 173536.0625
+  KL losses: 173536.0625
+batch 0 traditional valid positions: 1870.0, batch_kl_sum: 173535.59375
+KD loss: 173535.59375, valid positions: 1870.0
+batch 0 traditional valid positions: 1870.0, batch_kl_sum: 173535.59375
+KD loss: 173535.59375, valid positions: 1870.0
+[MEM][FORWARD] dt=3.086s | alloc=5.42GB res=16.50GB peak_alloc=28.63GB peak_res=29.63GB
+[MEM][FORWARD] dt=3.092s | alloc=5.31GB res=16.52GB peak_alloc=28.52GB peak_res=29.72GB
+ [2025-09-23 07:34:40] iteration        4/      44 | consumed samples:            4 | elapsed time per iteration (ms): 5345.8 | throughput per GPU (TFLOP/s/GPU): 13.7 | learning rate: 1.000000E-07 | global batch size:     1 | lm loss: 5.056052E+01 | loss scale: 1.0 | grad norm: 106.569 | num zeros: 15964.0 | params norm: 0.000 | number of skipped iterations:   0 | number of nan iterations:   0 |
+WARNING:megatron.core.rerun_state_machine:Setting RerunStateMachine mode RerunMode.DISABLED
+Dropped 16814 teacher logits positions outside valid range [0, 16384)
+Loaded record from /workspace/training/teacher_data/django__django-16032_logprobs.json
+[MEM][LOAD_BATCH] dt=0.406s | alloc=4.22GB res=16.50GB peak_alloc=4.22GB peak_res=16.50GB
+[MEM][LOAD_BATCH] dt=0.406s | alloc=4.22GB res=16.52GB peak_alloc=4.22GB peak_res=16.52GB
+  KL losses: 185672.28125
+  KL losses: 185672.28125
+batch 0 traditional valid positions: 2054.0, batch_kl_sum: 185672.109375
+KD loss: 185672.109375, valid positions: 2054.0
+[MEM][FORWARD] dt=3.025s | alloc=4.22GB res=28.50GB peak_alloc=27.52GB peak_res=28.50GB
+batch 0 traditional valid positions: 2054.0, batch_kl_sum: 185672.109375
+KD loss: 185672.109375, valid positions: 2054.0
+[MEM][FORWARD] dt=3.027s | alloc=4.22GB res=28.50GB peak_alloc=27.52GB peak_res=28.50GB
+(min, max) time across ranks (ms):
+    evaluate .......................................: (3456.46, 3456.47)
+WARNING:megatron.core.rerun_state_machine:Setting RerunStateMachine mode RerunMode.VALIDATE_RESULTS
+WARNING:megatron.core.rerun_state_machine:Setting RerunStateMachine mode RerunMode.VALIDATE_RESULTS
+---------------------------------------------------------------------------------------------
+ validation loss at iteration 4 | lm loss value: 4.914749E+01 | lm loss PPL: 4.851652E+08 | 
+---------------------------------------------------------------------------------------------
+Dropped 7227 teacher logits positions outside valid range [0, 16384)
+Loaded record from /workspace/training/teacher_data/matplotlib__matplotlib-25332_logprobs.json
+[MEM][LOAD_BATCH] dt=0.286s | alloc=4.22GB res=28.50GB peak_alloc=4.22GB peak_res=28.50GB
+[MEM][LOAD_BATCH] dt=0.287s | alloc=4.22GB res=28.50GB peak_alloc=4.22GB peak_res=28.50GB
+  KL losses: 101557.03125
+  KL losses: 101557.03125
+batch 0 traditional valid positions: 1086.0, batch_kl_sum: 101556.1015625
+KD loss: 101556.1015625, valid positions: 1086.0
+batch 0 traditional valid positions: 1086.0, batch_kl_sum: 101556.1015625
+KD loss: 101556.1015625, valid positions: 1086.0
+[MEM][FORWARD] dt=2.872s | alloc=5.07GB res=15.88GB peak_alloc=28.29GB peak_res=29.72GB
+[MEM][FORWARD] dt=2.872s | alloc=5.15GB res=15.84GB peak_alloc=28.36GB peak_res=29.63GB
+ [2025-09-23 07:34:49] iteration        5/      44 | consumed samples:            5 | elapsed time per iteration (ms): 5064.1 | throughput per GPU (TFLOP/s/GPU): 14.4 | learning rate: 1.000000E-07 | global batch size:     1 | lm loss: 5.059259E+01 | loss scale: 1.0 | grad norm: 109.345 | num zeros: 17181.0 | params norm: 0.000 | number of skipped iterations:   0 | number of nan iterations:   0 |
+WARNING:megatron.core.rerun_state_machine:Setting RerunStateMachine mode RerunMode.DISABLED
+Dropped 16814 teacher logits positions outside valid range [0, 16384)
+Loaded record from /workspace/training/teacher_data/django__django-16032_logprobs.json
+[MEM][LOAD_BATCH] dt=0.414s | alloc=4.22GB res=15.84GB peak_alloc=4.22GB peak_res=15.84GB
+[MEM][LOAD_BATCH] dt=0.414s | alloc=4.22GB res=15.88GB peak_alloc=4.22GB peak_res=15.88GB
+  KL losses: 185673.1875
+  KL losses: 185673.1875
+batch 0 traditional valid positions: 2054.0, batch_kl_sum: 185673.671875
+KD loss: 185673.671875, valid positions: 2054.0
+[MEM][FORWARD] dt=2.987s | alloc=4.22GB res=29.12GB peak_alloc=27.52GB peak_res=29.12GB
+batch 0 traditional valid positions: 2054.0, batch_kl_sum: 185673.671875
+KD loss: 185673.671875, valid positions: 2054.0
+[MEM][FORWARD] dt=2.997s | alloc=4.22GB res=29.12GB peak_alloc=27.52GB peak_res=29.12GB
+(min, max) time across ranks (ms):
+    evaluate .......................................: (3434.11, 3434.11)
+WARNING:megatron.core.rerun_state_machine:Setting RerunStateMachine mode RerunMode.VALIDATE_RESULTS
+WARNING:megatron.core.rerun_state_machine:Setting RerunStateMachine mode RerunMode.VALIDATE_RESULTS
+---------------------------------------------------------------------------------------------
+ validation loss at iteration 5 | lm loss value: 4.914776E+01 | lm loss PPL: 4.851652E+08 | 
+---------------------------------------------------------------------------------------------
+Dropped 11919 teacher logits positions outside valid range [0, 16384)
+Loaded record from /workspace/training/teacher_data/django__django-13315_logprobs.json
+[MEM][LOAD_BATCH] dt=0.346s | alloc=4.22GB res=29.12GB peak_alloc=4.22GB peak_res=29.12GB
+[MEM][LOAD_BATCH] dt=0.346s | alloc=4.22GB res=29.12GB peak_alloc=4.22GB peak_res=29.12GB
 batch 0 efficient pos 3157 teacher_values_batch: tensor([9.8417e-01, 2.4395e-03, 2.3400e-03, 1.3058e-03, 7.7566e-04, 6.8452e-04,
         4.5126e-04, 4.2392e-04, 3.8199e-04, 3.2334e-04, 2.9749e-04, 2.7947e-04,
         2.6806e-04, 2.6254e-04, 2.4663e-04, 2.4663e-04, 2.1765e-04, 2.1765e-04,
@@ -863,21 +927,28 @@ batch 0 efficient pos 3157 teacher_values_batch: tensor([9.8417e-01, 2.4395e-03,
         1.4348e-04, 1.4053e-04, 1.4053e-04, 1.3763e-04, 1.3479e-04, 1.3479e-04,
         1.3201e-04, 1.2401e-04, 1.2146e-04, 1.2146e-04, 1.2146e-04, 1.1895e-04,
         1.1895e-04, 1.1895e-04, 1.1895e-04, 1.1650e-04, 1.1410e-04, 1.0944e-04,
-        1.0497e-04, 1.0497e-04], device='cuda:1')
-batch 0 efficient pos 3157 s_logpK: tensor([-11.6677, -12.1745, -11.8249, -12.4743, -12.3493, -11.9260, -11.4411,
-        -11.7048, -11.8874, -11.9177, -11.7888, -11.2419, -12.5466, -11.7497,
-        -12.6560, -11.8445, -12.2663, -12.7888, -12.1755, -12.0876, -12.0857,
-        -11.0661, -12.2487, -12.2351, -12.0041, -11.8698, -12.7536, -11.9485,
-        -11.4607, -12.5310, -12.0737, -11.7634, -12.3122, -12.2292, -11.7048,
-        -11.8913, -11.7556, -12.1872, -11.7478, -11.8191, -11.9846, -13.0271,
-        -12.1989, -11.5661, -12.2185, -12.8122, -12.7107, -11.5993, -11.9834,
-        -12.7185], device='cuda:1', grad_fn=<MulBackward0>) with logZ tensor([12.0193], device='cuda:1', grad_fn=<SelectBackward0>)
-batch 0 efficient pos 3157 kl_per_pos: 103.85777282714844
-  Number of elements: 604
-  KL losses: 98.65035247802734
-  Number of elements: 671
-  KL losses: 95.10677337646484
-batch 0 traditional pos 3157 teacher_probs: tensor([9.8417e-01, 2.4395e-03, 2.3400e-03, 1.3058e-03, 7.7566e-04, 6.8452e-04,
+        1.0497e-04, 1.0497e-04], device='cuda:0')
+batch 0 efficient pos 3157 s_logpK: tensor([-11.3224, -11.6681, -12.0460, -11.6954, -11.4903, -12.1632, -11.5939,
+        -11.5275, -11.5743, -11.6954, -11.6622, -12.2853,  -9.9435, -11.8136,
+        -12.3126, -12.3263, -11.8419, -12.0287, -11.9443, -11.5431, -12.3946,
+        -11.6564, -11.8888, -12.0958, -11.8522, -11.4903, -10.7013, -11.8697,
+        -11.8331, -11.6251, -12.0758, -11.7716, -11.6290, -12.0499, -11.9695,
+        -12.1544, -11.6017, -11.4884, -11.9288, -11.9573, -11.8116, -11.4884,
+        -11.9078, -12.0050, -12.1417, -11.6368, -11.8888, -11.6232, -11.9347,
+        -11.9455], device='cuda:0', grad_fn=<MulBackward0>) with logZ tensor([11.9747], device='cuda:0', grad_fn=<SelectBackward0>)
+batch 0 efficient pos 3157 kl_per_pos: 100.76029205322266
+  KL losses: 142204.8125
+  KL losses: 142204.8125
+batch 0 traditional pos 3157 (local 3157) teacher_probs: tensor([9.8417e-01, 2.4395e-03, 2.3400e-03, 1.3058e-03, 7.7566e-04, 6.8452e-04,
+        4.5126e-04, 4.2392e-04, 3.8199e-04, 3.2334e-04, 2.9749e-04, 2.7947e-04,
+        2.6806e-04, 2.6254e-04, 2.4663e-04, 2.4663e-04, 2.1765e-04, 2.1765e-04,
+        2.1765e-04, 2.1765e-04, 2.0877e-04, 2.0446e-04, 2.0025e-04, 1.8424e-04,
+        1.7307e-04, 1.6951e-04, 1.6259e-04, 1.5924e-04, 1.4650e-04, 1.4650e-04,
+        1.4348e-04, 1.4053e-04, 1.4053e-04, 1.3763e-04, 1.3479e-04, 1.3479e-04,
+        1.3201e-04, 1.2401e-04, 1.2146e-04, 1.2146e-04, 1.2146e-04, 1.1895e-04,
+        1.1895e-04, 1.1895e-04, 1.1895e-04, 1.1650e-04, 1.1410e-04, 1.0944e-04,
+        1.0497e-04, 1.0497e-04], device='cuda:0')
+batch 0 traditional pos 3157 (local 3157) teacher_probs: tensor([9.8417e-01, 2.4395e-03, 2.3400e-03, 1.3058e-03, 7.7566e-04, 6.8452e-04,
         4.5126e-04, 4.2392e-04, 3.8199e-04, 3.2334e-04, 2.9749e-04, 2.7947e-04,
         2.6806e-04, 2.6254e-04, 2.4663e-04, 2.4663e-04, 2.1765e-04, 2.1765e-04,
         2.1765e-04, 2.1765e-04, 2.0877e-04, 2.0446e-04, 2.0025e-04, 1.8424e-04,
@@ -886,116 +957,227 @@ batch 0 traditional pos 3157 teacher_probs: tensor([9.8417e-01, 2.4395e-03, 2.34
         1.3201e-04, 1.2401e-04, 1.2146e-04, 1.2146e-04, 1.2146e-04, 1.1895e-04,
         1.1895e-04, 1.1895e-04, 1.1895e-04, 1.1650e-04, 1.1410e-04, 1.0944e-04,
         1.0497e-04, 1.0497e-04], device='cuda:1')
-batch 0 traditional pos 3157 student_log_probs_teacher: tensor([-11.6677, -12.1745, -11.8249, -12.4743, -12.3493, -11.9260, -11.4411,
-        -11.7048, -11.8874, -11.9177, -11.7888, -11.2419, -12.5466, -11.7497,
-        -12.6560, -11.8445, -12.2663, -12.7888, -12.1755, -12.0876, -12.0857,
-        -11.0661, -12.2488, -12.2351, -12.0041, -11.8699, -12.7536, -11.9485,
-        -11.4607, -12.5310, -12.0737, -11.7634, -12.3122, -12.2292, -11.7048,
-        -11.8913, -11.7556, -12.1872, -11.7478, -11.8191, -11.9846, -13.0271,
-        -12.1990, -11.5661, -12.2185, -12.8122, -12.7107, -11.5993, -11.9834,
-        -12.7185], device='cuda:1', grad_fn=<IndexBackward0>) lse student: 12.019257545471191
-batch 0 traditional pos 3157 kl loss 103.85785675048828
-batch 0 traditional valid positions: 604.0, batch_kl_sum: 59584.81640625
-KD loss: 98.65036010742188, valid positions: 604.0
-[MEM][FORWARD] dt=0.885s | alloc=11.66GB res=20.12GB peak_alloc=14.31GB peak_res=20.12GB
-batch 0 traditional valid positions: 671.0, batch_kl_sum: 63816.65625
-KD loss: 95.1067886352539, valid positions: 671.0
- [2025-09-22 12:29:37] iteration        3/      10 | consumed samples:            6 | elapsed time per iteration (ms): 11741.2 | throughput per GPU (TFLOP/s/GPU): 4.2 | learning rate: 1.096869E-04 | global batch size:     2 | lm loss: 1.505494E-01 | load_balancing_loss: 2.769686E+00 | loss scale: 1.0 | grad norm: 10.405 | num zeros: 869400448.0 | params norm: 440.206 | number of skipped iterations:   0 | number of nan iterations:   0 |
-Dropped 7771 teacher logits positions outside valid range [0, 8192)
-Dropped 10115 teacher logits positions outside valid range [0, 8192)
-[MEM][LOAD_BATCH] dt=0.098s | alloc=11.76GB res=21.39GB peak_alloc=11.76GB peak_res=21.39GB
+batch 0 traditional pos 3157 (local 3157) student_log_probs_teacher: tensor([-11.3224, -11.6681, -12.0460, -11.6954, -11.4903, -12.1632, -11.5939,
+        -11.5275, -11.5743, -11.6954, -11.6622, -12.2853,  -9.9435, -11.8136,
+        -12.3126, -12.3263, -11.8419, -12.0287, -11.9443, -11.5431, -12.3946,
+        -11.6564, -11.8888, -12.0958, -11.8522, -11.4903, -10.7013, -11.8697,
+        -11.8331, -11.6251, -12.0758, -11.7716, -11.6290, -12.0499, -11.9695,
+        -12.1544, -11.6017, -11.4884, -11.9288, -11.9573, -11.8116, -11.4884,
+        -11.9078, -12.0050, -12.1417, -11.6368, -11.8888, -11.6232, -11.9347,
+        -11.9455], device='cuda:0', grad_fn=<IndexBackward0>) lse student: 11.974717140197754
+batch 0 traditional pos 3157 (local 3157) kl loss 100.76030731201172
+batch 0 traditional pos 3157 (local 3157) student_log_probs_teacher: tensor([-11.3224, -11.6681, -12.0460, -11.6954, -11.4903, -12.1632, -11.5939,
+        -11.5275, -11.5743, -11.6954, -11.6622, -12.2853,  -9.9435, -11.8136,
+        -12.3126, -12.3263, -11.8419, -12.0287, -11.9443, -11.5431, -12.3946,
+        -11.6564, -11.8888, -12.0958, -11.8522, -11.4903, -10.7013, -11.8697,
+        -11.8331, -11.6251, -12.0758, -11.7716, -11.6290, -12.0499, -11.9695,
+        -12.1544, -11.6017, -11.4884, -11.9288, -11.9573, -11.8116, -11.4884,
+        -11.9078, -12.0050, -12.1417, -11.6368, -11.8888, -11.6232, -11.9347,
+        -11.9455], device='cuda:1', grad_fn=<IndexBackward0>) lse student: 11.974717140197754
+batch 0 traditional pos 3157 (local 3157) kl loss 100.76030731201172
+batch 0 traditional valid positions: 1552.0, batch_kl_sum: 142204.515625
+KD loss: 142204.515625, valid positions: 1552.0
+batch 0 traditional valid positions: 1552.0, batch_kl_sum: 142204.515625
+KD loss: 142204.515625, valid positions: 1552.0
+[MEM][FORWARD] dt=3.020s | alloc=5.21GB res=16.24GB peak_alloc=28.43GB peak_res=29.72GB
+[MEM][FORWARD] dt=3.022s | alloc=5.32GB res=16.22GB peak_alloc=28.53GB peak_res=29.63GB
+ [2025-09-23 07:34:58] iteration        6/      44 | consumed samples:            6 | elapsed time per iteration (ms): 5526.9 | throughput per GPU (TFLOP/s/GPU): 13.2 | learning rate: 1.000000E-07 | global batch size:     1 | lm loss: 4.975947E+01 | loss scale: 1.0 | grad norm: 118.151 | num zeros: 16269.0 | params norm: 0.000 | number of skipped iterations:   0 | number of nan iterations:   0 |
+WARNING:megatron.core.rerun_state_machine:Setting RerunStateMachine mode RerunMode.DISABLED
+Dropped 16814 teacher logits positions outside valid range [0, 16384)
+Loaded record from /workspace/training/teacher_data/django__django-16032_logprobs.json
+[MEM][LOAD_BATCH] dt=0.409s | alloc=4.22GB res=16.22GB peak_alloc=4.22GB peak_res=16.22GB
+[MEM][LOAD_BATCH] dt=0.409s | alloc=4.22GB res=16.24GB peak_alloc=4.22GB peak_res=16.24GB
+  KL losses: 185671.5
+  KL losses: 185671.5
+batch 0 traditional valid positions: 2054.0, batch_kl_sum: 185672.125
+KD loss: 185672.125, valid positions: 2054.0
+[MEM][FORWARD] dt=3.029s | alloc=4.22GB res=28.50GB peak_alloc=27.52GB peak_res=28.50GB
+batch 0 traditional valid positions: 2054.0, batch_kl_sum: 185672.125
+KD loss: 185672.125, valid positions: 2054.0
+[MEM][FORWARD] dt=3.035s | alloc=4.22GB res=28.50GB peak_alloc=27.52GB peak_res=28.50GB
+(min, max) time across ranks (ms):
+    evaluate .......................................: (3467.10, 3467.12)
+WARNING:megatron.core.rerun_state_machine:Setting RerunStateMachine mode RerunMode.VALIDATE_RESULTS
+WARNING:megatron.core.rerun_state_machine:Setting RerunStateMachine mode RerunMode.VALIDATE_RESULTS
+---------------------------------------------------------------------------------------------
+ validation loss at iteration 6 | lm loss value: 4.914740E+01 | lm loss PPL: 4.851652E+08 | 
+---------------------------------------------------------------------------------------------
+Dropped 7115 teacher logits positions outside valid range [0, 16384)
+Loaded record from /workspace/training/teacher_data/django__django-11179_logprobs.json
+[MEM][LOAD_BATCH] dt=0.279s | alloc=4.22GB res=28.50GB peak_alloc=4.22GB peak_res=28.50GB
+[MEM][LOAD_BATCH] dt=0.280s | alloc=4.22GB res=28.50GB peak_alloc=4.22GB peak_res=28.50GB
 batch 0 efficient pos 3157 teacher_values_batch: tensor([0.6485, 0.1508, 0.0337, 0.0114, 0.0089, 0.0089, 0.0082, 0.0082, 0.0075,
         0.0061, 0.0058, 0.0056, 0.0052, 0.0052, 0.0050, 0.0046, 0.0037, 0.0034,
         0.0033, 0.0033, 0.0031, 0.0029, 0.0029, 0.0028, 0.0028, 0.0028, 0.0028,
         0.0025, 0.0024, 0.0023, 0.0023, 0.0022, 0.0022, 0.0022, 0.0021, 0.0020,
         0.0019, 0.0019, 0.0018, 0.0018, 0.0016, 0.0016, 0.0015, 0.0015, 0.0015,
         0.0015, 0.0015, 0.0015, 0.0015, 0.0015], device='cuda:0')
-batch 0 efficient pos 3157 s_logpK: tensor([-11.2645, -12.1668, -11.3817, -12.0139, -12.8465, -11.9271, -11.9864,
-        -12.4324, -11.1707, -11.3660, -12.0291, -12.1697, -12.5125, -12.4305,
-        -12.8348, -12.5457, -12.7020, -11.4520, -12.0799, -12.2049, -11.9949,
-        -11.9778, -12.3856, -11.2723, -12.5418, -11.7801, -11.9485, -11.0106,
-        -12.3563, -11.7879, -12.4637, -11.6942, -12.4149, -11.9046, -12.1077,
-        -11.4012, -11.6727, -11.7156, -12.3856, -12.0091, -12.0462, -11.4949,
-        -12.8270, -11.4910, -11.6844, -12.6785, -12.3680, -11.9617, -12.0066,
-        -11.6219], device='cuda:0', grad_fn=<MulBackward0>) with logZ tensor([12.0184], device='cuda:0', grad_fn=<SelectBackward0>)
-batch 0 efficient pos 3157 kl_per_pos: 89.54527282714844
-  Number of elements: 342
-  KL losses: 95.7249526977539
-  Number of elements: 574
-  KL losses: 96.42143249511719
-batch 0 traditional pos 3157 teacher_probs: tensor([0.6485, 0.1508, 0.0337, 0.0114, 0.0089, 0.0089, 0.0082, 0.0082, 0.0075,
+batch 0 efficient pos 3157 s_logpK: tensor([-11.3705, -11.8451, -11.9527, -11.0111, -12.2133, -11.9495, -11.7875,
+        -11.9739, -11.9047, -12.3217, -11.8246, -12.0003, -12.2670, -12.1156,
+        -11.7660, -12.1449, -11.7006, -12.2338, -12.3725, -12.3510, -11.6752,
+        -12.4037, -11.9125, -11.4525, -11.5365, -11.7045, -11.6557, -11.8051,
+        -11.7504, -12.4584, -12.3510, -11.9720, -12.0717, -12.1566, -11.3158,
+        -12.0299, -11.9779, -12.5189, -11.5697, -12.2748, -11.6088, -11.7221,
+        -11.9357, -12.2865, -12.1059, -11.7182, -12.1791, -12.1127, -12.2572,
+        -12.0003], device='cuda:0', grad_fn=<MulBackward0>) with logZ tensor([11.9760], device='cuda:0', grad_fn=<SelectBackward0>)
+batch 0 efficient pos 3157 kl_per_pos: 89.68011474609375
+  KL losses: 90582.8203125
+  KL losses: 90582.8203125
+batch 0 traditional pos 3157 (local 3157) teacher_probs: tensor([0.6485, 0.1508, 0.0337, 0.0114, 0.0089, 0.0089, 0.0082, 0.0082, 0.0075,
         0.0061, 0.0058, 0.0056, 0.0052, 0.0052, 0.0050, 0.0046, 0.0037, 0.0034,
         0.0033, 0.0033, 0.0031, 0.0029, 0.0029, 0.0028, 0.0028, 0.0028, 0.0028,
         0.0025, 0.0024, 0.0023, 0.0023, 0.0022, 0.0022, 0.0022, 0.0021, 0.0020,
         0.0019, 0.0019, 0.0018, 0.0018, 0.0016, 0.0016, 0.0015, 0.0015, 0.0015,
         0.0015, 0.0015, 0.0015, 0.0015, 0.0015], device='cuda:0')
-batch 0 traditional pos 3157 student_log_probs_teacher: tensor([-11.2645, -12.1668, -11.3817, -12.0139, -12.8465, -11.9271, -11.9864,
-        -12.4324, -11.1707, -11.3660, -12.0291, -12.1697, -12.5125, -12.4305,
-        -12.8348, -12.5457, -12.7020, -11.4520, -12.0799, -12.2049, -11.9949,
-        -11.9779, -12.3856, -11.2723, -12.5418, -11.7801, -11.9486, -11.0106,
-        -12.3563, -11.7879, -12.4637, -11.6942, -12.4149, -11.9046, -12.1077,
-        -11.4012, -11.6727, -11.7156, -12.3856, -12.0091, -12.0462, -11.4949,
-        -12.8270, -11.4910, -11.6844, -12.6785, -12.3680, -11.9617, -12.0066,
-        -11.6219], device='cuda:0', grad_fn=<IndexBackward0>) lse student: 12.018373489379883
-batch 0 traditional pos 3157 kl loss 89.5453109741211
-batch 0 traditional valid positions: 342.0, batch_kl_sum: 32737.904296875
-KD loss: 95.72486877441406, valid positions: 342.0
-[MEM][FORWARD] dt=0.868s | alloc=11.54GB res=21.39GB peak_alloc=14.05GB peak_res=21.39GB
-batch 0 traditional valid positions: 574.0, batch_kl_sum: 55345.90234375
-KD loss: 96.42143249511719, valid positions: 574.0
- [2025-09-22 12:29:39] iteration        4/      10 | consumed samples:            8 | elapsed time per iteration (ms): 2412.5 | throughput per GPU (TFLOP/s/GPU): 20.6 | learning rate: 4.931308E-05 | global batch size:     2 | lm loss: 2.081759E-01 | load_balancing_loss: 4.835570E+00 | loss scale: 1.0 | grad norm: 12.927 | num zeros: 1004130560.0 | params norm: 440.206 | number of skipped iterations:   0 | number of nan iterations:   0 |
-Dropped 10462 teacher logits positions outside valid range [0, 8192)
-Dropped 33995 teacher logits positions outside valid range [0, 8192)
-[MEM][LOAD_BATCH] dt=0.230s | alloc=11.76GB res=21.39GB peak_alloc=11.76GB peak_res=21.39GB
+batch 0 traditional pos 3157 (local 3157) teacher_probs: tensor([0.6485, 0.1508, 0.0337, 0.0114, 0.0089, 0.0089, 0.0082, 0.0082, 0.0075,
+        0.0061, 0.0058, 0.0056, 0.0052, 0.0052, 0.0050, 0.0046, 0.0037, 0.0034,
+        0.0033, 0.0033, 0.0031, 0.0029, 0.0029, 0.0028, 0.0028, 0.0028, 0.0028,
+        0.0025, 0.0024, 0.0023, 0.0023, 0.0022, 0.0022, 0.0022, 0.0021, 0.0020,
+        0.0019, 0.0019, 0.0018, 0.0018, 0.0016, 0.0016, 0.0015, 0.0015, 0.0015,
+        0.0015, 0.0015, 0.0015, 0.0015, 0.0015], device='cuda:1')
+batch 0 traditional pos 3157 (local 3157) student_log_probs_teacher: tensor([-11.3705, -11.8451, -11.9527, -11.0111, -12.2133, -11.9495, -11.7875,
+        -11.9739, -11.9047, -12.3217, -11.8246, -12.0003, -12.2670, -12.1156,
+        -11.7660, -12.1449, -11.7006, -12.2338, -12.3725, -12.3510, -11.6752,
+        -12.4037, -11.9125, -11.4525, -11.5365, -11.7045, -11.6557, -11.8051,
+        -11.7504, -12.4584, -12.3510, -11.9720, -12.0717, -12.1566, -11.3158,
+        -12.0299, -11.9779, -12.5190, -11.5697, -12.2748, -11.6088, -11.7221,
+        -11.9357, -12.2865, -12.1059, -11.7182, -12.1791, -12.1127, -12.2572,
+        -12.0003], device='cuda:0', grad_fn=<IndexBackward0>) lse student: 11.975979804992676
+batch 0 traditional pos 3157 (local 3157) kl loss 89.68013763427734
+batch 0 traditional pos 3157 (local 3157) student_log_probs_teacher: tensor([-11.3705, -11.8451, -11.9527, -11.0111, -12.2133, -11.9495, -11.7875,
+        -11.9739, -11.9047, -12.3217, -11.8246, -12.0003, -12.2670, -12.1156,
+        -11.7660, -12.1449, -11.7006, -12.2338, -12.3725, -12.3510, -11.6752,
+        -12.4037, -11.9125, -11.4525, -11.5365, -11.7045, -11.6557, -11.8051,
+        -11.7504, -12.4584, -12.3510, -11.9720, -12.0717, -12.1566, -11.3158,
+        -12.0299, -11.9779, -12.5190, -11.5697, -12.2748, -11.6088, -11.7221,
+        -11.9357, -12.2865, -12.1059, -11.7182, -12.1791, -12.1127, -12.2572,
+        -12.0003], device='cuda:1', grad_fn=<IndexBackward0>) lse student: 11.975979804992676
+batch 0 traditional pos 3157 (local 3157) kl loss 89.68013763427734
+batch 0 traditional valid positions: 993.0, batch_kl_sum: 90582.5859375
+KD loss: 90582.5859375, valid positions: 993.0
+[MEM][FORWARD] dt=2.804s | alloc=5.04GB res=29.67GB peak_alloc=28.26GB peak_res=29.67GB
+batch 0 traditional valid positions: 993.0, batch_kl_sum: 90582.5859375
+KD loss: 90582.5859375, valid positions: 993.0
+[MEM][FORWARD] dt=2.855s | alloc=5.10GB res=15.77GB peak_alloc=28.32GB peak_res=29.63GB
+ [2025-09-23 07:35:07] iteration        7/      44 | consumed samples:            7 | elapsed time per iteration (ms): 5025.1 | throughput per GPU (TFLOP/s/GPU): 14.5 | learning rate: 1.000000E-07 | global batch size:     1 | lm loss: 4.986620E+01 | loss scale: 1.0 | grad norm: 97.276 | num zeros: 12976.0 | params norm: 0.000 | number of skipped iterations:   0 | number of nan iterations:   0 |
+WARNING:megatron.core.rerun_state_machine:Setting RerunStateMachine mode RerunMode.DISABLED
+Dropped 16814 teacher logits positions outside valid range [0, 16384)
+Loaded record from /workspace/training/teacher_data/django__django-16032_logprobs.json
+[MEM][LOAD_BATCH] dt=0.406s | alloc=4.22GB res=15.77GB peak_alloc=4.22GB peak_res=15.77GB
+[MEM][LOAD_BATCH] dt=0.406s | alloc=4.22GB res=29.67GB peak_alloc=4.22GB peak_res=29.67GB
+  KL losses: 185671.625
+  KL losses: 185671.625
+batch 0 traditional valid positions: 2054.0, batch_kl_sum: 185670.703125
+KD loss: 185670.703125, valid positions: 2054.0
+[MEM][FORWARD] dt=2.963s | alloc=4.22GB res=29.07GB peak_alloc=27.52GB peak_res=29.07GB
+batch 0 traditional valid positions: 2054.0, batch_kl_sum: 185670.703125
+KD loss: 185670.703125, valid positions: 2054.0
+[MEM][FORWARD] dt=2.973s | alloc=4.22GB res=29.67GB peak_alloc=27.52GB peak_res=29.67GB
+(min, max) time across ranks (ms):
+    evaluate .......................................: (3402.97, 3402.99)
+WARNING:megatron.core.rerun_state_machine:Setting RerunStateMachine mode RerunMode.VALIDATE_RESULTS
+WARNING:megatron.core.rerun_state_machine:Setting RerunStateMachine mode RerunMode.VALIDATE_RESULTS
+---------------------------------------------------------------------------------------------
+ validation loss at iteration 7 | lm loss value: 4.914704E+01 | lm loss PPL: 4.851652E+08 | 
+---------------------------------------------------------------------------------------------
+Dropped 9770 teacher logits positions outside valid range [0, 16384)
+Loaded record from /workspace/training/teacher_data/django__django-12039_logprobs.json
+[MEM][LOAD_BATCH] dt=0.281s | alloc=4.22GB res=29.07GB peak_alloc=4.22GB peak_res=29.07GB
+[MEM][LOAD_BATCH] dt=0.281s | alloc=4.22GB res=29.67GB peak_alloc=4.22GB peak_res=29.67GB
+  KL losses: 83589.5390625
+  KL losses: 83589.5390625
+batch 0 traditional valid positions: 915.0, batch_kl_sum: 83589.65625
+KD loss: 83589.65625, valid positions: 915.0
+[MEM][FORWARD] dt=2.719s | alloc=5.02GB res=29.67GB peak_alloc=28.24GB peak_res=29.67GB
+batch 0 traditional valid positions: 915.0, batch_kl_sum: 83589.65625
+KD loss: 83589.65625, valid positions: 915.0
+[MEM][FORWARD] dt=2.781s | alloc=5.08GB res=29.59GB peak_alloc=28.29GB peak_res=29.59GB
+ [2025-09-23 07:35:16] iteration        8/      44 | consumed samples:            8 | elapsed time per iteration (ms): 4973.9 | throughput per GPU (TFLOP/s/GPU): 14.7 | learning rate: 1.000000E-07 | global batch size:     1 | lm loss: 5.006028E+01 | loss scale: 1.0 | grad norm: 89.099 | num zeros: 13732.0 | params norm: 0.000 | number of skipped iterations:   0 | number of nan iterations:   0 |
+WARNING:megatron.core.rerun_state_machine:Setting RerunStateMachine mode RerunMode.DISABLED
+Dropped 16814 teacher logits positions outside valid range [0, 16384)
+Loaded record from /workspace/training/teacher_data/django__django-16032_logprobs.json
+[MEM][LOAD_BATCH] dt=0.408s | alloc=4.22GB res=29.59GB peak_alloc=4.22GB peak_res=29.59GB
+[MEM][LOAD_BATCH] dt=0.408s | alloc=4.22GB res=29.67GB peak_alloc=4.22GB peak_res=29.67GB
+  KL losses: 185670.8125
+  KL losses: 185670.8125
+batch 0 traditional valid positions: 2054.0, batch_kl_sum: 185672.171875
+KD loss: 185672.171875, valid positions: 2054.0
+[MEM][FORWARD] dt=2.953s | alloc=4.22GB res=29.59GB peak_alloc=27.52GB peak_res=29.59GB
+batch 0 traditional valid positions: 2054.0, batch_kl_sum: 185672.171875
+KD loss: 185672.171875, valid positions: 2054.0
+[MEM][FORWARD] dt=2.965s | alloc=4.22GB res=29.67GB peak_alloc=27.52GB peak_res=29.67GB
+(min, max) time across ranks (ms):
+    evaluate .......................................: (3396.83, 3396.84)
+WARNING:megatron.core.rerun_state_machine:Setting RerunStateMachine mode RerunMode.VALIDATE_RESULTS
+WARNING:megatron.core.rerun_state_machine:Setting RerunStateMachine mode RerunMode.VALIDATE_RESULTS
+---------------------------------------------------------------------------------------------
+ validation loss at iteration 8 | lm loss value: 4.914699E+01 | lm loss PPL: 4.851652E+08 | 
+---------------------------------------------------------------------------------------------
+Dropped 33025 teacher logits positions outside valid range [0, 16384)
+Loaded record from /workspace/training/teacher_data/django__django-13964_logprobs.json
+[MEM][LOAD_BATCH] dt=0.438s | alloc=4.22GB res=29.59GB peak_alloc=4.22GB peak_res=29.59GB
+[MEM][LOAD_BATCH] dt=0.439s | alloc=4.22GB res=29.67GB peak_alloc=4.22GB peak_res=29.67GB
+  KL losses: 136059.125
+  KL losses: 136059.125
+batch 0 traditional valid positions: 1516.0, batch_kl_sum: 136058.65625
+KD loss: 136058.65625, valid positions: 1516.0
+batch 0 traditional valid positions: 1516.0, batch_kl_sum: 136058.65625
+KD loss: 136058.65625, valid positions: 1516.0
+[MEM][FORWARD] dt=2.995s | alloc=5.30GB res=16.18GB peak_alloc=28.51GB peak_res=29.63GB
+[MEM][FORWARD] dt=2.998s | alloc=5.20GB res=16.24GB peak_alloc=28.42GB peak_res=29.72GB
+ [2025-09-23 07:35:25] iteration        9/      44 | consumed samples:            9 | elapsed time per iteration (ms): 5344.1 | throughput per GPU (TFLOP/s/GPU): 13.7 | learning rate: 1.000000E-07 | global batch size:     1 | lm loss: 4.909119E+01 | loss scale: 1.0 | grad norm: 97.606 | num zeros: 14105.0 | params norm: 0.000 | number of skipped iterations:   0 | number of nan iterations:   0 |
+WARNING:megatron.core.rerun_state_machine:Setting RerunStateMachine mode RerunMode.DISABLED
+Dropped 16814 teacher logits positions outside valid range [0, 16384)
+Loaded record from /workspace/training/teacher_data/django__django-16032_logprobs.json
+[MEM][LOAD_BATCH] dt=0.408s | alloc=4.22GB res=16.18GB peak_alloc=4.22GB peak_res=16.18GB
+[MEM][LOAD_BATCH] dt=0.408s | alloc=4.22GB res=16.24GB peak_alloc=4.22GB peak_res=16.24GB
+  KL losses: 185668.140625
+  KL losses: 185668.140625
+batch 0 traditional valid positions: 2054.0, batch_kl_sum: 185669.390625
+KD loss: 185669.390625, valid positions: 2054.0
+[MEM][FORWARD] dt=2.964s | alloc=4.22GB res=29.37GB peak_alloc=27.52GB peak_res=29.37GB
+batch 0 traditional valid positions: 2054.0, batch_kl_sum: 185669.390625
+KD loss: 185669.390625, valid positions: 2054.0
+[MEM][FORWARD] dt=2.973s | alloc=4.22GB res=29.37GB peak_alloc=27.52GB peak_res=29.37GB
+(min, max) time across ranks (ms):
+    evaluate .......................................: (3404.06, 3404.07)
+WARNING:megatron.core.rerun_state_machine:Setting RerunStateMachine mode RerunMode.VALIDATE_RESULTS
+WARNING:megatron.core.rerun_state_machine:Setting RerunStateMachine mode RerunMode.VALIDATE_RESULTS
+---------------------------------------------------------------------------------------------
+ validation loss at iteration 9 | lm loss value: 4.914614E+01 | lm loss PPL: 4.851652E+08 | 
+---------------------------------------------------------------------------------------------
+Dropped 6055 teacher logits positions outside valid range [0, 16384)
+Loaded record from /workspace/training/teacher_data/django__django-10973_logprobs.json
+[MEM][LOAD_BATCH] dt=0.604s | alloc=4.22GB res=29.37GB peak_alloc=4.22GB peak_res=29.37GB
+[MEM][LOAD_BATCH] dt=0.605s | alloc=4.22GB res=29.37GB peak_alloc=4.22GB peak_res=29.37GB
 batch 0 efficient pos 3157 teacher_values_batch: tensor([0.7265, 0.0943, 0.0282, 0.0259, 0.0104, 0.0084, 0.0058, 0.0055, 0.0049,
         0.0047, 0.0043, 0.0040, 0.0038, 0.0037, 0.0037, 0.0035, 0.0032, 0.0032,
         0.0031, 0.0030, 0.0028, 0.0026, 0.0020, 0.0020, 0.0020, 0.0020, 0.0020,
-        0.0020, 0.0020, 0.0019, 0.0019, 0.0019, 0.0018, 0.0018, 0.0016, 0.0015,
-        0.0015, 0.0015, 0.0015, 0.0014, 0.0013, 0.0013, 0.0013, 0.0012, 0.0012,
-        0.0012, 0.0012, 0.0012, 0.0012, 0.0012], device='cuda:1')
-batch 0 efficient pos 3157 s_logpK: tensor([-12.1991, -12.2831, -11.9654, -12.0843, -12.6991, -11.4686, -11.8641,
-        -12.7186, -12.3690, -11.5311, -11.9095, -10.9608, -12.3924, -12.0006,
-        -11.5799, -12.2225, -11.1561, -11.9037, -12.0199, -11.9120, -12.1166,
-        -11.8290, -11.3475, -11.1561, -12.4940, -11.4842, -12.0814, -12.3221,
-        -11.8094, -12.0738, -11.8876, -12.5194, -11.8055, -11.2811, -11.4100,
-        -12.6522, -12.7381, -12.2020, -11.8573, -11.9567, -12.5780, -11.5702,
-        -11.7880, -12.4432, -12.1737, -11.5780, -11.5780, -12.7381, -11.8758,
-        -12.1522], device='cuda:1', grad_fn=<MulBackward0>) with logZ tensor([12.0155], device='cuda:1', grad_fn=<SelectBackward0>)
-batch 0 efficient pos 3157 kl_per_pos: 97.23485565185547
-  Number of elements: 560
-  KL losses: 93.75202941894531
-  Number of elements: 621
-  KL losses: 96.18238067626953
-batch 0 traditional pos 3157 teacher_probs: tensor([0.7265, 0.0943, 0.0282, 0.0259, 0.0104, 0.0084, 0.0058, 0.0055, 0.0049,
-        0.0047, 0.0043, 0.0040, 0.0038, 0.0037, 0.0037, 0.0035, 0.0032, 0.0032,
-        0.0031, 0.0030, 0.0028, 0.0026, 0.0020, 0.0020, 0.0020, 0.0020, 0.0020,
-        0.0020, 0.0020, 0.0019, 0.0019, 0.0019, 0.0018, 0.0018, 0.0016, 0.0015,
-        0.0015, 0.0015, 0.0015, 0.0014, 0.0013, 0.0013, 0.0013, 0.0012, 0.0012,
-        0.0012, 0.0012, 0.0012, 0.0012, 0.0012], device='cuda:1')
-batch 0 traditional pos 3157 student_log_probs_teacher: tensor([-12.1991, -12.2831, -11.9654, -12.0843, -12.6991, -11.4686, -11.8641,
-        -12.7186, -12.3690, -11.5311, -11.9095, -10.9608, -12.3924, -12.0006,
-        -11.5799, -12.2225, -11.1561, -11.9037, -12.0199, -11.9120, -12.1166,
-        -11.8290, -11.3475, -11.1561, -12.4940, -11.4842, -12.0814, -12.3221,
-        -11.8094, -12.0738, -11.8876, -12.5194, -11.8055, -11.2811, -11.4100,
-        -12.6522, -12.7382, -12.2020, -11.8573, -11.9567, -12.5780, -11.5702,
-        -11.7880, -12.4432, -12.1737, -11.5780, -11.5780, -12.7382, -11.8758,
-        -12.1522], device='cuda:1', grad_fn=<IndexBackward0>) lse student: 12.015493392944336
-batch 0 traditional pos 3157 kl loss 97.23487854003906
-batch 0 traditional valid positions: 560.0, batch_kl_sum: 52501.0078125
-KD loss: 93.75180053710938, valid positions: 560.0
-[MEM][FORWARD] dt=0.871s | alloc=11.62GB res=21.39GB peak_alloc=14.25GB peak_res=21.39GB
-batch 0 traditional valid positions: 621.0, batch_kl_sum: 59729.234375
-KD loss: 96.18234252929688, valid positions: 621.0
- [2025-09-22 12:29:42] iteration        5/      10 | consumed samples:           10 | elapsed time per iteration (ms): 2482.6 | throughput per GPU (TFLOP/s/GPU): 20.0 | learning rate: 1.200000E-05 | global batch size:     2 | lm loss: 1.596088E-01 | load_balancing_loss: 6.183566E+00 | loss scale: 1.0 | grad norm: 7.170 | num zeros: 1047887168.0 | params norm: 440.206 | number of skipped iterations:   0 | number of nan iterations:   0 |
-Dropped 9686 teacher logits positions outside valid range [0, 8192)
-Dropped 12058 teacher logits positions outside valid range [0, 8192)
-[MEM][LOAD_BATCH] dt=0.138s | alloc=11.76GB res=21.39GB peak_alloc=11.76GB peak_res=21.39GB
-  Number of elements: 714
-  KL losses: 97.5997314453125
-  Number of elements: 758
-  KL losses: 94.62197875976562
-batch 0 traditional valid positions: 714.0, batch_kl_sum: 69685.953125
-KD loss: 97.59937286376953, valid positions: 714.0
-[MEM][FORWARD] dt=0.903s | alloc=11.69GB res=21.39GB peak_alloc=14.41GB peak_res=21.39GB
-batch 0 traditional valid positions: 758.0, batch_kl_sum: 71723.484375
-KD loss: 94.62200927734375, valid positions: 758.0
+        0.0020, 0.0019, 0.0019, 0.0019, 0.0018, 0.0018, 0.0015, 0.0015, 0.0015,
+        0.0015, 0.0014, 0.0013, 0.0013, 0.0012, 0.0012, 0.0012, 0.0012, 0.0012,
+        0.0012, 0.0012, 1.0000, 1.0000, 1.0000], device='cuda:0')
+batch 0 efficient pos 3157 s_logpK: tensor([-12.3813, -12.3637, -11.3461, -11.2524, -12.2065, -12.4692, -11.3930,
+        -11.8964, -11.8295, -12.0522, -11.9707, -11.5473, -12.3364, -11.9487,
+        -12.0124, -12.3715, -11.5512, -12.0207, -12.0825, -12.1479, -12.4829,
+        -11.5669, -12.1977, -11.8237, -12.3032, -11.6801, -11.9792, -11.9777,
+        -11.6606, -12.2465, -11.8139, -12.0459, -12.5024, -12.4067, -11.7963,
+        -11.6919, -12.0786, -11.8383, -11.8540, -11.8657, -11.8159, -12.3520,
+        -11.7553, -11.8198, -11.9508, -11.8999, -12.4106,  -0.0000,  -0.0000,
+         -0.0000], device='cuda:0', grad_fn=<MulBackward0>) with logZ tensor([11.9751], device='cuda:0', grad_fn=<SelectBackward0>)
+batch 0 efficient pos 3157 kl_per_pos: 97.94083404541016
+batch 0 efficient pos 3157 teacher_values_batch: tensor([0.0020, 0.0016, 0.0013, 1.0000, 1.0000, 1.0000, 1.0000, 1.0000, 1.0000,
+        1.0000, 1.0000, 1.0000, 1.0000, 1.0000, 1.0000], device='cuda:1')
+batch 0 efficient pos 3157 s_logpK: tensor([-11.7280, -12.3208, -11.2368,  -0.0000,  -0.0000,  -0.0000,  -0.0000,
+         -0.0000,  -0.0000,  -0.0000,  -0.0000,  -0.0000,  -0.0000,  -0.0000,
+         -0.0000], device='cuda:1', grad_fn=<MulBackward0>) with logZ tensor([11.9751], device='cuda:1', grad_fn=<SelectBackward0>)
+batch 0 efficient pos 3157 kl_per_pos: 0.23401428759098053
+  KL losses: 485655.0
+  KL losses: 485655.0
+saving allocated state during OOM
+saving allocated state during OOM
+[MEM][FORWARD] dt=3.314s | alloc=20.43GB res=21.11GB peak_alloc=20.43GB peak_res=29.37GB[MEM][FORWARD] dt=3.314s | alloc=20.18GB res=20.99GB peak_alloc=20.18GB peak_res=29.37GB
+
+WARNING:megatron.core.utils:CUDA out of memory. Tried to allocate 9.27 GiB. GPU 0 has a total capacity of 31.36 GiB of which 8.52 GiB is free. Including non-PyTorch memory, this process has 22.74 GiB memory in use. Of the allocated memory 20.43 GiB is allocated by PyTorch, and 699.10 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)
+['Traceback (most recent call last):\n', '  File "/workspace/training/Megatron-LM/pretrain_gpt.py", line 299, in forward_step\n    output_tensor = model(\n                    ^^^^^^\n', '  File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl\n    return self._call_impl(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n', '  File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1762, in _call_impl\n    return forward_call(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n', '  File "/workspace/training/Megatron-LM/megatron/core/distributed/data_parallel_base.py", line 22, in forward\n    return self.module(*inputs, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n', '  File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl\n    return self._call_impl(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n', '  File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1857, in _call_impl\n    return inner()\n           ^^^^^^^\n', '  File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1805, in inner\n    result = forward_call(*args, **kwargs)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n', '  File "/workspace/training/Megatron-LM/megatron/core/transformer/module.py", line 259, in forward\n    outputs = self.module(*inputs, **kwargs)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n', '  File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl\n    return self._call_impl(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n', '  File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1857, in _call_impl\n    return inner()\n           ^^^^^^^\n', '  File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1805, in inner\n    result = forward_call(*args, **kwargs)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n', '  File "/workspace/training/Megatron-LM/megatron/core/models/gpt/gpt_model.py", line 399, in forward\n    return self._postprocess(\n           ^^^^^^^^^^^^^^^^^^\n', '  File "/workspace/training/Megatron-LM/megatron/core/models/gpt/gpt_model.py", line 590, in _postprocess\n    logits = gather_from_tensor_model_parallel_region(logits, group=self.pg_collection.tp)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n', '  File "/workspace/training/Megatron-LM/megatron/core/tensor_parallel/mappings.py", line 490, in gather_from_tensor_model_parallel_region\n    return _GatherFromModelParallelRegion.apply(input_, group)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n', '  File "/usr/local/lib/python3.12/dist-packages/torch/autograd/function.py", line 575, in apply\n    return super().apply(*args, **kwargs)  # type: ignore[misc]\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n', '  File "/workspace/training/Megatron-LM/megatron/core/tensor_parallel/mappings.py", line 268, in forward\n    return _gather_along_last_dim(input_, group)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n', '  File "/workspace/training/Megatron-LM/megatron/core/tensor_parallel/mappings.py", line 94, in _gather_along_last_dim\n    output = torch.cat(tensor_list, dim=-1).contiguous()\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n', 'torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 9.27 GiB. GPU 0 has a total capacity of 31.36 GiB of which 8.52 GiB is free. Including non-PyTorch memory, this process has 22.74 GiB memory in use. Of the allocated memory 20.43 GiB is allocated by PyTorch, and 699.10 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)\n']
+WARNING:megatron.core.utils:CUDA out of memory. Tried to allocate 9.27 GiB. GPU 1 has a total capacity of 31.37 GiB of which 8.74 GiB is free. Including non-PyTorch memory, this process has 22.61 GiB memory in use. Of the allocated memory 20.18 GiB is allocated by PyTorch, and 828.12 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)
+['Traceback (most recent call last):\n', '  File "/workspace/training/Megatron-LM/pretrain_gpt.py", line 299, in forward_step\n    output_tensor = model(\n                    ^^^^^^\n', '  File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl\n    return self._call_impl(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n', '  File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1762, in _call_impl\n    return forward_call(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n', '  File "/workspace/training/Megatron-LM/megatron/core/distributed/data_parallel_base.py", line 22, in forward\n    return self.module(*inputs, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n', '  File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl\n    return self._call_impl(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n', '  File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1857, in _call_impl\n    return inner()\n           ^^^^^^^\n', '  File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1805, in inner\n    result = forward_call(*args, **kwargs)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n', '  File "/workspace/training/Megatron-LM/megatron/core/transformer/module.py", line 259, in forward\n    outputs = self.module(*inputs, **kwargs)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n', '  File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl\n    return self._call_impl(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n', '  File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1857, in _call_impl\n    return inner()\n           ^^^^^^^\n', '  File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1805, in inner\n    result = forward_call(*args, **kwargs)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n', '  File "/workspace/training/Megatron-LM/megatron/core/models/gpt/gpt_model.py", line 399, in forward\n    return self._postprocess(\n           ^^^^^^^^^^^^^^^^^^\n', '  File "/workspace/training/Megatron-LM/megatron/core/models/gpt/gpt_model.py", line 590, in _postprocess\n    logits = gather_from_tensor_model_parallel_region(logits, group=self.pg_collection.tp)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n', '  File "/workspace/training/Megatron-LM/megatron/core/tensor_parallel/mappings.py", line 490, in gather_from_tensor_model_parallel_region\n    return _GatherFromModelParallelRegion.apply(input_, group)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n', '  File "/usr/local/lib/python3.12/dist-packages/torch/autograd/function.py", line 575, in apply\n    return super().apply(*args, **kwargs)  # type: ignore[misc]\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n', '  File "/workspace/training/Megatron-LM/megatron/core/tensor_parallel/mappings.py", line 268, in forward\n    return _gather_along_last_dim(input_, group)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n', '  File "/workspace/training/Megatron-LM/megatron/core/tensor_parallel/mappings.py", line 94, in _gather_along_last_dim\n    output = torch.cat(tensor_list, dim=-1).contiguous()\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n', 'torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 9.27 GiB. GPU 1 has a total capacity of 31.37 GiB of which 8.74 GiB is free. Including non-PyTorch memory, this process has 22.61 GiB memory in use. Of the allocated memory 20.18 GiB is allocated by PyTorch, and 828.12 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)\n']

@@ -46,6 +46,8 @@ import torch.nn.functional as F
 from megatron.core.parallel_state import (
     get_tensor_model_parallel_world_size,
     get_tensor_model_parallel_rank,
+    get_context_parallel_world_size,
+    get_context_parallel_rank,
 )
 from megatron.core.tensor_parallel import reduce_from_tensor_model_parallel_region
 from megatron.core.tensor_parallel.utils import VocabUtility
@@ -96,10 +98,7 @@ def distillation_loss(
         debug: Enable debug output (default: False)
         
     Returns:
-        Tuple containing:
-        - losses: Per-token cross-entropy losses of shape [B, T-1] if shift else [B, T]
         - kl_losses: Per-token KL divergence losses of shape [B, T]
-        - teacher_data: Teacher data used (generated if not provided)
         
     Raises:
         ValueError: If teacher_data is None and cannot be generated
@@ -117,7 +116,6 @@ def distillation_loss(
         return_lse=True,
         temp=temp,
     )
-    
     # Transpose embeddings to batch-first format: [B, S, H]
     batch_first_embeddings = embeddings.transpose(0, 1).contiguous()
     
@@ -133,7 +131,6 @@ def distillation_loss(
     
     device = batch_first_embeddings.device
     batch_size, sequence_length, hidden_size = batch_first_embeddings.shape
-    no_teacher_positions = 0
 
     # Initialize KL loss tensor
     kl_loss_tensor = torch.zeros(
@@ -144,7 +141,7 @@ def distillation_loss(
     
     # Process each batch element separately
     for batch_idx in range(batch_size):
-        no_teacher_positions += _process_batch_element_kl_loss(
+        _process_batch_element_kl_loss(
             batch_idx=batch_idx,
             batch_embeddings=batch_first_embeddings[batch_idx],
             batch_labels=labels[batch_idx],
@@ -157,18 +154,16 @@ def distillation_loss(
             is_tensor_parallel=is_tensor_parallel,
             temp=temp,
             chunk_size=chunk_size,
-            ignore_index=ignore_index,
             debug=debug,
+            ignore_index=ignore_index,
         )
     
     # Reduce KL losses across tensor parallel ranks
     if is_tensor_parallel:
         kl_loss_tensor = reduce_from_tensor_model_parallel_region(kl_loss_tensor)
 
-    kl_loss_tensor = kl_loss_tensor/ (no_teacher_positions + 1e-6)
-
     if debug:
-        _print_debug_summary(kl_loss_tensor, no_teacher_positions)
+        _print_debug_summary(kl_loss_tensor)
 
     return kl_loss_tensor
 
@@ -186,8 +181,8 @@ def _process_batch_element_kl_loss(
     is_tensor_parallel: bool,
     temp: float,
     chunk_size: int,
-    ignore_index: int,
     debug: bool,
+    ignore_index: int = DEFAULT_IGNORE_INDEX,
 ) -> None:
     """
     Process KL loss computation for a single batch element.
@@ -212,15 +207,13 @@ def _process_batch_element_kl_loss(
     teacher_lookup_by_position = _build_teacher_lookup(
         batch_teacher_data, batch_embeddings.device
     )
-    
     sequence_length = batch_embeddings.size(0)
-    no_teacher_positions_in_batch = 0
     
     # Process sequence in chunks for memory efficiency
     for chunk_start in range(0, sequence_length, chunk_size):
         chunk_end = min(chunk_start + chunk_size, sequence_length)
 
-        chunk_data, no_teacher_positions_in_chunk = _extract_chunk_teacher_data(
+        chunk_data = _extract_chunk_teacher_data(
             teacher_lookup_by_position=teacher_lookup_by_position,
             batch_labels=batch_labels,
             chunk_start=chunk_start,
@@ -229,9 +222,9 @@ def _process_batch_element_kl_loss(
             vocab_end_idx=vocab_end_idx,
             is_tensor_parallel=is_tensor_parallel,
             temp=temp,
-            ignore_index=ignore_index,
+            ignore_index=ignore_index
         )
-        
+
         if not chunk_data['positions']:
             continue
             
@@ -247,9 +240,7 @@ def _process_batch_element_kl_loss(
             temp=temp,
             debug=debug,
         )
-        no_teacher_positions_in_batch += no_teacher_positions_in_chunk
-    
-    return no_teacher_positions_in_batch
+        
 
 def _build_teacher_lookup(
     batch_teacher_data: Dict[str, Any], 
@@ -295,7 +286,7 @@ def _extract_chunk_teacher_data(
     vocab_end_idx: int,
     is_tensor_parallel: bool,
     temp: float,
-    ignore_index: int,
+    ignore_index: int = DEFAULT_IGNORE_INDEX,
 ) -> Dict[str, List]:
     """
     Extract and filter teacher data for a specific chunk.
@@ -310,7 +301,6 @@ def _extract_chunk_teacher_data(
         is_tensor_parallel: Whether tensor parallelism is enabled
         temp: Temperature parameter
         ignore_index: Index to ignore
-        device: Target device
         
     Returns:
         Dictionary containing filtered chunk data
@@ -318,18 +308,32 @@ def _extract_chunk_teacher_data(
     chunk_data = {
         'positions': [],
         'teacher_indices': [],
-        'teacher_values': [], 
+        'teacher_values': [],
         'positions_in_chunk': []
     }
-    no_teacher_positions_in_chunk = 0
+
+    cp_world_size = get_context_parallel_world_size()
+    offset = 0
+
+    if cp_world_size > 1:
+        local_sequence_length = batch_labels.size(0)
+        cp_rank = get_context_parallel_rank()
+        offset = cp_rank * local_sequence_length
+
     for position in range(chunk_start, chunk_end):
-        if (position not in teacher_lookup_by_position or 
-            batch_labels[position].item() == ignore_index):
+
+        if batch_labels[position] == ignore_index:
             continue
 
-        no_teacher_positions_in_chunk += 1
-        teacher_indices, teacher_values = teacher_lookup_by_position[position]
+        global_position = offset + position
+
+        teacher_entry = teacher_lookup_by_position.get(global_position)
         
+        if teacher_entry is None:
+            continue
+
+        teacher_indices, teacher_values = teacher_entry
+
         # Apply temperature and compute log probabilities
         teacher_log_probs = F.log_softmax(
             teacher_values / temp, dim=0, dtype=torch.float32
@@ -351,7 +355,7 @@ def _extract_chunk_teacher_data(
         chunk_data['teacher_values'].append(local_teacher_log_probs)
         chunk_data['positions_in_chunk'].append(position - chunk_start)
     
-    return chunk_data, no_teacher_positions_in_chunk
+    return chunk_data
 
 
 def _compute_chunk_kl_losses(
@@ -479,10 +483,8 @@ def _print_chunk_debug_info(
 
 def _print_debug_summary(
     kl_losses: torch.Tensor, 
-    no_teacher_positions: int,
 ) -> None:
     """Print debug summary information."""
-    print(f"  Number of elements: {no_teacher_positions}")
     print(f"  KL losses: {kl_losses.sum()}")
 
 
@@ -594,7 +596,6 @@ def traditional_distillation_loss(
     student_logits_batch_first = student_logits.transpose(0, 1).contiguous()
     device = student_logits_batch_first.device
     batch_size, sequence_length, vocab_size = student_logits_batch_first.shape
-    
     if len(teacher_data) != batch_size:
         raise ValueError(
             f"teacher_data length {len(teacher_data)} must match batch size {batch_size}"
@@ -607,6 +608,14 @@ def traditional_distillation_loss(
     # Debug configuration
     debug_position_idx = 3157
     
+    cp_world_size = get_context_parallel_world_size()
+    cp_rank = get_context_parallel_rank() if cp_world_size > 1 else 0
+    offset = cp_rank * sequence_length
+
+    def _map_global_to_local_position(global_position: int) -> Optional[int]:
+        """Map a teacher position to the local index for this CP rank."""
+        return global_position - offset
+
     # Process each batch element independently
     for batch_idx in range(batch_size):
         batch_teacher_data = teacher_data[batch_idx]
@@ -633,10 +642,10 @@ def traditional_distillation_loss(
                 else teacher_position
             )
 
-            # Skip positions that should be ignored
-            if batch_label_sequence[position_idx].item() == ignore_index:
+            local_position_idx = _map_global_to_local_position(position_idx)
+            if local_position_idx >= sequence_length or batch_label_sequence[local_position_idx] == ignore_index:
                 continue
-            
+
             # Convert teacher data to tensors on correct device
             teacher_indices_tensor = torch.as_tensor(
                 teacher_token_indices, dtype=torch.long, device=device
@@ -644,13 +653,14 @@ def traditional_distillation_loss(
             teacher_values_tensor = torch.as_tensor(teacher_token_values, device=device)
             
             # Get student logits for this position
-            student_logits_at_position = batch_student_logits[position_idx]  # Shape: (V,)
+            student_logits_at_position = batch_student_logits[local_position_idx]  # Shape: (V,)
             
             # Compute student log-probabilities with temperature scaling
             # Normalization is over the full vocabulary
             student_log_probs_full_vocab = F.log_softmax(
-                student_logits_at_position / T, dim=-1, dtype=torch.float32
-            )  # Shape: (V,)
+                    student_logits_at_position / T, dim=-1, dtype=torch.float32
+                ) # Shape: (V,)
+              
             
             # Extract student log-probabilities for teacher token indices
             student_log_probs_teacher_tokens = student_log_probs_full_vocab[teacher_indices_tensor]  # Shape: (K,)
@@ -672,12 +682,12 @@ def traditional_distillation_loss(
                 full_vocab_log_sum_exp = torch.logsumexp(
                     student_logits_at_position.float() / T, dim=-1
                 )
-                print(f"batch {batch_idx} traditional pos {debug_position_idx} "
+                print(f"batch {batch_idx} traditional pos {debug_position_idx} (local {local_position_idx}) "
                       f"teacher_probs: {teacher_probs}")
-                print(f"batch {batch_idx} traditional pos {debug_position_idx} "
+                print(f"batch {batch_idx} traditional pos {debug_position_idx} (local {local_position_idx}) "
                       f"student_log_probs_teacher: {student_log_probs_teacher_tokens} "
                       f"lse student: {full_vocab_log_sum_exp}")
-                print(f"batch {batch_idx} traditional pos {debug_position_idx} "
+                print(f"batch {batch_idx} traditional pos {debug_position_idx} (local {local_position_idx}) "
                       f"kl loss {kl_divergence_scalar}")
             
             batch_kl_accumulator += kl_divergence_scalar 
@@ -691,7 +701,7 @@ def traditional_distillation_loss(
     
     # Compute average loss over valid positions with temperature scaling
     if total_valid_positions > 0:
-        knowledge_distillation_loss = (total_kl_loss / total_valid_positions) 
+        knowledge_distillation_loss = (total_kl_loss) 
     else:
         knowledge_distillation_loss = torch.zeros_like(total_kl_loss)
     

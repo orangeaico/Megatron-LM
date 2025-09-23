@@ -703,6 +703,9 @@ class TransformerConfig(ModelParallelConfig):
     # Distillation Temperature
     distillation_temp: float = 3.0
 
+    # Distillation loss alpha
+    distillation_loss_alpha: float = 0.5
+
     def __post_init__(self):
         """Python dataclass method that is used to modify attributes after initialization.
         See https://docs.python.org/3/library/dataclasses.html#post-init-processing for more
