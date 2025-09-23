@@ -103,10 +103,13 @@ MOE_ARGS=(
     --moe-router-topk 8  # num_experts_per_tok
     --moe-grouped-gemm
     --moe-aux-loss-coeff 0  # router_aux_loss_coef from config
-    --moe-token-dispatcher-type alltoall
+    --moe-token-dispatcher-type alltoall # flex for --moe-enable-deepep
     --moe-permute-fusion
-    # --moe-router-dtype fp32
+    --moe-router-dtype fp32
     # --moe-router-fusion # This is only supported in TransformerEngine 2.7.0 and above. Current installed TE is 2.2
+    # --moe-router-force-load-balancing
+    # --moe-enable-deepep
+    # --overlap-moe-expert-parallel-comm
 )
 
 TRAINING_ARGS=(
@@ -176,7 +179,7 @@ fi
 # Model parallelism arguments
 MODEL_PARALLEL_ARGS=(
     --tensor-model-parallel-size $TP_SIZE
-    # --sequence-parallel  # Always enable sequence parallelism with TP_SIZE=2
+    --sequence-parallel  # Always enable sequence parallelism with TP_SIZE=2
     --context-parallel-size $CP_SIZE
     --expert-model-parallel-size $EP_SIZE
     --expert-tensor-parallel-size $EXPERT_TP_SIZE
