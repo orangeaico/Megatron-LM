@@ -146,9 +146,10 @@ TRAINING_ARGS=(
     --fused-linear-cross-entropy
     # --cross-entropy-loss-fusion
     # --cross-entropy-fusion-impl native
-    --recompute-granularity full
-    --recompute-method uniform
-    --recompute-num-layers 1
+    
+    # --recompute-granularity full
+    # --recompute-method uniform
+    # --recompute-num-layers 1
     --calculate-per-token-loss
     # --no-gradient-accumulation-fusion
 
