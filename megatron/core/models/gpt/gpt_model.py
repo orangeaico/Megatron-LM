@@ -36,9 +36,28 @@ from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.core.utils import WrappedTensor, deprecate_inference_params
 
 from megatron.core.fusions.distillation import traditional_distillation_loss, distillation_loss
-from megatron.core.tensor_parallel import (
-        gather_from_tensor_model_parallel_region
-    )
+from megatron.core.tensor_parallel import gather_from_tensor_model_parallel_region
+
+def _gather_full_sequence_across_context_parallel(
+    logits: Tensor,
+) -> Tensor:
+    """All-gather context-parallel shards and restore original token order."""
+    cp_size = parallel_state.get_context_parallel_world_size()
+    if cp_size <= 1:
+        return logits
+    cp_group = parallel_state.get_context_parallel_group()
+    gathered: List[Tensor] = [torch.empty_like(logits) for _ in range(cp_size)]
+    torch.distributed.all_gather(gathered, logits, group=cp_group)
+    local_seq_len = logits.size(1)
+    chunk_len = local_seq_len // 2
+    if chunk_len == 0 or chunk_len * 2 != local_seq_len:
+        raise RuntimeError("Context parallel sequence length is not balanced across ranks.")
+    ordered_chunks: List[Optional[Tensor]] = [None] * (2 * cp_size)
+    for rank, tensor_chunk in enumerate(gathered):
+        first_half, second_half = torch.split(tensor_chunk, chunk_len, dim=1)
+        ordered_chunks[rank] = first_half
+        ordered_chunks[2 * cp_size - rank - 1] = second_half
+    return torch.cat([chunk for chunk in ordered_chunks if chunk is not None], dim=1)
 
 class GPTModel(LanguageModule):
     """GPT Transformer language model.
@@ -478,6 +497,29 @@ class GPTModel(LanguageModule):
             and self.config.use_linear_cross_entropy
             and parallel_state.is_pipeline_last_stage()
         ):
+            if self.config.distillation_with_traditional and self.config.distillation_loss:
+                    logits, _ = self.output_layer(
+                        hidden_states,
+                        weight=output_weight,
+                        runtime_gather_output=runtime_gather_output,
+                    )
+                    logits = gather_from_tensor_model_parallel_region(
+                        logits, group=self.pg_collection.tp
+                    )
+                    logits = logits.transpose(0, 1).contiguous()  # [B, T, V]
+                    logits = _gather_full_sequence_across_context_parallel(
+                        logits
+                    )
+                    labels_cp = _gather_full_sequence_across_context_parallel(
+                        labels
+                    )
+                    traditional_distillation_loss(
+                        logits,
+                        teacher_data,
+                        labels_cp,
+                        T=self.config.distillation_temp,
+                        ignore_index=self.config.linear_ce_ignore_index,
+                    )
             
             sequence_parallel_override = False
             if self.config.sequence_parallel:
@@ -581,14 +623,6 @@ class GPTModel(LanguageModule):
                     temp=self.config.distillation_temp,
                     teacher_data=teacher_data,
                 )
-
-
-                if self.config.distillation_with_traditional:
-                    logits, _ = self.output_layer(
-                    hidden_states, weight=output_weight, runtime_gather_output=runtime_gather_output
-                )
-                    logits = gather_from_tensor_model_parallel_region(logits, group=self.pg_collection.tp)
-                    traditional_distillation_loss(logits, teacher_data, labels, T=self.config.distillation_temp, ignore_index=self.config.linear_ce_ignore_index)
 
             if self.config.debug_cce_loss:
                 if parallel_state.get_tensor_model_parallel_world_size() > 1:
@@ -699,7 +733,15 @@ class GPTModel(LanguageModule):
 
             if self.config.distillation_loss:
                 alpha = self.config.distillation_loss_alpha
-                return alpha * token_losses + (1 - alpha) * kl_loss
+                distill_loss = alpha * token_losses + (1 - alpha) * kl_loss
+                if self.config.debug_distillation:
+                    tp_rank = parallel_state.get_tensor_model_parallel_rank()
+                    cp_rank = parallel_state.get_context_parallel_rank()
+                    world_rank = torch.distributed.get_rank()
+                    print(
+                        f"[Distillation debug] rank={world_rank} tp_rank={tp_rank} cp_rank={cp_rank} distill_loss stats - Min: {distill_loss.min().item()}, Max: {distill_loss.max().item()}, Mean: {distill_loss.mean().item()} Sum: {distill_loss.sum().item()}"
+                    )
+                return distill_loss
 
             return token_losses
 

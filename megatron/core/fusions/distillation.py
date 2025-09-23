@@ -313,22 +313,47 @@ def _extract_chunk_teacher_data(
     }
 
     cp_world_size = get_context_parallel_world_size()
-    offset = 0
+    cp_rank = 0
+    first_span_length = batch_labels.size(0)
+    second_span_length = 0
+    first_span_start = 0
+    second_span_start = 0
 
     if cp_world_size > 1:
-        local_sequence_length = batch_labels.size(0)
         cp_rank = get_context_parallel_rank()
-        offset = cp_rank * local_sequence_length
+        local_sequence_length = batch_labels.size(0)
+        first_span_length = local_sequence_length // 2
+        second_span_length = local_sequence_length - first_span_length
+
+        if first_span_length == 0:
+            # Nothing was sliced for this rank; fall back to global indexing.
+            cp_world_size = 1
+        else:
+            first_span_start = cp_rank * first_span_length
+            second_span_start = (
+                (2 * cp_world_size - cp_rank - 1) * first_span_length
+            )
 
     for position in range(chunk_start, chunk_end):
 
         if batch_labels[position] == ignore_index:
             continue
 
-        global_position = offset + position
+        teacher_entry = None
+        if cp_world_size > 1:
+            if position < first_span_length:
+                global_position = first_span_start + position
+            else:
+                local_offset = position - first_span_length
+                if local_offset < second_span_length:
+                    global_position = second_span_start + local_offset
+                else:
+                    global_position = None
+        else:
+            global_position = position
 
-        teacher_entry = teacher_lookup_by_position.get(global_position)
-        
+        teacher_entry = teacher_lookup_by_position.get(global_position) if global_position is not None else None
+
         if teacher_entry is None:
             continue
 
@@ -592,41 +617,28 @@ def traditional_distillation_loss(
     Raises:
         ValueError: If teacher_data length doesn't match batch size
     """
-    # Transpose to batch-first format: (B, T, V)
-    student_logits_batch_first = student_logits.transpose(0, 1).contiguous()
-    device = student_logits_batch_first.device
-    batch_size, sequence_length, vocab_size = student_logits_batch_first.shape
+    device = student_logits.device
+    batch_size, sequence_length, vocab_size = student_logits.shape
     if len(teacher_data) != batch_size:
         raise ValueError(
             f"teacher_data length {len(teacher_data)} must match batch size {batch_size}"
         )
-    
     # Initialize accumulators
     total_kl_loss = torch.zeros((), device=device, dtype=torch.float32)
     total_valid_positions = torch.zeros((), device=device, dtype=torch.float32)
     
     # Debug configuration
     debug_position_idx = 3157
-    
-    cp_world_size = get_context_parallel_world_size()
-    cp_rank = get_context_parallel_rank() if cp_world_size > 1 else 0
-    offset = cp_rank * sequence_length
-
-    def _map_global_to_local_position(global_position: int) -> Optional[int]:
-        """Map a teacher position to the local index for this CP rank."""
-        return global_position - offset
 
     # Process each batch element independently
     for batch_idx in range(batch_size):
         batch_teacher_data = teacher_data[batch_idx]
         batch_label_sequence = labels[batch_idx]  # Shape: (T,)
-        batch_student_logits = student_logits_batch_first[batch_idx]  # Shape: (T, V)
-        
+        batch_student_logits = student_logits[batch_idx]  # Shape: (T, V)
         # Extract teacher data components
         teacher_positions = batch_teacher_data.get('positions', [])
         teacher_indices_list = batch_teacher_data.get('indices', [])
         teacher_values_list = batch_teacher_data.get('values', [])
-        
         if not teacher_positions or not teacher_indices_list or not teacher_values_list:
             continue  # Skip batch elements without teacher data
         
@@ -642,10 +654,9 @@ def traditional_distillation_loss(
                 else teacher_position
             )
 
-            local_position_idx = _map_global_to_local_position(position_idx)
-            if local_position_idx >= sequence_length or batch_label_sequence[local_position_idx] == ignore_index:
+            if batch_label_sequence[position_idx] == ignore_index:
                 continue
-
+            
             # Convert teacher data to tensors on correct device
             teacher_indices_tensor = torch.as_tensor(
                 teacher_token_indices, dtype=torch.long, device=device
@@ -653,7 +664,7 @@ def traditional_distillation_loss(
             teacher_values_tensor = torch.as_tensor(teacher_token_values, device=device)
             
             # Get student logits for this position
-            student_logits_at_position = batch_student_logits[local_position_idx]  # Shape: (V,)
+            student_logits_at_position = batch_student_logits[position_idx]  # Shape: (V,)
             
             # Compute student log-probabilities with temperature scaling
             # Normalization is over the full vocabulary
@@ -682,12 +693,12 @@ def traditional_distillation_loss(
                 full_vocab_log_sum_exp = torch.logsumexp(
                     student_logits_at_position.float() / T, dim=-1
                 )
-                print(f"batch {batch_idx} traditional pos {debug_position_idx} (local {local_position_idx}) "
+                print(f"batch {batch_idx} traditional pos {debug_position_idx}  "
                       f"teacher_probs: {teacher_probs}")
-                print(f"batch {batch_idx} traditional pos {debug_position_idx} (local {local_position_idx}) "
+                print(f"batch {batch_idx} traditional pos {debug_position_idx} "
                       f"student_log_probs_teacher: {student_log_probs_teacher_tokens} "
                       f"lse student: {full_vocab_log_sum_exp}")
-                print(f"batch {batch_idx} traditional pos {debug_position_idx} (local {local_position_idx}) "
+                print(f"batch {batch_idx} traditional pos {debug_position_idx} "
                       f"kl loss {kl_divergence_scalar}")
             
             batch_kl_accumulator += kl_divergence_scalar 
