@@ -38,13 +38,22 @@ Explain how to implement a parallel prefix sum in CUDA.<|im_end|>
 
 NUM_TOKENS_TO_GENERATE=65536
 TEMPERATURE=0.7
-TOP_K=20
-TOP_P=0.8
+TOP_K=0
+TOP_P=0
 REPETITION_PENALTY=1.05
 
 echo "🧪 Running inference..."
 
-python examples/inference/gpt/gpt_static_inference.py \
+# Distributed setup for 2 GPUs
+GPUS_PER_NODE=2
+NUM_NODES=1
+WORLD_SIZE=$(($GPUS_PER_NODE*$NUM_NODES))
+
+torchrun --nproc_per_node=$GPUS_PER_NODE \
+  --nnodes=$NUM_NODES \
+  --master_addr=$MASTER_ADDR \
+  --master_port=$MASTER_PORT \
+  examples/inference/gpt/gpt_static_inference.py \
   --load "$MODEL_PATH" \
   --tokenizer-type HuggingFaceTokenizer \
   --tokenizer-model "$TOKENIZER_PATH" \
@@ -67,12 +76,15 @@ python examples/inference/gpt/gpt_static_inference.py \
   --swiglu \
   --untie-embeddings-and-output-weights \
   --disable-bias-linear \
-  --vocab-size 151936 \
-  --tensor-model-parallel-size 1 \
+  --padded-vocab-size 151936 \
+  --tensor-model-parallel-size 2 \
   --pipeline-model-parallel-size 1 \
+  --micro-batch-size 1 \
+  --no-gradient-accumulation-fusion \
+  --empty-unused-memory-level 2 \
   --context-parallel-size 1 \
   --expert-model-parallel-size 1 \
-  --expert-tensor-parallel-size 1 \
+  --expert-tensor-parallel-size 2 \
   --bf16 \
   --qk-layernorm \
   --moe-token-dispatcher-type alltoall \
@@ -83,7 +95,6 @@ python examples/inference/gpt/gpt_static_inference.py \
   --temperature "$TEMPERATURE" \
   --top_k "$TOP_K" \
   --top_p "$TOP_P" \
-  --repetition-penalty "$REPETITION_PENALTY" \
   --prompts "$PROMPT" \
   --dist-ckpt-strictness ignore_all \
   "$@"
