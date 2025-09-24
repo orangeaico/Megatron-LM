@@ -116,8 +116,8 @@ MOE_ARGS=(
 TRAINING_ARGS=(
     --micro-batch-size $MICRO_BATCH_SIZE
     --global-batch-size $GLOBAL_BATCH_SIZE
-    --train-samples 904
-    --lr-decay-samples 904
+    --train-samples 896
+    --lr-decay-samples 896
     --exit-duration-in-mins 235
 
     # Learning rate args
@@ -195,7 +195,7 @@ if [[ "$TOKENIZER_ARG" == "MOCK" ]] || [[ "$DATA_ARG" == "MOCK" ]] || [[ -z "$TO
     DATA_ARGS_LIST+=(
         "--mock-data"
         "--tokenizer-type NullTokenizer"
-        "--vocab-size 151936"  # Qwen3-1.7B vocab size
+        # "--vocab-size 151936"  
         "--data-cache-path ${DATA_CACHE_PATH}"
         "--tiktoken-pattern v2" 
         "--split '99,1,0'"
@@ -236,7 +236,7 @@ CHECKPOINT_ARGS=(
     --no-save-rng
     --no-load-rng
     --no-load-optim
-    --save-interval 50
+    --save-interval 60
     --exit-on-missing-checkpoint
 )
 
