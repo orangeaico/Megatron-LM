@@ -84,6 +84,7 @@ def add_megatron_arguments(parser: argparse.ArgumentParser):
     parser = _add_msc_args(parser)
     parser = _add_kitchen_quantization_arguments(parser)
     parser = _add_sft_args(parser)
+    parser = _add_distillation_args(parser)
 
     return parser
 
@@ -2665,9 +2666,6 @@ def _add_data_args(parser):
     group.add_argument('--test-data-path', nargs='*', default=None,
                        help='The weight and prefix list for an independent test dataset. '
                        'Follows the same pattern rules as --data-path.')
-    group.add_argument('--distillation-loss', action='store_true',
-                       help='Enable knowledge distillation during training. When enabled, '
-                       'data paths should reference JSONL directories containing teacher logits.')
     group.add_argument('--data-args-path', type=str, default=None,
                        help='Path to data-args. Instead of feeding `--data-path` '
                        'with weighted dataset, we pass in a file path from which '
@@ -2687,9 +2685,6 @@ def _add_data_args(parser):
     group.add_argument('--mock-data', action='store_true',
                        help='Skip data loading and validation and opt for artificial '
                        'generation of mock data when an implementation is available.')
-    group.add_argument('--generate-fake-teacher-data', action='store_true',
-                       help='Automatically synthesize sparse teacher logits when none are '
-                       'present in the dataset payload. Useful for debugging distillation flows.')
     group.add_argument('--seq-length', type=int, default=None,
                        help='Maximum sequence length to process.')
     group.add_argument('--encoder-seq-length', type=int, default=None,
@@ -3174,4 +3169,20 @@ def _add_sft_args(parser):
     group.add_argument('--sft', action="store_true", help='Megatron SFT training')
     group.add_argument('--sft-tokenizer-prompt-format', type=str, default="nemotron-h-aligned", 
                        help='SFT prompt format.')
+    return parser
+
+
+def _add_distillation_args(parser):
+    group = parser.add_argument_group(title='distillation')
+    group.add_argument('--distillation-loss', action='store_true',
+                       help='Enable knowledge distillation during training. When enabled, '
+                       'data paths should reference JSONL directories containing teacher logits.')
+    group.add_argument('--distillation-temp', type=float, default=3.0,
+                       help='Temperature to apply when softening teacher logits for distillation.')
+    group.add_argument('--distillation-loss-alpha', type=float, default=0.5,
+                       help='Interpolation weight between student CE and distillation losses.')
+    group.add_argument('--generate-fake-teacher-data', action='store_true',
+                       help='Automatically synthesize sparse teacher logits when none are '
+                       'present in the dataset payload. Useful for debugging distillation flows.')
+
     return parser

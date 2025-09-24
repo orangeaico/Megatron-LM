@@ -15,15 +15,12 @@ export NCCL_NVLS_ENABLE=0
 
 MODEL_NAME="qwen3_1.7b"
 
-BASE_DIR="/workspace/data/"
-
-LOAD_CHECKPOINT_PATH="$BASE_DIR/mega-models/Qwen3-1.7B"
-TOKENIZER_ARG="Qwen/Qwen3-1.7B" # Path to tokenizer model
+LOAD_CHECKPOINT_PATH="/workspace/data/mega-models/Qwen3-1.7B"
+TOKENIZER_ARG="/workspace/data/mega-models/Qwen3-1.7B" # Path to tokenizer model
 
 JSON_TRAIN_DIR="/workspace/training/teacher_data"
 
-BASE_OUTPUT_DIR="$BASE_DIR/himanshu/output"
-SAVE_CHECKPOINT_PATH="$BASE_OUTPUT_DIR/$MODEL_NAME/checkpoints"
+SAVE_CHECKPOINT_PATH="output/$MODEL_NAME/checkpoints"
 # Data cache path (useful for both mock and real data)
 DATA_CACHE_PATH="output/$MODEL_NAME/benchmark_cache"
 TENSORBOARD_LOGS_PATH="output/$MODEL_NAME/tensorboard_logs"
@@ -54,9 +51,9 @@ CP_SIZE=1
 PP_SIZE=1
 MICRO_BATCH_SIZE=1
 GLOBAL_BATCH_SIZE=1
-NUM_LAYERS=14
+NUM_LAYERS=28
 DTYPE="bf16"
-SEQ_LENGTH=16384 # 65000
+SEQ_LENGTH=8192 # 65000
 MAX_POSITION_EMBEDDINGS=40960 # 65000
 
 DISTRIBUTED_ARGS=(
@@ -96,7 +93,7 @@ MODEL_ARGS=(
 TRAINING_ARGS=(
     --micro-batch-size $MICRO_BATCH_SIZE
     --global-batch-size $GLOBAL_BATCH_SIZE
-    --train-samples 44
+    --train-samples 1
     --lr-decay-samples 1
     --exit-duration-in-mins 235
 
@@ -168,6 +165,8 @@ MODEL_PARALLEL_ARGS=(
 # Data arguments (conditional for mock vs real data)
 DATA_ARGS_LIST=(
     "--distillation-loss"
+    "--distillation-temp 3.0"
+    "--distillation-loss-alpha 0.5"
     "--tokenizer-type HuggingFaceTokenizer"
     "--tokenizer-model $TOKENIZER_ARG"
     "--data-path $JSON_TRAIN_DIR"
@@ -193,7 +192,7 @@ CHECKPOINT_ARGS=(
 
 EVAL_AND_LOGGING_ARGS=(
     --eval-iters 1
-    --eval-interval 1
+    --eval-interval 100
     # "--full-validation"
     --log-interval 1
     --log-throughput

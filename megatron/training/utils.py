@@ -529,6 +529,9 @@ def get_batch_on_this_tp_rank(data_iterator):
         batch_size, seq_length = batch['tokens'].shape
         teacher_raw = data.get("teacher_data") if data is not None else None
         if teacher_raw is None and args.generate_fake_teacher_data:
+            print_rank_0(
+                "Generating fake teacher data. This should only be used for debugging."
+            )
             teacher_raw = generate_fake_teacher_data(
                 batch_size,
                 seq_length,

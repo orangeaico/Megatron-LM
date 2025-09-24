@@ -222,6 +222,7 @@ def _process_batch_element_kl_loss(
             vocab_end_idx=vocab_end_idx,
             is_tensor_parallel=is_tensor_parallel,
             temp=temp,
+            debug=debug,
             ignore_index=ignore_index
         )
 
@@ -286,6 +287,7 @@ def _extract_chunk_teacher_data(
     vocab_end_idx: int,
     is_tensor_parallel: bool,
     temp: float,
+    debug: bool,
     ignore_index: int = DEFAULT_IGNORE_INDEX,
 ) -> Dict[str, List]:
     """
@@ -318,6 +320,7 @@ def _extract_chunk_teacher_data(
     second_span_length = 0
     first_span_start = 0
     second_span_start = 0
+    chunk_valid_positions = 0
 
     if cp_world_size > 1:
         cp_rank = get_context_parallel_rank()
@@ -375,10 +378,15 @@ def _extract_chunk_teacher_data(
             local_teacher_indices = teacher_indices
             local_teacher_log_probs = teacher_log_probs
 
+        chunk_valid_positions += 1
+        
         chunk_data['positions'].append(position)
         chunk_data['teacher_indices'].append(local_teacher_indices)
         chunk_data['teacher_values'].append(local_teacher_log_probs)
         chunk_data['positions_in_chunk'].append(position - chunk_start)
+    
+    if debug:
+        print(f"  Chunk [{chunk_start}:{chunk_end}] valid positions: {chunk_valid_positions}")
     
     return chunk_data
 
@@ -494,7 +502,7 @@ def _print_chunk_debug_info(
     kl_losses: torch.Tensor,
 ) -> None:
     """Print debug information for chunk processing."""
-    debug_position = 3157
+    debug_position = 7365
     if debug_position in positions:
         position_index = positions.index(debug_position)
         print(f"batch {batch_idx} efficient pos {debug_position} "
@@ -611,8 +619,7 @@ def traditional_distillation_loss(
         ignore_index: Index value to ignore in loss computation (default: -100)
         
     Returns:
-        Scalar KL divergence loss value, averaged over valid positions
-        and scaled by temperature squared
+        Per-token KL divergence losses of shape [B, T]
         
     Raises:
         ValueError: If teacher_data length doesn't match batch size
@@ -623,12 +630,18 @@ def traditional_distillation_loss(
         raise ValueError(
             f"teacher_data length {len(teacher_data)} must match batch size {batch_size}"
         )
-    # Initialize accumulators
-    total_kl_loss = torch.zeros((), device=device, dtype=torch.float32)
-    total_valid_positions = torch.zeros((), device=device, dtype=torch.float32)
     
+    # Initialize per-position KL loss tensor
+    kl_loss_tensor = torch.zeros(
+        (batch_size, sequence_length), 
+        device=device, 
+        dtype=torch.float32
+    )
+    
+    total_valid_positions = 0
+
     # Debug configuration
-    debug_position_idx = 3157
+    debug_position_idx = 7365
 
     # Process each batch element independently
     for batch_idx in range(batch_size):
@@ -642,8 +655,7 @@ def traditional_distillation_loss(
         if not teacher_positions or not teacher_indices_list or not teacher_values_list:
             continue  # Skip batch elements without teacher data
         
-        batch_kl_accumulator = torch.zeros_like(total_kl_loss)
-        batch_valid_positions = torch.zeros_like(total_valid_positions)
+        batch_valid_positions = 0
         
         # Process each position with teacher data
         for teacher_position, teacher_token_indices, teacher_token_values in zip(
@@ -688,6 +700,9 @@ def traditional_distillation_loss(
             kl_divergence_at_position = teacher_probs * (teacher_log_probs - student_log_probs_teacher_tokens)
             kl_divergence_scalar = kl_divergence_at_position.sum() * (T ** 2)  # Reduce to scalar
 
+            # Store KL loss for this position
+            kl_loss_tensor[batch_idx, position_idx] = kl_divergence_scalar
+
             # Debug output for specific position
             if position_idx == debug_position_idx:
                 full_vocab_log_sum_exp = torch.logsumexp(
@@ -701,20 +716,11 @@ def traditional_distillation_loss(
                 print(f"batch {batch_idx} traditional pos {debug_position_idx} "
                       f"kl loss {kl_divergence_scalar}")
             
-            batch_kl_accumulator += kl_divergence_scalar 
             batch_valid_positions += 1
         
-        total_kl_loss += batch_kl_accumulator
-        total_valid_positions += batch_valid_positions
-        
         print(f"batch {batch_idx} traditional valid positions: {batch_valid_positions}, "
-              f"batch_kl_sum: {batch_kl_accumulator}")
-    
-    # Compute average loss over valid positions with temperature scaling
-    if total_valid_positions > 0:
-        knowledge_distillation_loss = (total_kl_loss) 
-    else:
-        knowledge_distillation_loss = torch.zeros_like(total_kl_loss)
-    
-    print(f"KD loss: {knowledge_distillation_loss}, valid positions: {total_valid_positions}")
-    return knowledge_distillation_loss
+              f"batch_kl_sum: {kl_loss_tensor[batch_idx].sum()}")
+        total_valid_positions += batch_valid_positions
+
+    print(f"KD loss total: {kl_loss_tensor.sum()}, Number of valid positions: {total_valid_positions}")
+    return kl_loss_tensor

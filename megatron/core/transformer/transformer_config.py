@@ -691,14 +691,16 @@ class TransformerConfig(ModelParallelConfig):
     # For debugging CCE loss issues: enable verbose logging
     debug_cce_loss: bool = False
 
+    # ---------------- Distillation integration ----------------
+
     # For debugging distillation issues
-    debug_distillation: bool = True
+    debug_distillation: bool = False
 
     # For distillation loss
     distillation_loss: bool = False
 
     # Calculate using traditional method
-    distillation_with_traditional: bool = True
+    distillation_with_traditional: bool = False
 
     # Distillation Temperature
     distillation_temp: float = 3.0

@@ -81,14 +81,12 @@ def _normalize_teacher_payload(
         normalized_positions.append(pos_int)
         normalized_indices.append(idxs)
         normalized_values.append(vals)
-
-    if not normalized_positions:
-        if dropped:
-            print(f"Dropped {dropped} teacher logits positions outside valid range [0, {seq_length})")
-        return None
-
+    
     if dropped:
         print(f"Dropped {dropped} teacher logits positions outside valid range [0, {seq_length})")
+
+    if not normalized_positions:
+        return None
 
     return {
         "positions": normalized_positions,

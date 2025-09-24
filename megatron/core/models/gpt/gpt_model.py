@@ -513,14 +513,14 @@ class GPTModel(LanguageModule):
                     labels_cp = _gather_full_sequence_across_context_parallel(
                         labels
                     )
-                    traditional_distillation_loss(
+                    traditional_kl_loss = traditional_distillation_loss(
                         logits,
                         teacher_data,
                         labels_cp,
                         T=self.config.distillation_temp,
                         ignore_index=self.config.linear_ce_ignore_index,
                     )
-            
+                    
             sequence_parallel_override = False
             if self.config.sequence_parallel:
                 tp_group = self.pg_collection.tp if self.pg_collection is not None else None
@@ -596,8 +596,8 @@ class GPTModel(LanguageModule):
                 world_rank = torch.distributed.get_rank()
                 print(
                     f"[CCE debug] rank={world_rank} tp_rank={tp_rank} vocab_size={vocab_size}"
-                )
-
+                ) 
+            
             token_losses = cce_per_token_loss(
                 embeddings=hidden_states,             # [B, T, H]
                 classifier_weight=classifier_weight,  # [V, H] (or [V_local, H])
@@ -611,18 +611,18 @@ class GPTModel(LanguageModule):
 
             if self.config.distillation_loss:
                 kl_loss = distillation_loss(
-                    embeddings=hidden_states,  # [B, T, H]
-                    classifier_weight=classifier_weight,  # [V, H] (or [V_local, H])
-                    labels=labels,  # [B, T]
-                    vocab_size=vocab_size,
-                    impl=self.config.linear_ce_impl,
-                    reduction=self.config.linear_ce_reduction,
-                    shift=self.config.linear_ce_shift,
-                    ignore_index=self.config.linear_ce_ignore_index,
-                    debug=self.config.debug_distillation,
-                    temp=self.config.distillation_temp,
-                    teacher_data=teacher_data,
-                )
+                embeddings=hidden_states,  # [B, T, H]
+                classifier_weight=classifier_weight,  # [V, H] (or [V_local, H])
+                labels=labels,  # [B, T]
+                vocab_size=vocab_size,
+                impl=self.config.linear_ce_impl,
+                reduction=self.config.linear_ce_reduction,
+                shift=self.config.linear_ce_shift,
+                ignore_index=self.config.linear_ce_ignore_index,
+                debug=self.config.debug_distillation,
+                temp=self.config.distillation_temp,
+                teacher_data=teacher_data,
+            )
 
             if self.config.debug_cce_loss:
                 if parallel_state.get_tensor_model_parallel_world_size() > 1:
