@@ -5,7 +5,7 @@ import contextlib
 import time
 from megatron.core import parallel_state
 
-PHASE_LOGGER = True
+PHASE_LOGGER = False
 PHASE_LAYER_LOGGER = False
 
 def _is_rank0():

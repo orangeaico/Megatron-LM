@@ -220,6 +220,7 @@ def train_valid_test_datasets_provider(train_val_test_num_samples):
     ).build()
 
     print_rank_0("> finished creating GPT datasets ...")
+    print_rank_0(f"> Length of train_ds: {len(train_ds) if train_ds else 0}, valid_ds: {len(valid_ds) if valid_ds else 0}, test_ds: {len(test_ds) if test_ds else 0}")
 
     return train_ds, valid_ds, test_ds
 

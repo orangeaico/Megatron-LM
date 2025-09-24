@@ -16,12 +16,12 @@ export NCCL_NVLS_ENABLE=0
 MODEL_NAME="Qwen3-Coder-30B-A3B-Instruct"
 
 BASE_DIR="/workspace/data/"
-LOAD_CHECKPOINT_PATH="$BASE_DIR/mega-models/Qwen3-1.7B"
-# TOKENIZER_ARG="$BASE_DIR/mega-models/Qwen3-1.7B" # Path to tokenizer model, or "MOCK"
-# DATA_ARG="$BASE_DIR/data/test_output.jsonl"
+LOAD_CHECKPOINT_PATH="$BASE_DIR/mega-models/Qwen3-Coder-30B-A3B-Instruct-torch_dist"
 
-TOKENIZER_ARG="MOCK"
-DATA_ARG="MOCK"
+TOKENIZER_ARG="$BASE_DIR/mega-models/Qwen3-Coder-30B-A3B-Instruct-torch_dist" # Path to tokenizer model, or "MOCK"
+DATA_ARG="$BASE_DIR/data/test_output.jsonl"
+# TOKENIZER_ARG="MOCK"
+# DATA_ARG="MOCK"
 
 BASE_OUTPUT_DIR="$BASE_DIR/himanshu/output"
 SAVE_CHECKPOINT_PATH="$BASE_OUTPUT_DIR/$MODEL_NAME/checkpoints"
@@ -115,8 +115,8 @@ MOE_ARGS=(
 TRAINING_ARGS=(
     --micro-batch-size $MICRO_BATCH_SIZE
     --global-batch-size $GLOBAL_BATCH_SIZE
-    --train-samples 300
-    --lr-decay-samples 300
+    --train-samples 904
+    --lr-decay-samples 904
     --exit-duration-in-mins 235
 
     # Learning rate args
@@ -213,7 +213,6 @@ else
         "--no-create-attention-mask-in-dataloader"
         "--no-mmap-bin-files"
         "--num-workers 1"
-        # Note: --vocab-size might be inferred by HuggingFaceTokenizer or might need to be explicit.
         "--vocab-size 151936"  # Qwen3-1.7B vocab size
         "--sft"
         # "--reset-position-ids"
@@ -228,7 +227,7 @@ CHECKPOINT_ARGS=(
     --auto-detect-ckpt-format
     --dist-ckpt-strictness log_all
     --distributed-timeout-minutes 60
-#     --load "$LOAD_CHECKPOINT_PATH"
+    --load "$LOAD_CHECKPOINT_PATH"
     --save "$SAVE_CHECKPOINT_PATH"
     --no-save-optim
     --no-save-rng
@@ -240,7 +239,7 @@ CHECKPOINT_ARGS=(
 
 EVAL_AND_LOGGING_ARGS=(
     --eval-iters 1
-    --eval-interval 100
+    --eval-interval 15
     # "--full-validation"
     --log-interval 1
     --log-throughput

@@ -95,7 +95,8 @@ def generate_text(model, tokenizer, prompt, max_new_tokens=100, temperature=1.0,
     
     # Decode output
     generated_text = tokenizer.decode(outputs[0], skip_special_tokens=False)
-    new_text = generated_text.strip()
+    response_start_index = generated_text.find("<|im_start|>assistant") + len("<|im_start|>assistant")
+    new_text = generated_text[response_start_index:].strip()
     
     # Calculate stats
     stats = {
