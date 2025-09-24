@@ -85,7 +85,8 @@ MODEL_ARGS=(
     --normalization RMSNorm
     --max-position-embeddings $MAX_POSITION_EMBEDDINGS
     --untie-embeddings-and-output-weights
-    --make-vocab-size-divisible-by 1187
+    --make-vocab-size-divisible-by 1
+    --padded-vocab-size 151936  
     --position-embedding-type rope
     --rotary-base 10000000  # Same as Qwen3 rope_theta
     --rotary-percent 1.0
@@ -214,7 +215,6 @@ else
         "--no-mmap-bin-files"
         "--num-workers 1"
         # Note: --vocab-size might be inferred by HuggingFaceTokenizer or might need to be explicit.
-        "--vocab-size 151936"  # Qwen3-1.7B vocab size
         "--sft"
         # "--reset-position-ids"
         # "--reset-attention-mask"
@@ -226,6 +226,8 @@ fi
 CHECKPOINT_ARGS=(
     --finetune
     --auto-detect-ckpt-format
+    # --ckpt-convert-format torch
+    # --ckpt-convert-save /workspace/checkpoints/qwen3_30b_a3b_torch_tp2
     --dist-ckpt-strictness log_all
     --distributed-timeout-minutes 60
 #     --load "$LOAD_CHECKPOINT_PATH"
