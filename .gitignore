@@ -21,3 +21,4 @@ benchmark_cache_qwen3_1.7b_fp8/
 checkpoints/
 tensorboard_logs/
 output/
+scripts/*txt

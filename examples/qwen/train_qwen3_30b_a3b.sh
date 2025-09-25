@@ -13,13 +13,15 @@ export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 export NVTE_ALLOW_NONDETERMINISTIC_ALGO=1
 export NCCL_NVLS_ENABLE=0
 
-MODEL_NAME="qwen3_30b_a3b"
+MODEL_NAME="Qwen3-Coder-30B-A3B-Instruct"
 
 BASE_DIR="/workspace/data/"
-LOAD_CHECKPOINT_PATH="$BASE_DIR/mega-models/Qwen3-1.7B"
-TOKENIZER_ARG="$BASE_DIR/mega-models/Qwen3-1.7B" # Path to tokenizer model, or "MOCK"
-# DATA_ARG="$BASE_DIR/data/qwen_out_text_document"     # Data prefix, or "MOCK"
+LOAD_CHECKPOINT_PATH="$BASE_DIR/mega-models/Qwen3-Coder-30B-A3B-Instruct-torch_dist"
+
+TOKENIZER_ARG="$BASE_DIR/mega-models/Qwen3-Coder-30B-A3B-Instruct-torch_dist" # Path to tokenizer model, or "MOCK"
 DATA_ARG="$BASE_DIR/data/test_output.jsonl"
+# TOKENIZER_ARG="MOCK"
+# DATA_ARG="MOCK"
 
 BASE_OUTPUT_DIR="$BASE_DIR/himanshu/output"
 SAVE_CHECKPOINT_PATH="$BASE_OUTPUT_DIR/$MODEL_NAME/checkpoints"
@@ -37,7 +39,7 @@ mkdir -p "$(dirname "$MEMORY_SNAPSHOT_PATH")"
 mkdir -p "$DATA_CACHE_PATH"
 
 # Distributed training setup
-GPUS_PER_NODE=2
+GPUS_PER_NODE=8
 NUM_NODES=1
 MASTER_ADDR=${MASTER_ADDR:-localhost}
 MASTER_PORT=${MASTER_PORT:-6000}
@@ -48,17 +50,17 @@ WORLD_SIZE=$(($GPUS_PER_NODE*$NUM_NODES))
 PRETRAIN_SCRIPT_PATH="pretrain_gpt.py"
 
 # Fixed model and training parameters for Qwen3-1.7B
-TP_SIZE=2 
-CP_SIZE=1
-EP_SIZE=1
+TP_SIZE=4
+CP_SIZE=2
+EP_SIZE=4
 EXPERT_TP_SIZE=1
 PP_SIZE=1
 LAYERS_PER_VP=1
 MICRO_BATCH_SIZE=1 
-GLOBAL_BATCH_SIZE=1  
+GLOBAL_BATCH_SIZE=8
 NUM_LAYERS=48  
 DTYPE="bf16"
-SEQ_LENGTH=65536
+SEQ_LENGTH=65000
 MAX_POSITION_EMBEDDINGS=262144 
 
 DISTRIBUTED_ARGS=(
@@ -83,7 +85,8 @@ MODEL_ARGS=(
     --normalization RMSNorm
     --max-position-embeddings $MAX_POSITION_EMBEDDINGS
     --untie-embeddings-and-output-weights
-    --make-vocab-size-divisible-by 1187
+    --make-vocab-size-divisible-by 1
+    --padded-vocab-size 151936  
     --position-embedding-type rope
     --rotary-base 10000000  # Same as Qwen3 rope_theta
     --rotary-percent 1.0
@@ -101,17 +104,20 @@ MOE_ARGS=(
     --moe-router-topk 8  # num_experts_per_tok
     --moe-grouped-gemm
     --moe-aux-loss-coeff 0  # router_aux_loss_coef from config
-    --moe-token-dispatcher-type alltoall
+    --moe-token-dispatcher-type alltoall # flex for --moe-enable-deepep
     --moe-permute-fusion
-    # --moe-router-dtype fp32
+    --moe-router-dtype fp32
     # --moe-router-fusion # This is only supported in TransformerEngine 2.7.0 and above. Current installed TE is 2.2
+    # --moe-router-force-load-balancing
+    # --moe-enable-deepep
+    # --overlap-moe-expert-parallel-comm
 )
 
 TRAINING_ARGS=(
     --micro-batch-size $MICRO_BATCH_SIZE
     --global-batch-size $GLOBAL_BATCH_SIZE
-    --train-samples 300
-    --lr-decay-samples 300
+    --train-samples 896
+    --lr-decay-samples 896
     --exit-duration-in-mins 235
 
     # Learning rate args
@@ -141,9 +147,10 @@ TRAINING_ARGS=(
     --fused-linear-cross-entropy
     # --cross-entropy-loss-fusion
     # --cross-entropy-fusion-impl native
-    --recompute-granularity full
-    --recompute-method uniform
-    --recompute-num-layers 1
+    
+    # --recompute-granularity full
+    # --recompute-method uniform
+    # --recompute-num-layers 1
     --calculate-per-token-loss
     # --no-gradient-accumulation-fusion
 
@@ -174,7 +181,7 @@ fi
 # Model parallelism arguments
 MODEL_PARALLEL_ARGS=(
     --tensor-model-parallel-size $TP_SIZE
-    # --sequence-parallel  # Always enable sequence parallelism with TP_SIZE=2
+    --sequence-parallel  # Always enable sequence parallelism with TP_SIZE=2
     --context-parallel-size $CP_SIZE
     --expert-model-parallel-size $EP_SIZE
     --expert-tensor-parallel-size $EXPERT_TP_SIZE
@@ -188,7 +195,7 @@ if [[ "$TOKENIZER_ARG" == "MOCK" ]] || [[ "$DATA_ARG" == "MOCK" ]] || [[ -z "$TO
     DATA_ARGS_LIST+=(
         "--mock-data"
         "--tokenizer-type NullTokenizer"
-        "--vocab-size 151936"  # Qwen3-1.7B vocab size
+        # "--vocab-size 151936"  
         "--data-cache-path ${DATA_CACHE_PATH}"
         "--tiktoken-pattern v2" 
         "--split '99,1,0'"
@@ -207,8 +214,7 @@ else
         "--no-create-attention-mask-in-dataloader"
         "--no-mmap-bin-files"
         "--num-workers 1"
-        # Note: --vocab-size might be inferred by HuggingFaceTokenizer or might need to be explicit.
-        "--vocab-size 151936"  # Qwen3-1.7B vocab size
+        # "--vocab-size 151936"
         "--sft"
         # "--reset-position-ids"
         # "--reset-attention-mask"
@@ -220,6 +226,8 @@ fi
 CHECKPOINT_ARGS=(
     --finetune
     --auto-detect-ckpt-format
+    # --ckpt-convert-format torch
+    # --ckpt-convert-save /workspace/checkpoints/qwen3_30b_a3b_torch_tp2
     --dist-ckpt-strictness log_all
     --distributed-timeout-minutes 60
     --load "$LOAD_CHECKPOINT_PATH"
@@ -228,13 +236,13 @@ CHECKPOINT_ARGS=(
     --no-save-rng
     --no-load-rng
     --no-load-optim
-    --save-interval 50
+    --save-interval 60
     --exit-on-missing-checkpoint
 )
 
 EVAL_AND_LOGGING_ARGS=(
     --eval-iters 1
-    --eval-interval 100
+    --eval-interval 15
     # "--full-validation"
     --log-interval 1
     --log-throughput

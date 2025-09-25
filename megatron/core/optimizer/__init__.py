@@ -362,7 +362,7 @@ def _get_megatron_optimizer_based_on_param_groups(
                 if config.use_precision_aware_optimizer_no_fp8_or_ds_fp8:
                     kwargs.update(
                         {
-                            "master_weights": False,
+                            "master_weights": True,
                             "use_decoupled_grad": True,
                             "master_weight_dtype": config.main_params_dtype,
                         }

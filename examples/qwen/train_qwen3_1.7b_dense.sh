@@ -18,9 +18,16 @@ MODEL_NAME="qwen3_1.7b"
 LOAD_CHECKPOINT_PATH="/workspace/data/mega-models/Qwen3-1.7B"
 TOKENIZER_ARG="/workspace/data/mega-models/Qwen3-1.7B" # Path to tokenizer model
 
-JSON_TRAIN_DIR="/workspace/training/teacher_data"
+LOAD_CHECKPOINT_PATH="$BASE_DIR/mega-models/Qwen3-1.7B"
+TOKENIZER_ARG="$BASE_DIR/mega-models/Qwen3-1.7B" # Path to tokenizer model, or "MOCK"
 
-SAVE_CHECKPOINT_PATH="output/$MODEL_NAME/checkpoints"
+# TRAIN_DATA_PATH="$BASE_DIR/data/test_output.jsonl"     # Data prefix, or "MOCK"
+TRAIN_DATA_PATH="$BASE_DIR/data/cpt/memmap_xarray_8192_overlap5_combined/megatron_indexed/train_text_document"
+VALID_DATA_PATH="$BASE_DIR/data/cpt/memmap_xarray_8192_overlap5_combined/megatron_indexed/val_text_document"
+TEST_DATA_PATH="$BASE_DIR/data/cpt/memmap_xarray_8192_overlap5_combined/megatron_indexed/val_text_document"
+
+BASE_OUTPUT_DIR="$BASE_DIR/himanshu/output"
+SAVE_CHECKPOINT_PATH="$BASE_OUTPUT_DIR/$MODEL_NAME/checkpoints"
 # Data cache path (useful for both mock and real data)
 DATA_CACHE_PATH="output/$MODEL_NAME/benchmark_cache"
 TENSORBOARD_LOGS_PATH="output/$MODEL_NAME/tensorboard_logs"
@@ -93,8 +100,8 @@ MODEL_ARGS=(
 TRAINING_ARGS=(
     --micro-batch-size $MICRO_BATCH_SIZE
     --global-batch-size $GLOBAL_BATCH_SIZE
-    --train-samples 1
-    --lr-decay-samples 1
+    --train-samples 6000
+    --lr-decay-samples 6000
     --exit-duration-in-mins 235
 
     # Learning rate args
@@ -163,37 +170,62 @@ MODEL_PARALLEL_ARGS=(
 )
 
 # Data arguments (conditional for mock vs real data)
-DATA_ARGS_LIST=(
-    "--distillation-loss"
-    "--distillation-temp 3.0"
-    "--distillation-loss-alpha 0.5"
-    "--tokenizer-type HuggingFaceTokenizer"
-    "--tokenizer-model $TOKENIZER_ARG"
-    "--data-path $JSON_TRAIN_DIR"
-    "--data-cache-path ${DATA_CACHE_PATH}"
-    "--split '99,1,0'"
-    "--num-workers 0"
-    "--vocab-size 151936"
-)
+DATA_ARGS_LIST=()
+if [[ "$TOKENIZER_ARG" == "MOCK" ]] || [[ "$TRAIN_DATA_PATH" == "MOCK" ]] || [[ -z "$TOKENIZER_ARG" ]]; then
+    DATA_ARGS_LIST+=(
+        "--mock-data"
+        "--tokenizer-type NullTokenizer"
+        "--vocab-size 151936"  # Qwen3-1.7B vocab size
+        "--data-cache-path ${DATA_CACHE_PATH}"
+        "--tiktoken-pattern v2" 
+        "--split '99,1,0'"
+        "--no-create-attention-mask-in-dataloader"
+        "--no-mmap-bin-files"
+        "--num-workers 1"
+    )
+else
+    # Settings for real data
+    DATA_ARGS_LIST+=(
+        # "--data-path $TRAIN_DATA_PATH"
+        # "--split '90,10,0'"
+        "--train-data-path $TRAIN_DATA_PATH"
+        "--valid-data-path $VALID_DATA_PATH"
+        "--test-data-path $TEST_DATA_PATH"
+        "--tokenizer-type HuggingFaceTokenizer" 
+        "--tokenizer-model $TOKENIZER_ARG"
+        # "--data-cache-path ${DATA_CACHE_PATH}"
+        "--no-create-attention-mask-in-dataloader"
+        "--no-mmap-bin-files"
+        "--num-workers 1"
+        # Note: --vocab-size might be inferred by HuggingFaceTokenizer or might need to be explicit.
+        "--vocab-size 151936"  # Qwen3-1.7B vocab size
+        # "--sft"
+        # "--reset-position-ids"
+        # "--reset-attention-mask"
+        # "--eod-mask-loss"
+        # "--no-check-for-nan-in-loss-and-grad"
+    )
+fi
 
 CHECKPOINT_ARGS=(
     --finetune
     --auto-detect-ckpt-format
     --dist-ckpt-strictness log_all
     --distributed-timeout-minutes 60
-    --no-load-optim
-    --no-load-rng
-    --no-save-optim
-    --no-save-rng
     --load "$LOAD_CHECKPOINT_PATH"
     --save "$SAVE_CHECKPOINT_PATH"
-    --save-interval 1000
+    --no-save-optim
+    --no-save-rng
+    --no-load-rng
+    --no-load-optim
+    --save-interval 150
+    --exit-on-missing-checkpoint
 )
 
 EVAL_AND_LOGGING_ARGS=(
-    --eval-iters 1
-    --eval-interval 100
-    # "--full-validation"
+    --eval-iters 3
+    --eval-interval 20
+    # --full-validation
     --log-interval 1
     --log-throughput
     --profile
@@ -210,6 +242,9 @@ EVAL_AND_LOGGING_ARGS=(
     --record-memory-history
     --memory-snapshot-path "$MEMORY_SNAPSHOT_PATH"
     # --dump-model-params-to-pickle
+    --log-progress
+    # --timing-log-level 2
+    --logging-level 10
 )
 
 if [ -n "${WANDB_API_KEY}" ]; then
