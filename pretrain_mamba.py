@@ -31,10 +31,6 @@ from megatron.training.utils import (
     get_batch_on_this_tp_rank,
     get_blend_and_blend_per_split,
 )
-from megatron.training.teacher_data_utils import (
-    has_teacher_data,
-    unpack_teacher_batch,
-)
 from megatron.training.arguments import core_transformer_config_from_args
 from megatron.core.models.gpt.gpt_layer_specs import get_gpt_layer_with_transformer_engine_spec
 from megatron.core.tokenizers import MegatronTokenizer
@@ -48,7 +44,7 @@ def get_batch(data_iterator):
 
     # TODO: this is pretty hacky, find a better way
     if (not mpu.is_pipeline_first_stage()) and (not mpu.is_pipeline_last_stage()):
-        return None, None, None, None, None, None
+        return None, None, None, None, None
 
     # get batches based on the TP rank you are on
     batch = get_batch_on_this_tp_rank(data_iterator)
@@ -56,18 +52,7 @@ def get_batch(data_iterator):
     # slice batch along sequence dimension for context parallelism
     batch = get_batch_on_this_cp_rank(batch)
 
-    teacher_packed = batch.pop('teacher_data', None)
-    teacher_data = None
-    if teacher_packed is not None and has_teacher_data(teacher_packed):
-        teacher_data = unpack_teacher_batch(teacher_packed)
-
-    tokens = batch['tokens']
-    labels = batch['labels']
-    loss_mask = batch['loss_mask']
-    attention_mask = batch['attention_mask']
-    position_ids = batch['position_ids']
-
-    return tokens, labels, loss_mask, attention_mask, position_ids, teacher_data
+    return batch.values()
 
 
 # define spiky loss as a loss that's 10x the max loss observed
@@ -145,14 +130,8 @@ def forward_step(data_iterator, model: MambaModel):
     timers('batch-generator', log_level=2).start()
     global stimer
     with stimer(bdata=True):
-        (
-            tokens,
-            labels,
-            loss_mask,
-            attention_mask,
-            position_ids,
-            _,
-        ) = get_batch(data_iterator)
+        tokens, labels, loss_mask, attention_mask, position_ids = get_batch(
+            data_iterator)
     timers('batch-generator').stop()
 
     with stimer:

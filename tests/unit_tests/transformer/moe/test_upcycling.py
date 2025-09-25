@@ -31,7 +31,6 @@ from megatron.training.utils import (
     get_batch_on_this_tp_rank,
     unwrap_model,
 )
-from megatron.training.teacher_data_utils import has_teacher_data, unpack_teacher_batch
 from tests.unit_tests.test_utilities import Utils
 
 try:
@@ -163,23 +162,12 @@ def set_bias_value(dense_model):
 
 def get_batch(data_iterator):
     if (not mpu.is_pipeline_first_stage()) and (not mpu.is_pipeline_last_stage()):
-        return None, None, None, None, None, None
+        return None, None, None, None, None
 
     batch = get_batch_on_this_tp_rank(data_iterator)
     batch = get_batch_on_this_cp_rank(batch)
 
-    teacher_packed = batch.pop('teacher_data', None)
-    _teacher_data = None
-    if teacher_packed is not None and has_teacher_data(teacher_packed):
-        _teacher_data = unpack_teacher_batch(teacher_packed)
-
-    tokens = batch['tokens']
-    labels = batch['labels']
-    loss_mask = batch['loss_mask']
-    attention_mask = batch['attention_mask']
-    position_ids = batch['position_ids']
-
-    return tokens, labels, loss_mask, attention_mask, position_ids, _teacher_data
+    return batch.values()
 
 
 class TestGPTModel:
