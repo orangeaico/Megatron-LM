@@ -18,7 +18,7 @@ MODEL_NAME="qwen3_1.7b"
 LOAD_CHECKPOINT_PATH="/workspace/data/mega-models/Qwen3-1.7B"
 TOKENIZER_ARG="/workspace/data/mega-models/Qwen3-1.7B" # Path to tokenizer model
 
-JSON_TRAIN_DIR="/workspace/training/teacher_data"
+JSON_TRAIN_DIR="/workspace/distillation_data"
 
 SAVE_CHECKPOINT_PATH="output/$MODEL_NAME/checkpoints"
 # Data cache path (useful for both mock and real data)
@@ -53,7 +53,7 @@ MICRO_BATCH_SIZE=1
 GLOBAL_BATCH_SIZE=1
 NUM_LAYERS=28
 DTYPE="bf16"
-SEQ_LENGTH=8192 # 65000
+SEQ_LENGTH=16384 # 65000
 MAX_POSITION_EMBEDDINGS=40960 # 65000
 
 DISTRIBUTED_ARGS=(

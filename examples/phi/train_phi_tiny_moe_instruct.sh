@@ -61,7 +61,7 @@ MICRO_BATCH_SIZE=1
 GLOBAL_BATCH_SIZE=2  
 NUM_LAYERS=16  # Actual 32 layers
 DTYPE="bf16"
-SEQ_LENGTH=16384
+SEQ_LENGTH=8192
 MAX_POSITION_EMBEDDINGS=40960 
 
 DISTRIBUTED_ARGS=(
@@ -202,14 +202,14 @@ if [[ "$TOKENIZER_ARG" == "MOCK" ]] || [[ "$DATA_ARG" == "MOCK" ]] || [[ -z "$TO
 else
     # Settings for real data
     DATA_ARGS_LIST+=(
-        "--distillation-loss"
         "--data-path $DATA_ARG"
         "--tokenizer-type HuggingFaceTokenizer" 
         "--tokenizer-model $TOKENIZER_ARG"
         "--data-cache-path ${DATA_CACHE_PATH}"
         "--split '99,1,0'"
+        "--no-create-attention-mask-in-dataloader"
         "--no-mmap-bin-files"
-        "--num-workers 0"
+        "--num-workers 1"
         # Note: --vocab-size might be inferred by HuggingFaceTokenizer or might need to be explicit.
         "--vocab-size 32064"  # Qwen3-1.7B vocab size
         # "--sft"

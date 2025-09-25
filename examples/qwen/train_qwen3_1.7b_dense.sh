@@ -13,25 +13,22 @@ export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 export NVTE_ALLOW_NONDETERMINISTIC_ALGO=1
 export NCCL_NVLS_ENABLE=0
 
-MODEL_NAME="qwen3_1.7b"
+MODEL_NAME="Qwen3-Coder-30B-A3B-Instruct"
 
-LOAD_CHECKPOINT_PATH="/workspace/data/mega-models/Qwen3-1.7B"
-TOKENIZER_ARG="/workspace/data/mega-models/Qwen3-1.7B" # Path to tokenizer model
+BASE_DIR="/workspace/data/"
+LOAD_CHECKPOINT_PATH="$BASE_DIR/mega-models/Qwen3-Coder-30B-A3B-Instruct-torch_dist"
 
-LOAD_CHECKPOINT_PATH="$BASE_DIR/mega-models/Qwen3-1.7B"
-TOKENIZER_ARG="$BASE_DIR/mega-models/Qwen3-1.7B" # Path to tokenizer model, or "MOCK"
-
-# TRAIN_DATA_PATH="$BASE_DIR/data/test_output.jsonl"     # Data prefix, or "MOCK"
-TRAIN_DATA_PATH="$BASE_DIR/data/cpt/memmap_xarray_8192_overlap5_combined/megatron_indexed/train_text_document"
-VALID_DATA_PATH="$BASE_DIR/data/cpt/memmap_xarray_8192_overlap5_combined/megatron_indexed/val_text_document"
-TEST_DATA_PATH="$BASE_DIR/data/cpt/memmap_xarray_8192_overlap5_combined/megatron_indexed/val_text_document"
+TOKENIZER_ARG="$BASE_DIR/mega-models/Qwen3-Coder-30B-A3B-Instruct-torch_dist" # Path to tokenizer model, or "MOCK"
+DATA_ARG="$BASE_DIR/data/test_output.jsonl"
+# TOKENIZER_ARG="MOCK"
+# DATA_ARG="MOCK"
 
 BASE_OUTPUT_DIR="$BASE_DIR/himanshu/output"
 SAVE_CHECKPOINT_PATH="$BASE_OUTPUT_DIR/$MODEL_NAME/checkpoints"
 # Data cache path (useful for both mock and real data)
-DATA_CACHE_PATH="output/$MODEL_NAME/benchmark_cache"
-TENSORBOARD_LOGS_PATH="output/$MODEL_NAME/tensorboard_logs"
-MEMORY_SNAPSHOT_PATH="output/$MODEL_NAME/memory_snapshots/memory_snapshot.pickle"
+DATA_CACHE_PATH="$BASE_OUTPUT_DIR/$MODEL_NAME/benchmark_cache"
+TENSORBOARD_LOGS_PATH="$BASE_OUTPUT_DIR/$MODEL_NAME/tensorboard_logs"
+MEMORY_SNAPSHOT_PATH="$BASE_OUTPUT_DIR/$MODEL_NAME/memory_snapshots/memory_snapshot.pickle"
 
 WANDB_API_KEY=''
 
@@ -42,7 +39,7 @@ mkdir -p "$(dirname "$MEMORY_SNAPSHOT_PATH")"
 mkdir -p "$DATA_CACHE_PATH"
 
 # Distributed training setup
-GPUS_PER_NODE=2
+GPUS_PER_NODE=8
 NUM_NODES=1
 MASTER_ADDR=${MASTER_ADDR:-localhost}
 MASTER_PORT=${MASTER_PORT:-6000}
@@ -53,15 +50,18 @@ WORLD_SIZE=$(($GPUS_PER_NODE*$NUM_NODES))
 PRETRAIN_SCRIPT_PATH="pretrain_gpt.py"
 
 # Fixed model and training parameters for Qwen3-1.7B
-TP_SIZE=2
-CP_SIZE=1
+TP_SIZE=4
+CP_SIZE=2
+EP_SIZE=4
+EXPERT_TP_SIZE=1
 PP_SIZE=1
-MICRO_BATCH_SIZE=1
-GLOBAL_BATCH_SIZE=1
-NUM_LAYERS=28
+LAYERS_PER_VP=1
+MICRO_BATCH_SIZE=1 
+GLOBAL_BATCH_SIZE=8
+NUM_LAYERS=48  
 DTYPE="bf16"
-SEQ_LENGTH=8192 # 65000
-MAX_POSITION_EMBEDDINGS=40960 # 65000
+SEQ_LENGTH=65000
+MAX_POSITION_EMBEDDINGS=262144 
 
 DISTRIBUTED_ARGS=(
     --nproc_per_node $GPUS_PER_NODE
@@ -76,32 +76,48 @@ MODEL_ARGS=(
     --num-layers $NUM_LAYERS
     --seq-length $SEQ_LENGTH
     --hidden-size 2048  
-    --ffn-hidden-size 6144 
-    --num-attention-heads 16  
+    --ffn-hidden-size 5472 
+    --num-attention-heads 32  
     --group-query-attention
-    --num-query-groups 8 
+    --num-query-groups 4 
     --kv-channels 128 
     --qk-layernorm
     --normalization RMSNorm
     --max-position-embeddings $MAX_POSITION_EMBEDDINGS
-    --make-vocab-size-divisible-by 1187
+    --untie-embeddings-and-output-weights
+    --make-vocab-size-divisible-by 1
+    --padded-vocab-size 151936  
     --position-embedding-type rope
-    --rotary-base 1000000  # Same as Qwen3 rope_theta
+    --rotary-base 10000000  # Same as Qwen3 rope_theta
     --rotary-percent 1.0
     --rotary-seq-len-interpolation-factor 1
-    # --use-rope-scaling
-    # --rope-scaling-factor 2
     --swiglu
     --norm-epsilon 1e-06
-    --init-method-std 0.02  
+    --init-method-std 0.02 
     --disable-bias-linear
+)
+
+MOE_ARGS=(
+    --num-experts 128 
+    --moe-ffn-hidden-size 768
+    --moe-router-load-balancing-type aux_loss
+    --moe-router-topk 8  # num_experts_per_tok
+    --moe-grouped-gemm
+    --moe-aux-loss-coeff 0  # router_aux_loss_coef from config
+    --moe-token-dispatcher-type alltoall # flex for --moe-enable-deepep
+    --moe-permute-fusion
+    --moe-router-dtype fp32
+    # --moe-router-fusion # This is only supported in TransformerEngine 2.7.0 and above. Current installed TE is 2.2
+    # --moe-router-force-load-balancing
+    # --moe-enable-deepep
+    # --overlap-moe-expert-parallel-comm
 )
 
 TRAINING_ARGS=(
     --micro-batch-size $MICRO_BATCH_SIZE
     --global-batch-size $GLOBAL_BATCH_SIZE
-    --train-samples 6000
-    --lr-decay-samples 6000
+    --train-samples 896
+    --lr-decay-samples 896
     --exit-duration-in-mins 235
 
     # Learning rate args
@@ -131,9 +147,10 @@ TRAINING_ARGS=(
     --fused-linear-cross-entropy
     # --cross-entropy-loss-fusion
     # --cross-entropy-fusion-impl native
-    --recompute-granularity full
-    --recompute-method uniform
-    --recompute-num-layers 1
+    
+    # --recompute-granularity full
+    # --recompute-method uniform
+    # --recompute-num-layers 1
     --calculate-per-token-loss
     # --no-gradient-accumulation-fusion
 
@@ -164,18 +181,21 @@ fi
 # Model parallelism arguments
 MODEL_PARALLEL_ARGS=(
     --tensor-model-parallel-size $TP_SIZE
-    --context-parallel-size $CP_SIZE
-    # --pipeline-model-parallel-size $PP_SIZE # Not explicitly set in llama script options, assume 1 if not multi-node PP
     --sequence-parallel  # Always enable sequence parallelism with TP_SIZE=2
+    --context-parallel-size $CP_SIZE
+    --expert-model-parallel-size $EP_SIZE
+    --expert-tensor-parallel-size $EXPERT_TP_SIZE
+    # --pipeline-model-parallel-size $PP_SIZE # Not explicitly set in llama script options, assume 1 if not multi-node PP
+    # --num-layers-per-virtual-pipeline-stage $LAYERS_PER_VP  # interleaved PP; needs PP_SIZE>1
 )
 
 # Data arguments (conditional for mock vs real data)
 DATA_ARGS_LIST=()
-if [[ "$TOKENIZER_ARG" == "MOCK" ]] || [[ "$TRAIN_DATA_PATH" == "MOCK" ]] || [[ -z "$TOKENIZER_ARG" ]]; then
+if [[ "$TOKENIZER_ARG" == "MOCK" ]] || [[ "$DATA_ARG" == "MOCK" ]] || [[ -z "$TOKENIZER_ARG" ]]; then
     DATA_ARGS_LIST+=(
         "--mock-data"
         "--tokenizer-type NullTokenizer"
-        "--vocab-size 151936"  # Qwen3-1.7B vocab size
+        # "--vocab-size 151936"  
         "--data-cache-path ${DATA_CACHE_PATH}"
         "--tiktoken-pattern v2" 
         "--split '99,1,0'"
@@ -186,20 +206,16 @@ if [[ "$TOKENIZER_ARG" == "MOCK" ]] || [[ "$TRAIN_DATA_PATH" == "MOCK" ]] || [[ 
 else
     # Settings for real data
     DATA_ARGS_LIST+=(
-        # "--data-path $TRAIN_DATA_PATH"
-        # "--split '90,10,0'"
-        "--train-data-path $TRAIN_DATA_PATH"
-        "--valid-data-path $VALID_DATA_PATH"
-        "--test-data-path $TEST_DATA_PATH"
+        "--data-path $DATA_ARG"
         "--tokenizer-type HuggingFaceTokenizer" 
         "--tokenizer-model $TOKENIZER_ARG"
-        # "--data-cache-path ${DATA_CACHE_PATH}"
+        "--data-cache-path ${DATA_CACHE_PATH}"
+        "--split '99,1,0'"
         "--no-create-attention-mask-in-dataloader"
         "--no-mmap-bin-files"
         "--num-workers 1"
-        # Note: --vocab-size might be inferred by HuggingFaceTokenizer or might need to be explicit.
-        "--vocab-size 151936"  # Qwen3-1.7B vocab size
-        # "--sft"
+        # "--vocab-size 151936"
+        "--sft"
         # "--reset-position-ids"
         # "--reset-attention-mask"
         # "--eod-mask-loss"
@@ -210,6 +226,8 @@ fi
 CHECKPOINT_ARGS=(
     --finetune
     --auto-detect-ckpt-format
+    # --ckpt-convert-format torch
+    # --ckpt-convert-save /workspace/checkpoints/qwen3_30b_a3b_torch_tp2
     --dist-ckpt-strictness log_all
     --distributed-timeout-minutes 60
     --load "$LOAD_CHECKPOINT_PATH"
@@ -218,14 +236,14 @@ CHECKPOINT_ARGS=(
     --no-save-rng
     --no-load-rng
     --no-load-optim
-    --save-interval 150
+    --save-interval 60
     --exit-on-missing-checkpoint
 )
 
 EVAL_AND_LOGGING_ARGS=(
-    --eval-iters 3
-    --eval-interval 20
-    # --full-validation
+    --eval-iters 1
+    --eval-interval 15
+    # "--full-validation"
     --log-interval 1
     --log-throughput
     --profile
@@ -242,9 +260,6 @@ EVAL_AND_LOGGING_ARGS=(
     --record-memory-history
     --memory-snapshot-path "$MEMORY_SNAPSHOT_PATH"
     # --dump-model-params-to-pickle
-    --log-progress
-    # --timing-log-level 2
-    --logging-level 10
 )
 
 if [ -n "${WANDB_API_KEY}" ]; then
@@ -267,6 +282,7 @@ fi
 torchrun ${DISTRIBUTED_ARGS[@]} \
     "$PRETRAIN_SCRIPT_PATH" \
     ${MODEL_ARGS[@]} \
+    ${MOE_ARGS[@]} \
     ${TRAINING_ARGS[@]} \
     ${DTYPE_ARGS[@]} \
     ${MODEL_PARALLEL_ARGS[@]} \
