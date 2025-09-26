@@ -44,8 +44,8 @@ except ImportError:
     rearrange = None
 
 try:
-    from flashattn_hopper.flash_attn_interface import _flash_attn_forward
-    from flashattn_hopper.flash_attn_interface import (
+    from flash_attn_interface import _flash_attn_forward
+    from flash_attn_interface import (
         flash_attn_with_kvcache as flash_attn3_with_kvcache,
     )
 
@@ -83,6 +83,20 @@ except ImportError:
     HAVE_TE = False
     SplitAlongDim, TELinear, set_save_original_input = None, None, None
 
+DEBUG=True
+
+if DEBUG:
+    import inspect
+    print (f"[DEBUG] Attention modules summary: HAVE_FA3 {HAVE_FA3}, HAVE_FMLA {HAVE_FMLA}, HAVE_TE {HAVE_TE}, flash_attn_with_kvcache {flash_attn_with_kvcache}")
+    print (f"[DEBUG] flash_attn_with_kvcache source code: {inspect.getsourcefile(flash_attn_with_kvcache)}")
+    if HAVE_FA3:
+        print (f"[DEBUG] flash_attn3_with_kvcache source code: {inspect.getsourcefile(flash_attn3_with_kvcache)}")
+    if HAVE_FMLA:
+        print (f"[DEBUG] flash_mla_with_kvcache source code: {inspect.getsourcefile(flash_mla_with_kvcache)}")
+    if HAVE_TE:
+        print (f"[DEBUG] TELinear source code: {inspect.getsourcefile(TELinear)}")
+    
+    
 
 @dataclass
 class SelfAttentionSubmodules:
