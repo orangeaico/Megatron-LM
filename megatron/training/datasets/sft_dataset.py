@@ -131,71 +131,69 @@ class SFTDataset(MegatronDataset):
         original_seq_len = len(tokens)
 
         # minus one to insert eos token
-        # if len(tokens) > max_seq_len - 1:
-        #     if True:  # TODO: when too long to fit in context, truncate left to right
-        #         tokens = tokens[: max_seq_len - 1]
-        #         target = target[: max_seq_len - 1]
-        #     else:  # right to left
-        #         tokens = tokens[-(max_seq_len - 1) :]
-        #         target = target[-(max_seq_len - 1) :]
+        if len(tokens) > max_seq_len - 1:
+            if True:  # TODO: when too long to fit in context, truncate left to right
+                tokens = tokens[: max_seq_len - 1]
+                target = target[: max_seq_len - 1]
+            else:  # right to left
+                tokens = tokens[-(max_seq_len - 1) :]
+                target = target[-(max_seq_len - 1) :]
         # padding
-        # def _lcm(a: int, b: int) -> int:
-        #     if a == 0 or b == 0:
-        #         return max(a, b)
-        #     return abs(a * b) // gcd(a, b)
+        def _lcm(a: int, b: int) -> int:
+            if a == 0 or b == 0:
+                return max(a, b)
+            return abs(a * b) // gcd(a, b)
 
-        # base_seq_len = len(tokens) + 1  # account for EOS added before shifting
-        # required_multiple = 1
+        base_seq_len = len(tokens) + 1  # account for EOS added before shifting
+        required_multiple = 1
 
-        # cp_size = parallel_state.get_context_parallel_world_size()
-        # if cp_size > 1:
-        #     required_multiple = _lcm(required_multiple, 2 * cp_size)
+        cp_size = parallel_state.get_context_parallel_world_size()
+        if cp_size > 1:
+            required_multiple = _lcm(required_multiple, 2 * cp_size)
 
-        # tp_size = 1
-        # if torch.distributed.is_available() and torch.distributed.is_initialized():
-        #     try:
-        #         tp_size = parallel_state.get_tensor_model_parallel_world_size()
-        #     except AssertionError:
-        #         tp_size = 1
-        # if tp_size > 1:
-        #     required_multiple = _lcm(required_multiple, tp_size)
+        tp_size = 1
+        if torch.distributed.is_available() and torch.distributed.is_initialized():
+            try:
+                tp_size = parallel_state.get_tensor_model_parallel_world_size()
+            except AssertionError:
+                tp_size = 1
+        if tp_size > 1:
+            required_multiple = _lcm(required_multiple, tp_size)
 
-        # padding_len = 0
-        # if required_multiple > 1:
-        #     remainder = base_seq_len % required_multiple
-        #     if remainder != 0:
-        #         padding_len = required_multiple - remainder
+        padding_len = 0
+        if required_multiple > 1:
+            remainder = base_seq_len % required_multiple
+            if remainder != 0:
+                padding_len = required_multiple - remainder
 
-        # final_seq_len = base_seq_len + padding_len
-        # if final_seq_len > max_seq_len:
-        #     # Trim tokens until both constraints fit within max_seq_len.
-        #     while final_seq_len > max_seq_len and tokens:
-        #         tokens.pop()
-        #         target.pop()
-        #         base_seq_len = len(tokens) + 1
-        #         padding_len = 0
-        #         if required_multiple > 1:
-        #             remainder = base_seq_len % required_multiple
-        #             if remainder != 0:
-        #                 padding_len = required_multiple - remainder
-        #         final_seq_len = base_seq_len + padding_len
-        #     if final_seq_len > max_seq_len:
-        #         raise ValueError(
-        #             "Unable to satisfy tensor/context parallel padding within max_seq_len"
-        #         )
+        final_seq_len = base_seq_len + padding_len
+        if final_seq_len > max_seq_len:
+            # Trim tokens until both constraints fit within max_seq_len.
+            while final_seq_len > max_seq_len and tokens:
+                tokens.pop()
+                target.pop()
+                base_seq_len = len(tokens) + 1
+                padding_len = 0
+                if required_multiple > 1:
+                    remainder = base_seq_len % required_multiple
+                    if remainder != 0:
+                        padding_len = required_multiple - remainder
+                final_seq_len = base_seq_len + padding_len
+            if final_seq_len > max_seq_len:
+                raise ValueError(
+                    "Unable to satisfy tensor/context parallel padding within max_seq_len"
+                )
 
-        # filler = [tokenizer.pad] * (padding_len + 1)
+        filler = [tokenizer.pad] * (padding_len + 1)
 
-        tokens = np.array(tokens + [tokenizer.eod] , dtype=np.int64)
-        target = np.array(target + [tokenizer.eod] , dtype=np.int64)
+        tokens = np.array(tokens + [tokenizer.eod] + filler, dtype=np.int64)
+        target = np.array(target + [tokenizer.eod] + filler, dtype=np.int64)
 
         tokens = torch.tensor(tokens)
         target = torch.tensor(target)
 
         tokens = tokens[:-1].contiguous()
         target = target[1:].contiguous()
-        tokens = tokens[: 10000]
-        target = target[: 10000]
 
         loss_mask, position_ids, attention_mask = self._get_ltor_masks_and_position_ids(
             max_seq_len, target, tokenizer.pad

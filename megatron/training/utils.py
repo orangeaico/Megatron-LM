@@ -491,15 +491,93 @@ def get_batch_on_this_tp_rank(data_iterator):
 
     args = get_args()
 
+    tp_rank = mpu.get_tensor_model_parallel_rank()
+    tp_group = mpu.get_tensor_model_parallel_group()
+    tp_src_rank = mpu.get_tensor_model_parallel_src_rank()
+    cuda_device = torch.device('cuda', torch.cuda.current_device())
+
+    dtype_encoding = {
+        torch.float32: 0,
+        torch.float16: 1,
+        torch.bfloat16: 2,
+        torch.float64: 3,
+        torch.int64: 4,
+        torch.int32: 5,
+        torch.int16: 6,
+        torch.int8: 7,
+        torch.uint8: 8,
+        torch.bool: 9,
+    }
+    dtype_decoding = {v: k for k, v in dtype_encoding.items()}
+
+    def _encode_dtype(dtype: torch.dtype) -> int:
+        if dtype not in dtype_encoding:
+            raise RuntimeError(
+                f"Unsupported dtype {dtype} encountered while sharing batch metadata across tensor parallel ranks."
+            )
+        return dtype_encoding[dtype]
+
+    def _decode_dtype(idx: int) -> torch.dtype:
+        if idx not in dtype_decoding:
+            raise RuntimeError(
+                f"Received unknown dtype id {idx} while reconstructing batch tensors on tensor parallel ranks."
+            )
+        return dtype_decoding[idx]
+
     def _broadcast(item):
         if item is not None:
             torch.distributed.broadcast(
                 item,
-                mpu.get_tensor_model_parallel_src_rank(),
-                group=mpu.get_tensor_model_parallel_group(),
+                tp_src_rank,
+                group=tp_group,
             )
 
-    if mpu.get_tensor_model_parallel_rank() == 0:
+    def _exchange_batch_metadata(batch):
+        metadata = {}
+        keys = ('tokens', 'labels', 'loss_mask', 'position_ids', 'attention_mask')
+        for key in keys:
+            if tp_rank == 0:
+                tensor = batch[key]
+                if tensor is None:
+                    meta_tensor = torch.tensor([-1, -1], dtype=torch.int64, device=cuda_device)
+                else:
+                    meta_tensor = torch.tensor(
+                        [tensor.dim(), _encode_dtype(tensor.dtype)],
+                        dtype=torch.int64,
+                        device=cuda_device,
+                    )
+            else:
+                meta_tensor = torch.empty(2, dtype=torch.int64, device=cuda_device)
+
+            torch.distributed.broadcast(meta_tensor, tp_src_rank, group=tp_group)
+
+            ndims = int(meta_tensor[0].item())
+            dtype_idx = int(meta_tensor[1].item())
+
+            if ndims < 0:
+                metadata[key] = (None, None)
+                continue
+
+            if ndims > 0:
+                if tp_rank == 0:
+                    shape_tensor = torch.tensor(
+                        batch[key].shape,
+                        dtype=torch.int64,
+                        device=cuda_device,
+                    )
+                else:
+                    shape_tensor = torch.empty(ndims, dtype=torch.int64, device=cuda_device)
+
+                torch.distributed.broadcast(shape_tensor, tp_src_rank, group=tp_group)
+                shape = tuple(int(dim) for dim in shape_tensor.tolist())
+            else:
+                shape = ()
+
+            metadata[key] = (shape, _decode_dtype(dtype_idx))
+
+        return metadata
+
+    if tp_rank == 0:
 
         if data_iterator is not None:
             data = next(data_iterator)
@@ -517,6 +595,8 @@ def get_batch_on_this_tp_rank(data_iterator):
             ),
             'position_ids': data["position_ids"].cuda(non_blocking=True),
         }
+
+        _exchange_batch_metadata(batch)
 
         if args.pipeline_model_parallel_size == 1:
             _broadcast(batch['tokens'])
@@ -543,33 +623,41 @@ def get_batch_on_this_tp_rank(data_iterator):
 
     else:
 
-        tokens = torch.empty(
-            (args.micro_batch_size, args.seq_length),
-            dtype=torch.int64,
-            device=torch.cuda.current_device(),
+        metadata = _exchange_batch_metadata(None)
+
+        tokens_shape, tokens_dtype = metadata['tokens']
+        tokens = (
+            None
+            if tokens_shape is None
+            else torch.empty(tokens_shape, dtype=tokens_dtype, device=cuda_device)
         )
-        labels = torch.empty(
-            (args.micro_batch_size, args.seq_length),
-            dtype=torch.int64,
-            device=torch.cuda.current_device(),
+
+        labels_shape, labels_dtype = metadata['labels']
+        labels = (
+            None
+            if labels_shape is None
+            else torch.empty(labels_shape, dtype=labels_dtype, device=cuda_device)
         )
-        loss_mask = torch.empty(
-            (args.micro_batch_size, args.seq_length),
-            dtype=torch.float32,
-            device=torch.cuda.current_device(),
+
+        loss_mask_shape, loss_mask_dtype = metadata['loss_mask']
+        loss_mask = (
+            None
+            if loss_mask_shape is None
+            else torch.empty(loss_mask_shape, dtype=loss_mask_dtype, device=cuda_device)
         )
-        if args.create_attention_mask_in_dataloader:
-            attention_mask = torch.empty(
-                (args.micro_batch_size, 1, args.seq_length, args.seq_length),
-                dtype=torch.bool,
-                device=torch.cuda.current_device(),
-            )
-        else:
-            attention_mask = None
-        position_ids = torch.empty(
-            (args.micro_batch_size, args.seq_length),
-            dtype=torch.int64,
-            device=torch.cuda.current_device(),
+
+        attention_shape, attention_dtype = metadata['attention_mask']
+        attention_mask = (
+            None
+            if attention_shape is None
+            else torch.empty(attention_shape, dtype=attention_dtype, device=cuda_device)
+        )
+
+        position_shape, position_dtype = metadata['position_ids']
+        position_ids = (
+            None
+            if position_shape is None
+            else torch.empty(position_shape, dtype=position_dtype, device=cuda_device)
         )
 
         if args.pipeline_model_parallel_size == 1:
