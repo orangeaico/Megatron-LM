@@ -15,17 +15,17 @@ export NCCL_NVLS_ENABLE=0
 
 MODEL_NAME="qwen3_1.7b"
 
-BASE_DIR="/workspace/data/"
+BASE_DIR="/workspace/data"
 
 LOAD_CHECKPOINT_PATH="$BASE_DIR/mega-models/Qwen3-1.7B"
 TOKENIZER_ARG="$BASE_DIR/mega-models/Qwen3-1.7B" # Path to tokenizer model, or "MOCK"
 
-# TRAIN_DATA_PATH="$BASE_DIR/data/test_output.jsonl"     # Data prefix, or "MOCK"
-TRAIN_DATA_PATH="$BASE_DIR/data/cpt/memmap_xarray_8192_overlap5_combined/megatron_indexed/train_text_document"
-VALID_DATA_PATH="$BASE_DIR/data/cpt/memmap_xarray_8192_overlap5_combined/megatron_indexed/val_text_document"
-TEST_DATA_PATH="$BASE_DIR/data/cpt/memmap_xarray_8192_overlap5_combined/megatron_indexed/val_text_document"
+TRAIN_DATA_PATH="$BASE_DIR/data/test_output.jsonl"     # Data prefix, or "MOCK"
+# TRAIN_DATA_PATH="$BASE_DIR/data/cpt/memmap_xarray_8192_overlap5_combined/megatron_indexed/train_text_document"
+# VALID_DATA_PATH="$BASE_DIR/data/cpt/memmap_xarray_8192_overlap5_combined/megatron_indexed/val_text_document"
+# TEST_DATA_PATH="$BASE_DIR/data/cpt/memmap_xarray_8192_overlap5_combined/megatron_indexed/val_text_document"
 
-BASE_OUTPUT_DIR="$BASE_DIR/himanshu/output"
+BASE_OUTPUT_DIR="output"
 SAVE_CHECKPOINT_PATH="$BASE_OUTPUT_DIR/$MODEL_NAME/checkpoints"
 # Data cache path (useful for both mock and real data)
 DATA_CACHE_PATH="$BASE_OUTPUT_DIR/$MODEL_NAME/benchmark_cache"
@@ -52,15 +52,15 @@ WORLD_SIZE=$(($GPUS_PER_NODE*$NUM_NODES))
 PRETRAIN_SCRIPT_PATH="pretrain_gpt.py"
 
 # Fixed model and training parameters for Qwen3-1.7B
-TP_SIZE=1 
-CP_SIZE=1     
+TP_SIZE=2
+CP_SIZE=1
 PP_SIZE=1     
-MICRO_BATCH_SIZE=4
-GLOBAL_BATCH_SIZE=8  
+MICRO_BATCH_SIZE=1
+GLOBAL_BATCH_SIZE=1
 NUM_LAYERS=28  
 DTYPE="bf16"
-SEQ_LENGTH=8192 # 65000
-MAX_POSITION_EMBEDDINGS=40960 # 65000
+SEQ_LENGTH=30000
+MAX_POSITION_EMBEDDINGS=30000
 
 DISTRIBUTED_ARGS=(
     --nproc_per_node $GPUS_PER_NODE
@@ -88,12 +88,13 @@ MODEL_ARGS=(
     --rotary-base 1000000  # Same as Qwen3 rope_theta
     --rotary-percent 1.0
     --rotary-seq-len-interpolation-factor 1
-    # --use-rope-scaling
-    # --rope-scaling-factor 2
+    --use-rope-scaling
+    --rope-scaling-factor 2
     --swiglu
     --norm-epsilon 1e-06
     --init-method-std 0.02  
     --disable-bias-linear
+    --moe-token-dispatcher-type alltoall
 )
 
 TRAINING_ARGS=(
@@ -175,7 +176,7 @@ if [[ "$TOKENIZER_ARG" == "MOCK" ]] || [[ "$TRAIN_DATA_PATH" == "MOCK" ]] || [[ 
         "--mock-data"
         "--tokenizer-type NullTokenizer"
         "--vocab-size 151936"  # Qwen3-1.7B vocab size
-        "--data-cache-path ${DATA_CACHE_PATH}"
+        # "--data-cache-path ${DATA_CACHE_PATH}"
         "--tiktoken-pattern v2" 
         "--split '99,1,0'"
         "--no-create-attention-mask-in-dataloader"
@@ -185,11 +186,11 @@ if [[ "$TOKENIZER_ARG" == "MOCK" ]] || [[ "$TRAIN_DATA_PATH" == "MOCK" ]] || [[ 
 else
     # Settings for real data
     DATA_ARGS_LIST+=(
-        # "--data-path $TRAIN_DATA_PATH"
-        # "--split '90,10,0'"
-        "--train-data-path $TRAIN_DATA_PATH"
-        "--valid-data-path $VALID_DATA_PATH"
-        "--test-data-path $TEST_DATA_PATH"
+        "--data-path $TRAIN_DATA_PATH"
+        "--split '90,10,0'"
+        # "--train-data-path $TRAIN_DATA_PATH"
+        # "--valid-data-path $VALID_DATA_PATH"
+        # "--test-data-path $TEST_DATA_PATH"
         "--tokenizer-type HuggingFaceTokenizer" 
         "--tokenizer-model $TOKENIZER_ARG"
         # "--data-cache-path ${DATA_CACHE_PATH}"
@@ -198,7 +199,7 @@ else
         "--num-workers 1"
         # Note: --vocab-size might be inferred by HuggingFaceTokenizer or might need to be explicit.
         "--vocab-size 151936"  # Qwen3-1.7B vocab size
-        # "--sft"
+        "--sft"
         # "--reset-position-ids"
         # "--reset-attention-mask"
         # "--eod-mask-loss"
@@ -242,8 +243,9 @@ EVAL_AND_LOGGING_ARGS=(
     --memory-snapshot-path "$MEMORY_SNAPSHOT_PATH"
     # --dump-model-params-to-pickle
     --log-progress
-    # --timing-log-level 2
+    --timing-log-level 2
     --logging-level 10
+    --timing-log-option all
 )
 
 if [ -n "${WANDB_API_KEY}" ]; then

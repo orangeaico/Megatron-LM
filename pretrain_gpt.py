@@ -81,7 +81,9 @@ def loss_func(
         return loss_func_modelopt(loss_mask, output_tensor, model=model)
 
     losses = output_tensor.view(-1).float()
+    print(f"losses is nan {torch.isnan(losses).sum()} shape {losses.shape} ")
     loss_mask = loss_mask.view(-1).float()
+    print(f"loss_mask is nan {torch.isnan(loss_mask).sum()} shape {loss_mask.shape} ")
     loss = torch.sum(losses * loss_mask)
 
     # Check individual rank losses are not NaN prior to DP all-reduce.
@@ -137,6 +139,11 @@ def forward_step(data_iterator, model: GPTModel, return_schedule_plan: bool = Fa
     global stimer
     with stimer(bdata=True):
         tokens, labels, loss_mask, attention_mask, position_ids = get_batch(data_iterator)
+    curr_rank = torch.distributed.get_rank()
+    tp_rank = parallel_state.get_tensor_model_parallel_rank()
+    cp_rank = parallel_state.get_context_parallel_rank()
+    print(f"rank {curr_rank} tp rank {tp_rank} cp rank {cp_rank} {tokens} {labels} {loss_mask} {position_ids}", flush=True)
+    print(f"rank {curr_rank} tp rank {tp_rank} cp rank {cp_rank} token shape {tokens.shape} labels shape {labels.shape} loss mask shape {loss_mask.shape} trainable {loss_mask.sum().item()} loss mask {torch.isnan(loss_mask).sum()} tokens {torch.isnan(tokens).sum()} labels {torch.isnan(labels).sum()} pos {torch.isnan(position_ids).sum()}", flush=True)
     timers('batch-generator').stop()
 
     with stimer, mem_phase("FORWARD", do_barrier=True), nvtx_range("FORWARD"):
