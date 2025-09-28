@@ -39,35 +39,47 @@ pip install jsonlines
 pip install simpy
 
 if [ -n "${SETUP_FA3-}" ]; then
-    # Install flash_attn_3
-    pip install --no-index --no-deps https://huggingface.co/datasets/himanshu-livup/wheels/resolve/main/flash_attn_3-3.0.0b1-cp39-abi3-linux_x86_64.whl
+  # Install flash_attn_3
+  pip install --no-index --no-deps \
+    "https://huggingface.co/datasets/himanshu-livup/wheels/resolve/main/flash_attn_3-3.0.0b1-cp39-abi3-linux_x86_64.whl"
 
-    # Install latest version of transformer_engine (2.9.0.dev0+4d14578) built from source
-    pip uninstall -y transformer_engine transformer-engine || true
-    PIP_CONSTRAINT=/dev/null pip install --no-index --no-deps https://huggingface.co/datasets/himanshu-livup/wheels/resolve/main/transformer_engine-2.9.0.dev0+4d14578-cp312-cp312-linux_x86_64.whl
+  # Install transformer_engine wheel
+  pip uninstall -y transformer_engine transformer-engine || true
+  PIP_CONSTRAINT=/dev/null pip install --no-index --no-deps \
+    "https://huggingface.co/datasets/himanshu-livup/wheels/resolve/main/transformer_engine-2.9.0.dev0+4d14578-cp312-cp312-linux_x86_64.whl"
 
-    # Patch transformer_engine to use flash_attn_interface instead of flash_attn_3.flash_attn_interface
-    python - <<'PY'
-    import pathlib, re, sys
+  PIP_CONSTRAINT=/dev/null pip install -U onnxscript==0.5.2 onnx_ir==0.1.9 ml_dtypes==0.5.3
 
-    FILEPATH = "/usr/local/lib/python3.12/dist-packages/transformer_engine/pytorch/attention/dot_product_attention/backends.py"
+  # Patch transformer_engine to use flash_attn_interface
+  python - <<'PY'
+import pathlib, re, sys
 
-    p = pathlib.Path(FILEPATH)
-    if not p.exists():
-        print(f"[patch] ERROR: file not found: {FILEPATH}", file=sys.stderr)
-        sys.exit(2)
+FILEPATH = "/usr/local/lib/python3.12/dist-packages/transformer_engine/pytorch/attention/dot_product_attention/backends.py"
 
-    src = p.read_text(encoding="utf-8")
+p = pathlib.Path(FILEPATH)
+if not p.exists():
+    print(f"[patch] ERROR: file not found: {FILEPATH}", file=sys.stderr)
+    sys.exit(2)
 
-    # Replace only leading imports that reference flash_attn_3.flash_attn_interface
-    pat = re.compile(r'(?m)^(?P<i>\s*)(?P<kw>from|import)\s+flash_attn_3\.flash_attn_interface\b')
-    dst, n = pat.subn(r'\g<i>\g<kw> flash_attn_interface', src)
+src = p.read_text(encoding="utf-8")
 
-    if n == 0:
-        print(f"[patch] Nothing changed (already patched or different source): {FILEPATH}")
-        sys.exit(0)
+# Replace only leading imports that reference flash_attn_3.flash_attn_interface
+pat = re.compile(r'(?m)^(?P<i>\s*)(?P<kw>from|import)\s+flash_attn_3\.flash_attn_interface\b')
+dst, n = pat.subn(r'\g<i>\g<kw> flash_attn_interface', src)
 
-    p.write_text(dst, encoding="utf-8")
-    print(f"[patch] Patched {n} line(s) in {FILEPATH}")
+if n == 0:
+    print(f"[patch] Nothing changed (already patched or different source): {FILEPATH}")
+    sys.exit(0)
+
+p.write_text(dst, encoding="utf-8")
+print(f"[patch] Patched {n} line(s) in {FILEPATH}")
 PY
+
+python - <<'PY'
+import transformer_engine as te
+print("TE:", getattr(te,"__version__","n/a"))
+import transformer_engine.pytorch as te_pt
+print("TE PyTorch ok ->", te_pt.__file__)
+PY
+
 fi
