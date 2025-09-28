@@ -38,59 +38,36 @@ pip install --upgrade --no-cache-dir   "dill<0.3.9,>=0.3.0"   "datasets>=2.20.0"
 pip install jsonlines
 pip install simpy
 
-# Patch transformer_engine to use flash_attn_interface instead of flash_attn_3.flash_attn_interface
-# python - <<'PY'
-# import pathlib, re, sys
+if [ -n "${SETUP_FA3-}" ]; then
+    # Install flash_attn_3
+    pip install --no-index --no-deps https://huggingface.co/datasets/himanshu-livup/wheels/resolve/main/flash_attn_3-3.0.0b1-cp39-abi3-linux_x86_64.whl
 
-# FILEPATH = "/usr/local/lib/python3.12/dist-packages/transformer_engine/pytorch/attention.py"
+    # Install latest version of transformer_engine (2.9.0.dev0+4d14578) built from source
+    pip uninstall -y transformer_engine transformer-engine || true
+    PIP_CONSTRAINT=/dev/null pip install --no-index --no-deps https://huggingface.co/datasets/himanshu-livup/wheels/resolve/main/transformer_engine-2.9.0.dev0+4d14578-cp312-cp312-linux_x86_64.whl
 
-# p = pathlib.Path(FILEPATH)
-# if not p.exists():
-#     print(f"[patch] ERROR: file not found: {FILEPATH}", file=sys.stderr)
-#     sys.exit(2)
+    # Patch transformer_engine to use flash_attn_interface instead of flash_attn_3.flash_attn_interface
+    python - <<'PY'
+    import pathlib, re, sys
 
-# src = p.read_text(encoding="utf-8")
+    FILEPATH = "/usr/local/lib/python3.12/dist-packages/transformer_engine/pytorch/attention/dot_product_attention/backends.py"
 
-# # Replace only leading import statements that reference flash_attn_3.flash_attn_interface
-# pat = re.compile(r'(?m)^(?P<i>\s*)(?P<kw>from|import)\s+flash_attn_3\.flash_attn_interface\b')
-# dst, n = pat.subn(r'\g<i>\g<kw> flash_attn_interface', src)
+    p = pathlib.Path(FILEPATH)
+    if not p.exists():
+        print(f"[patch] ERROR: file not found: {FILEPATH}", file=sys.stderr)
+        sys.exit(2)
 
-# if n == 0:
-#     print(f"[patch] Nothing changed (already patched or different source): {FILEPATH}")
-#     sys.exit(0)
+    src = p.read_text(encoding="utf-8")
 
-# p.write_text(dst, encoding="utf-8")
-# print(f"[patch] Patched {n} line(s) in {FILEPATH}")
-# PY
+    # Replace only leading imports that reference flash_attn_3.flash_attn_interface
+    pat = re.compile(r'(?m)^(?P<i>\s*)(?P<kw>from|import)\s+flash_attn_3\.flash_attn_interface\b')
+    dst, n = pat.subn(r'\g<i>\g<kw> flash_attn_interface', src)
 
-# Install flash_attn_3
-pip install --no-index --no-deps https://huggingface.co/datasets/himanshu-livup/wheels/resolve/main/flash_attn_3-3.0.0b1-cp39-abi3-linux_x86_64.whl
+    if n == 0:
+        print(f"[patch] Nothing changed (already patched or different source): {FILEPATH}")
+        sys.exit(0)
 
-# Install latest version of transformer_engine (2.9.0.dev0+4d14578) built from source
-pip uninstall -y transformer_engine transformer-engine || true
-PIP_CONSTRAINT=/dev/null pip install --no-index --no-deps https://huggingface.co/datasets/himanshu-livup/wheels/resolve/main/transformer_engine-2.9.0.dev0+4d14578-cp312-cp312-linux_x86_64.whl
-
-# Patch transformer_engine to use flash_attn_interface instead of flash_attn_3.flash_attn_interface
-python - <<'PY'
-import pathlib, re, sys
-
-FILEPATH = "/usr/local/lib/python3.12/dist-packages/transformer_engine/pytorch/attention/dot_product_attention/backends.py"
-
-p = pathlib.Path(FILEPATH)
-if not p.exists():
-    print(f"[patch] ERROR: file not found: {FILEPATH}", file=sys.stderr)
-    sys.exit(2)
-
-src = p.read_text(encoding="utf-8")
-
-# Replace only leading imports that reference flash_attn_3.flash_attn_interface
-pat = re.compile(r'(?m)^(?P<i>\s*)(?P<kw>from|import)\s+flash_attn_3\.flash_attn_interface\b')
-dst, n = pat.subn(r'\g<i>\g<kw> flash_attn_interface', src)
-
-if n == 0:
-    print(f"[patch] Nothing changed (already patched or different source): {FILEPATH}")
-    sys.exit(0)
-
-p.write_text(dst, encoding="utf-8")
-print(f"[patch] Patched {n} line(s) in {FILEPATH}")
+    p.write_text(dst, encoding="utf-8")
+    print(f"[patch] Patched {n} line(s) in {FILEPATH}")
 PY
+fi
