@@ -23,7 +23,7 @@ DATA_ARG="$BASE_DIR/data/test_output.jsonl"
 # TOKENIZER_ARG="MOCK"
 # DATA_ARG="MOCK"
 
-BASE_OUTPUT_DIR="output"
+BASE_OUTPUT_DIR="$BASE_DIR/himanshu/output"
 SAVE_CHECKPOINT_PATH="$BASE_OUTPUT_DIR/$MODEL_NAME/checkpoints"
 # Data cache path (useful for both mock and real data)
 DATA_CACHE_PATH="$BASE_OUTPUT_DIR/$MODEL_NAME/benchmark_cache"
@@ -39,7 +39,7 @@ mkdir -p "$(dirname "$MEMORY_SNAPSHOT_PATH")"
 mkdir -p "$DATA_CACHE_PATH"
 
 # Distributed training setup
-GPUS_PER_NODE=2
+GPUS_PER_NODE=8
 NUM_NODES=1
 MASTER_ADDR=${MASTER_ADDR:-localhost}
 MASTER_PORT=${MASTER_PORT:-6000}
@@ -50,18 +50,18 @@ WORLD_SIZE=$(($GPUS_PER_NODE*$NUM_NODES))
 PRETRAIN_SCRIPT_PATH="pretrain_gpt.py"
 
 # Fixed model and training parameters for Qwen3-1.7B
-TP_SIZE=1
+TP_SIZE=4
 CP_SIZE=2
-EP_SIZE=2
+EP_SIZE=4
 EXPERT_TP_SIZE=1
 PP_SIZE=1
 LAYERS_PER_VP=1
-MICRO_BATCH_SIZE=1
-GLOBAL_BATCH_SIZE=1
-NUM_LAYERS=1
+MICRO_BATCH_SIZE=1 
+GLOBAL_BATCH_SIZE=8
+NUM_LAYERS=48  
 DTYPE="bf16"
 SEQ_LENGTH=65000
-MAX_POSITION_EMBEDDINGS=65000
+MAX_POSITION_EMBEDDINGS=262144 
 
 DISTRIBUTED_ARGS=(
     --nproc_per_node $GPUS_PER_NODE
@@ -209,14 +209,14 @@ else
         "--data-path $DATA_ARG"
         "--tokenizer-type HuggingFaceTokenizer" 
         "--tokenizer-model $TOKENIZER_ARG"
-        # "--data-cache-path ${DATA_CACHE_PATH}"
+        "--data-cache-path ${DATA_CACHE_PATH}"
         "--split '99,1,0'"
         "--no-create-attention-mask-in-dataloader"
         "--no-mmap-bin-files"
         "--num-workers 1"
         # "--vocab-size 151936"
         "--sft"
-        "--variable-seq-lengths"
+        # "--variable-seq-lengths"
         # "--reset-position-ids"
         # "--reset-attention-mask"
         # "--eod-mask-loss"
@@ -231,12 +231,12 @@ CHECKPOINT_ARGS=(
     # --ckpt-convert-save /workspace/checkpoints/qwen3_30b_a3b_torch_tp2
     --dist-ckpt-strictness log_all
     --distributed-timeout-minutes 60
-    # --load "$LOAD_CHECKPOINT_PATH"
-    # --save "$SAVE_CHECKPOINT_PATH"
-    # --no-save-optim
-    # --no-save-rng
-    # --no-load-rng
-    # --no-load-optim
+    --load "$LOAD_CHECKPOINT_PATH"
+    --save "$SAVE_CHECKPOINT_PATH"
+    --no-save-optim
+    --no-save-rng
+    --no-load-rng
+    --no-load-optim
     --save-interval 60
     --exit-on-missing-checkpoint
 )
@@ -247,10 +247,10 @@ EVAL_AND_LOGGING_ARGS=(
     # "--full-validation"
     --log-interval 1
     --log-throughput
-    # --profile
-    # --profile-step-start 2
-    # --profile-step-end 3
-    # --profile-ranks 0
+    --profile
+    --profile-step-start 2
+    --profile-step-end 3
+    --profile-ranks 0
     --use-pytorch-profiler
     --tensorboard-dir "$TENSORBOARD_LOGS_PATH"
     --log-timers-to-tensorboard
@@ -261,9 +261,6 @@ EVAL_AND_LOGGING_ARGS=(
     --record-memory-history
     --memory-snapshot-path "$MEMORY_SNAPSHOT_PATH"
     # --dump-model-params-to-pickle
-    --timing-log-level 2
-    --logging-level 10
-    --timing-log-option all
 )
 
 if [ -n "${WANDB_API_KEY}" ]; then
