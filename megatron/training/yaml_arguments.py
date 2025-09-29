@@ -167,7 +167,7 @@ def validate_yaml(args, defaults={}):
     # across batches/microbatches. Due to additional communication overhead
     # during pipeline parallelism, it should not be set if sequence length
     # is constant during training.
-    args.model_parallel.variable_seq_lengths = True
+    args.model_parallel.variable_seq_lengths = getattr(args, 'variable_seq_lengths', False)
 
     # Iteration-based training.
     if args.train_iters:
@@ -448,4 +448,3 @@ def load_yaml(yaml_path):
         # Add config location to namespace
         config_namespace.yaml_cfg = yaml_path
         return config_namespace
-

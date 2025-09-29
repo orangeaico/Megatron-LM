@@ -1,0 +1,1983 @@
+using world size: 2, data-parallel size: 1, context-parallel size: 2, hierarchical context-parallel sizes: None, tensor-model-parallel size: 1, pipeline-model-parallel size: 1
+WARNING: overriding default arguments for tokenizer_type:GPT2BPETokenizer                        with tokenizer_type:HuggingFaceTokenizer
+Number of virtual stages per pipeline stage: None
+using torch.bfloat16 for parameters ...
+------------------------ arguments ------------------------
+  account_for_embedding_in_pipeline_split ......... False
+  account_for_loss_in_pipeline_split .............. False
+  accumulate_allreduce_grads_in_fp32 .............. False
+  adam_beta1 ...................................... 0.9
+  adam_beta2 ...................................... 0.95
+  adam_eps ........................................ 1e-08
+  add_bias_linear ................................. False
+  add_position_embedding .......................... True
+  add_qkv_bias .................................... False
+  adlr_autoresume ................................. False
+  adlr_autoresume_interval ........................ 1000
+  align_grad_reduce ............................... True
+  align_param_gather .............................. False
+  app_tag_run_name ................................ None
+  app_tag_run_version ............................. 0.0.0
+  apply_layernorm_1p .............................. False
+  apply_query_key_layer_scaling ................... False
+  apply_residual_connection_post_layernorm ........ False
+  apply_rope_fusion ............................... True
+  async_save ...................................... None
+  async_tensor_model_parallel_allreduce ........... True
+  attention_backend ............................... AttnBackend.auto
+  attention_dropout ............................... 0.0
+  attention_softmax_in_fp32 ....................... False
+  auto_detect_ckpt_format ......................... True
+  barrier_with_L1_time ............................ True
+  bert_binary_head ................................ True
+  bert_embedder_type .............................. megatron
+  bert_load ....................................... None
+  bf16 ............................................ True
+  bias_dropout_fusion ............................. True
+  bias_gelu_fusion ................................ False
+  bias_swiglu_fusion .............................. True
+  biencoder_projection_dim ........................ 0
+  biencoder_shared_query_context_model ............ False
+  block_data_path ................................. None
+  cache_mla_latents ............................... False
+  calc_ft_timeouts ................................ False
+  calculate_per_token_loss ........................ True
+  check_for_large_grads ........................... False
+  check_for_nan_in_loss_and_grad .................. True
+  check_for_spiky_loss ............................ False
+  check_weight_hash_across_dp_replicas_interval ... None
+  ckpt_assume_constant_structure .................. False
+  ckpt_convert_format ............................. None
+  ckpt_convert_save ............................... None
+  ckpt_convert_update_legacy_dist_opt_format ...... False
+  ckpt_format ..................................... torch_dist
+  ckpt_fully_parallel_load ........................ False
+  ckpt_fully_parallel_save ........................ True
+  ckpt_fully_parallel_save_deprecated ............. False
+  ckpt_step ....................................... None
+  classes_fraction ................................ 1.0
+  clip_grad ....................................... 1.0
+  clone_scatter_output_in_embedding ............... True
+  config_logger_dir ............................... 
+  consumed_train_samples .......................... 0
+  consumed_valid_samples .......................... 0
+  context_parallel_size ........................... 2
+  cp_comm_type .................................... ['p2p']
+  create_attention_mask_in_dataloader ............. False
+  cross_entropy_fusion_impl ....................... native
+  cross_entropy_loss_fusion ....................... False
+  cuda_graph_scope ................................ full
+  cuda_graph_warmup_steps ......................... 3
+  data_args_path .................................. None
+  data_cache_path ................................. None
+  data_parallel_random_init ....................... False
+  data_parallel_sharding_strategy ................. no_shard
+  data_parallel_size .............................. 1
+  data_path ....................................... ['/workspace/data//data/test_output.jsonl']
+  data_per_class_fraction ......................... 1.0
+  data_sharding ................................... True
+  dataloader_type ................................. single
+  ddp_average_in_collective ....................... False
+  ddp_bucket_size ................................. None
+  ddp_num_buckets ................................. None
+  ddp_pad_buckets_for_high_nccl_busbw ............. False
+  decoder_first_pipeline_num_layers ............... None
+  decoder_last_pipeline_num_layers ................ None
+  decoder_num_layers .............................. None
+  decoder_seq_length .............................. None
+  decoupled_lr .................................... None
+  decoupled_min_lr ................................ None
+  decrease_batch_size_if_needed ................... False
+  defer_embedding_wgrad_compute ................... False
+  delay_wgrad_compute ............................. False
+  deprecated_use_mcore_models ..................... True
+  deterministic_mode .............................. False
+  dino_bottleneck_size ............................ 256
+  dino_freeze_last_layer .......................... 1
+  dino_head_hidden_size ........................... 2048
+  dino_local_crops_number ......................... 10
+  dino_local_img_size ............................. 96
+  dino_norm_last_layer ............................ False
+  dino_teacher_temp ............................... 0.07
+  dino_warmup_teacher_temp ........................ 0.04
+  dino_warmup_teacher_temp_epochs ................. 30
+  disable_bf16_reduced_precision_matmul ........... False
+  disable_mamba_mem_eff_path ...................... False
+  disable_straggler_on_startup .................... False
+  disable_symmetric_registration .................. False
+  dist_ckpt_format_deprecated ..................... None
+  dist_ckpt_strictness ............................ log_all
+  distribute_saved_activations .................... False
+  distributed_backend ............................. nccl
+  distributed_timeout_minutes ..................... 60
+  dump_model_params_to_pickle ..................... False
+  embedding_init_method_std ....................... None
+  embedding_path .................................. None
+  empty_unused_memory_level ....................... 0
+  enable_cuda_graph ............................... False
+  enable_experimental ............................. True
+  enable_ft_package ............................... False
+  enable_full_sharding_in_hsdp .................... False
+  enable_gloo_process_groups ...................... True
+  enable_msc ...................................... True
+  enable_one_logger ............................... True
+  encoder_num_layers .............................. 1
+  encoder_seq_length .............................. 65000
+  end_weight_decay ................................ 0.0
+  eod_mask_loss ................................... False
+  error_injection_rate ............................ 0
+  error_injection_type ............................ transient_error
+  eval_interval ................................... 15
+  eval_iters ...................................... 1
+  evidence_data_path .............................. None
+  exit_duration_in_mins ........................... 235
+  exit_interval ................................... None
+  exit_on_missing_checkpoint ...................... True
+  exit_signal_handler ............................. False
+  exp_avg_dtype ................................... torch.float16
+  exp_avg_sq_dtype ................................ torch.float16
+  expert_model_parallel_size ...................... 2
+  expert_tensor_parallel_size ..................... 1
+  export_force_local_attention .................... False
+  export_kd_cfg ................................... None
+  export_kd_teacher_ckpt_format ................... None
+  export_kd_teacher_load .......................... None
+  export_kv_cache_quant ........................... False
+  export_legacy_megatron .......................... False
+  export_model_type ............................... GPTModel
+  export_moe_apply_probs_on_input ................. False
+  export_qk_l2_norm ............................... False
+  export_quant_cfg ................................ None
+  export_real_quant_cfg ........................... None
+  export_te_mcore_model ........................... False
+  external_cuda_graph ............................. False
+  ffn_hidden_size ................................. 5472
+  finetune ........................................ True
+  finetune_data_split ............................. train
+  finetune_hf_dataset ............................. None
+  first_last_layers_bf16 .......................... False
+  flash_decode .................................... False
+  fp16 ............................................ False
+  fp16_lm_cross_entropy ........................... False
+  fp32_residual_connection ........................ False
+  fp8 ............................................. None
+  fp8_amax_compute_algo ........................... most_recent
+  fp8_amax_history_len ............................ 1
+  fp8_interval .................................... 1
+  fp8_margin ...................................... 0
+  fp8_param_gather ................................ False
+  fp8_recipe ...................................... delayed
+  fp8_wgrad ....................................... True
+  fsdp_double_buffer .............................. False
+  full_validation ................................. False
+  global_batch_size ............................... 1
+  grad_reduce_in_bf16 ............................. True
+  gradient_accumulation_fusion .................... True
+  gradient_reduce_div_fusion ...................... True
+  group_query_attention ........................... True
+  grpo_clamp_eps_lower ............................ 0.01
+  grpo_clamp_eps_upper ............................ 0.01
+  grpo_default_temperature ........................ 1.0
+  grpo_default_top_p .............................. 0
+  grpo_entropy_term_weight ........................ 0.0
+  grpo_filter_groups_with_same_reward ............. False
+  grpo_group_size ................................. 2
+  grpo_iterations ................................. 2
+  grpo_kl_beta .................................... 0.001
+  grpo_prompts_per_step ........................... 32
+  head_lr_mult .................................... 1.0
+  heterogeneous_layers_config_encoded_json ........ None
+  heterogeneous_layers_config_path ................ None
+  hidden_dropout .................................. 0.0
+  hidden_size ..................................... 2048
+  hierarchical_context_parallel_sizes ............. None
+  high_priority_stream_groups ..................... []
+  hybrid_attention_ratio .......................... 0.0
+  hybrid_mlp_ratio ................................ 0.0
+  hybrid_override_pattern ......................... None
+  hysteresis ...................................... 2
+  ict_head_size ................................... None
+  ict_load ........................................ None
+  img_h ........................................... 224
+  img_w ........................................... 224
+  indexer_batch_size .............................. 128
+  indexer_log_interval ............................ 1000
+  inference_batch_times_seqlen_threshold .......... -1
+  inference_dynamic_batching ...................... False
+  inference_dynamic_batching_buffer_guaranteed_fraction  0.2
+  inference_dynamic_batching_buffer_overflow_factor  None
+  inference_dynamic_batching_buffer_size_gb ....... 40.0
+  inference_dynamic_batching_chunk_size ........... 256
+  inference_dynamic_batching_max_requests_override  None
+  inference_dynamic_batching_max_tokens_override .. None
+  inference_dynamic_batching_num_cuda_graphs ...... 16
+  inference_max_batch_size ........................ 8
+  inference_max_seq_length ........................ 2560
+  inference_rng_tracker ........................... False
+  init_method_std ................................. 0.02
+  init_method_xavier_uniform ...................... False
+  init_model_with_meta_device ..................... False
+  initial_loss_scale .............................. 4294967296
+  initialize_socket_comms ......................... False
+  inprocess_active_world_size ..................... 2
+  inprocess_barrier_timeout ....................... 120
+  inprocess_completion_timeout .................... 120
+  inprocess_empty_cuda_cache ...................... False
+  inprocess_granularity ........................... node
+  inprocess_hard_timeout .......................... 90
+  inprocess_heartbeat_interval .................... 30
+  inprocess_heartbeat_timeout ..................... 60
+  inprocess_last_call_wait ........................ 1
+  inprocess_max_iterations ........................ None
+  inprocess_monitor_process_interval .............. 1.0
+  inprocess_monitor_thread_interval ............... 1.0
+  inprocess_progress_watchdog_interval ............ 1.0
+  inprocess_restart ............................... False
+  inprocess_soft_timeout .......................... 60
+  inprocess_termination_grace_time ................ 1
+  is_hybrid_model ................................. False
+  iter_per_epoch .................................. 1250
+  iterations_to_skip .............................. []
+  keep_fp8_transpose_cache ........................ False
+  kitchen_config_file ............................. None
+  kitchen_recipe_number ........................... None
+  kv_channels ..................................... 128
+  kv_lora_rank .................................... 32
+  langrl_env_config ............................... None
+  langrl_inference_server_conversation_template ... None
+  langrl_inference_server_type .................... inplace_megatron
+  lazy_mpu_init ................................... None
+  legacy_tokenizer ................................ False
+  load ............................................ None
+  load_main_params_from_ckpt ...................... None
+  load_model_opt_format ........................... False
+  local_rank ...................................... 0
+  log_energy ...................................... False
+  log_interval .................................... 1
+  log_loss_scale_to_tensorboard ................... True
+  log_memory_to_tensorboard ....................... True
+  log_num_zeros_in_grad ........................... True
+  log_params_norm ................................. True
+  log_progress .................................... False
+  log_straggler ................................... False
+  log_throughput .................................. True
+  log_timers_to_tensorboard ....................... True
+  log_validation_ppl_to_tensorboard ............... True
+  log_world_size_to_tensorboard ................... False
+  logging_level ................................... 10
+  loss_scale ...................................... None
+  loss_scale_window ............................... 1000
+  lr .............................................. 5e-05
+  lr_decay_iters .................................. None
+  lr_decay_samples ................................ 896
+  lr_decay_style .................................. cosine
+  lr_warmup_fraction .............................. None
+  lr_warmup_init .................................. 0.0
+  lr_warmup_iters ................................. 0
+  lr_warmup_samples ............................... 0
+  lr_wsd_decay_iters .............................. None
+  lr_wsd_decay_samples ............................ None
+  lr_wsd_decay_style .............................. exponential
+  main_grads_dtype ................................ torch.bfloat16
+  main_params_dtype ............................... torch.float16
+  make_vocab_size_divisible_by .................... 1
+  mamba_head_dim .................................. 64
+  mamba_num_groups ................................ 8
+  mamba_num_heads ................................. None
+  mamba_state_dim ................................. 128
+  manual_gc ....................................... True
+  manual_gc_eval .................................. True
+  manual_gc_interval .............................. 5
+  mask_factor ..................................... 1.0
+  mask_prob ....................................... 0.15
+  mask_type ....................................... random
+  masked_softmax_fusion ........................... True
+  max_position_embeddings ......................... 65000
+  max_tokens_to_oom ............................... 12000
+  memory_snapshot_path ............................ output/Qwen3-Coder-30B-A3B-Instruct/memory_snapshots/memory_snapshot.pickle
+  merge_file ...................................... None
+  micro_batch_size ................................ 1
+  microbatch_group_size_per_vp_stage .............. None
+  mid_level_dataset_surplus ....................... 0.005
+  min_loss_scale .................................. 1.0
+  min_lr .......................................... 1e-07
+  mlp_chunks_for_prefill .......................... 1
+  mmap_bin_files .................................. False
+  mock_data ....................................... False
+  moe_apply_probs_on_input ........................ False
+  moe_aux_loss_coeff .............................. 0.0
+  moe_deepep_num_sms .............................. 20
+  moe_enable_deepep ............................... False
+  moe_expert_capacity_factor ...................... None
+  moe_extended_tp ................................. False
+  moe_ffn_hidden_size ............................. 768
+  moe_grouped_gemm ................................ True
+  moe_input_jitter_eps ............................ None
+  moe_layer_freq .................................. 1
+  moe_layer_recompute ............................. False
+  moe_pad_expert_input_to_capacity ................ False
+  moe_per_layer_logging ........................... False
+  moe_permute_fusion .............................. True
+  moe_router_bias_update_rate ..................... 0.001
+  moe_router_dtype ................................ fp32
+  moe_router_enable_expert_bias ................... False
+  moe_router_force_load_balancing ................. False
+  moe_router_fusion ............................... False
+  moe_router_group_topk ........................... None
+  moe_router_load_balancing_type .................. aux_loss
+  moe_router_num_groups ........................... None
+  moe_router_padding_for_fp8 ...................... False
+  moe_router_pre_softmax .......................... False
+  moe_router_score_function ....................... softmax
+  moe_router_topk ................................. 8
+  moe_router_topk_scaling_factor .................. None
+  moe_shared_expert_intermediate_size ............. None
+  moe_shared_expert_overlap ....................... False
+  moe_token_dispatcher_type ....................... alltoall
+  moe_token_drop_policy ........................... probs
+  moe_upcycling_granularity ....................... 1
+  moe_use_legacy_grouped_gemm ..................... False
+  moe_use_upcycling ............................... False
+  moe_z_loss_coeff ................................ None
+  mrope_section ................................... None
+  mscale .......................................... 1.0
+  mscale_all_dim .................................. 0.0
+  mtp_loss_scaling_factor ......................... 0.1
+  mtp_num_layers .................................. None
+  multi_latent_attention .......................... False
+  multiple_validation_sets ........................ False
+  nccl_all_reduce_for_prefill ..................... False
+  nccl_communicator_config_path ................... None
+  nccl_ub ......................................... False
+  no_load_optim ................................... None
+  no_load_rng ..................................... None
+  no_persist_layer_norm ........................... False
+  no_rope_freq .................................... None
+  no_save_optim ................................... None
+  no_save_rng ..................................... None
+  non_persistent_ckpt_type ........................ None
+  non_persistent_global_ckpt_dir .................. None
+  non_persistent_local_ckpt_algo .................. fully_parallel
+  non_persistent_local_ckpt_dir ................... None
+  non_persistent_save_interval .................... None
+  norm_epsilon .................................... 1e-06
+  normalization ................................... RMSNorm
+  num_attention_heads ............................. 32
+  num_channels .................................... 3
+  num_classes ..................................... 1000
+  num_dataset_builder_threads ..................... 1
+  num_distributed_optimizer_instances ............. 1
+  num_experts ..................................... 128
+  num_layers ...................................... 1
+  num_layers_at_end_in_bf16 ....................... 1
+  num_layers_at_start_in_bf16 ..................... 1
+  num_layers_per_virtual_pipeline_stage ........... None
+  num_query_groups ................................ 4
+  num_virtual_stages_per_pipeline_rank ............ None
+  num_workers ..................................... 1
+  object_storage_cache_path ....................... None
+  one_logger_async ................................ False
+  one_logger_project .............................. megatron-lm
+  one_logger_run_name ............................. None
+  onnx_safe ....................................... None
+  openai_gelu ..................................... False
+  optimizer ....................................... adam
+  optimizer_cpu_offload ........................... False
+  optimizer_offload_fraction ...................... 1.0
+  output_bert_embeddings .......................... False
+  overlap_cpu_optimizer_d2h_h2d ................... False
+  overlap_grad_reduce ............................. True
+  overlap_moe_expert_parallel_comm ................ False
+  overlap_p2p_comm ................................ False
+  overlap_p2p_comm_warmup_flush ................... False
+  overlap_param_gather ............................ True
+  overlap_param_gather_with_optimizer_step ........ False
+  override_opt_param_scheduler .................... False
+  padded_vocab_size ............................... 151936
+  params_dtype .................................... torch.bfloat16
+  patch_dim ....................................... 16
+  per_split_data_args_path ........................ None
+  perform_initialization .......................... True
+  perform_rl_step ................................. False
+  pin_cpu_grads ................................... True
+  pin_cpu_params .................................. True
+  pipeline_model_parallel_comm_backend ............ None
+  pipeline_model_parallel_layout .................. None
+  pipeline_model_parallel_size .................... 1
+  position_embedding_type ......................... rope
+  pretrained_checkpoint ........................... None
+  profile ......................................... False
+  profile_ranks ................................... [0]
+  profile_step_end ................................ 12
+  profile_step_start .............................. 10
+  q_lora_rank ..................................... None
+  qk_head_dim ..................................... 128
+  qk_l2_norm ...................................... False
+  qk_layernorm .................................... True
+  qk_pos_emb_head_dim ............................. 64
+  query_in_block_prob ............................. 0.1
+  rampup_batch_size ............................... None
+  rank ............................................ 0
+  recompute_granularity ........................... None
+  recompute_method ................................ None
+  recompute_modules ............................... None
+  recompute_num_layers ............................ None
+  record_memory_history ........................... True
+  relative_attention_max_distance ................. 128
+  relative_attention_num_buckets .................. 32
+  replication ..................................... False
+  replication_factor .............................. 2
+  replication_jump ................................ None
+  rerun_mode ...................................... validate_results
+  reset_attention_mask ............................ False
+  reset_position_ids .............................. False
+  result_rejected_tracker_filename ................ None
+  retriever_report_topk_accuracies ................ []
+  retriever_score_scaling ......................... False
+  retriever_seq_length ............................ 256
+  retro_add_retriever ............................. False
+  retro_attention_gate ............................ 1
+  retro_cyclic_train_iters ........................ None
+  retro_encoder_attention_dropout ................. 0.1
+  retro_encoder_hidden_dropout .................... 0.1
+  retro_encoder_layers ............................ 2
+  retro_num_neighbors ............................. 2
+  retro_num_retrieved_chunks ...................... 2
+  retro_project_dir ............................... None
+  retro_verify_neighbor_count ..................... True
+  reuse_grad_buf_for_mxfp8_param_ag ............... False
+  rl_offload_optimizer_during_inference ........... False
+  rl_prompts_per_eval ............................. 32
+  rope_scaling_factor ............................. 8.0
+  rope_type ....................................... None
+  rotary_base ..................................... 10000000
+  rotary_interleaved .............................. False
+  rotary_percent .................................. 1.0
+  rotary_scaling_factor ........................... 1.0
+  rotary_seq_len_interpolation_factor ............. 1
+  run_workload_inspector_server ................... False
+  sample_rate ..................................... 1.0
+  save ............................................ None
+  save_interval ................................... 60
+  save_retain_interval ............................ None
+  scatter_gather_tensors_in_pipeline .............. True
+  seed ............................................ 1234
+  seq_length ...................................... 65000
+  sequence_parallel ............................... False
+  sft ............................................. True
+  sft_tokenizer_prompt_format ..................... nemotron-h-aligned
+  sgd_momentum .................................... 0.9
+  sharp_enabled_group ............................. None
+  short_seq_prob .................................. 0.1
+  skip_train ...................................... False
+  skipped_train_samples ........................... 0
+  spec ............................................ None
+  split ........................................... '99,1,0'
+  squared_relu .................................... False
+  start_weight_decay .............................. 0.0
+  straggler_ctrlr_port ............................ 65535
+  straggler_minmax_count .......................... 1
+  strict_fsdp_dtensor_load ........................ True
+  suggested_communication_unit_size ............... None
+  swiglu .......................................... True
+  swin_backbone_type .............................. tiny
+  symmetric_ar_type ............................... None
+  te_rng_tracker .................................. False
+  tensor_model_parallel_size ...................... 1
+  tensorboard_dir ................................. output/Qwen3-Coder-30B-A3B-Instruct/tensorboard_logs
+  tensorboard_log_interval ........................ 1
+  tensorboard_queue_size .......................... 1000
+  test_data_path .................................. None
+  test_mode ....................................... False
+  tiktoken_num_special_tokens ..................... 1000
+  tiktoken_pattern ................................ None
+  tiktoken_special_tokens ......................... None
+  timing_log_level ................................ 2
+  timing_log_option ............................... all
+  titles_data_path ................................ None
+  tokenizer_metadata .............................. None
+  tokenizer_model ................................. /workspace/data//mega-models/Qwen3-Coder-30B-A3B-Instruct-torch_dist
+  tokenizer_type .................................. HuggingFaceTokenizer
+  torch_fsdp2_reshard_after_forward ............... True
+  tp_comm_bootstrap_backend ....................... nccl
+  tp_comm_bulk_dgrad .............................. True
+  tp_comm_bulk_wgrad .............................. True
+  tp_comm_overlap ................................. False
+  tp_comm_overlap_ag .............................. True
+  tp_comm_overlap_cfg ............................. None
+  tp_comm_overlap_rs .............................. True
+  tp_comm_overlap_rs_dgrad ........................ False
+  tp_comm_split_ag ................................ True
+  tp_comm_split_rs ................................ True
+  train_data_path ................................. None
+  train_iters ..................................... None
+  train_samples ................................... 896
+  train_sync_interval ............................. None
+  transformer_impl ................................ transformer_engine
+  transformer_pipeline_model_parallel_size ........ 1
+  trust_remote_code ............................... False
+  untie_embeddings_and_output_weights ............. True
+  use_checkpoint_args ............................. False
+  use_checkpoint_opt_param_scheduler .............. False
+  use_cpu_initialization .......................... None
+  use_dist_ckpt ................................... True
+  use_dist_ckpt_deprecated ........................ False
+  use_distributed_optimizer ....................... True
+  use_flash_attn .................................. True
+  use_fused_weighted_squared_relu ................. False
+  use_legacy_models ............................... False
+  use_linear_cross_entropy ........................ True
+  use_megatron_fsdp ............................... False
+  use_mp_args_from_checkpoint_args ................ False
+  use_one_sent_docs ............................... False
+  use_persistent_ckpt_worker ...................... False
+  use_precision_aware_optimizer ................... True
+  use_pytorch_profiler ............................ True
+  use_ring_exchange_p2p ........................... False
+  use_rope_scaling ................................ False
+  use_rotary_position_embeddings .................. False
+  use_sharp ....................................... False
+  use_te_activation_func .......................... False
+  use_tokenizer_model_from_checkpoint_args ........ True
+  use_torch_fsdp2 ................................. False
+  use_torch_optimizer_for_cpu_offload ............. False
+  use_tp_pp_dp_mapping ............................ False
+  v_head_dim ...................................... 128
+  valid_data_path ................................. None
+  variable_seq_lengths ............................ True
+  virtual_pipeline_model_parallel_size ............ None
+  vision_backbone_type ............................ vit
+  vision_pretraining .............................. False
+  vision_pretraining_type ......................... classify
+  vocab_extra_ids ................................. 0
+  vocab_file ...................................... None
+  vocab_size ...................................... None
+  wandb_entity .................................... 
+  wandb_exp_name .................................. 
+  wandb_project ................................... 
+  wandb_save_dir .................................. 
+  weight_decay .................................... 0.0
+  weight_decay_incr_style ......................... constant
+  wgrad_deferral_limit ............................ 0
+  world_size ...................................... 2
+  yaml_cfg ........................................ None
+-------------------- end of arguments ---------------------
+INFO:megatron.core.num_microbatches_calculator:setting number of microbatches to constant 1
+> building HuggingFaceTokenizer tokenizer ...
+INFO:megatron.training.initialize:Setting logging level to 10
+> setting tensorboard ...
+WARNING:megatron.core.rerun_state_machine:RerunStateMachine initialized in mode RerunMode.VALIDATE_RESULTS
+> initializing torch distributed ...
+WARNING: one_logger package is required to enable e2e metrics tracking. please go to https://confluence.nvidia.com/display/MLWFO/Package+Repositories for details to install it
+INFO:megatron.training.initialize:Setting logging level to 10
+> initialized tensor model parallel with size 1
+> initialized pipeline model parallel with size 1
+> setting random seeds to 1234 ...
+> compiling dataset index builder ...
+make: Entering directory '/workspace/training/Megatron-LM/megatron/core/datasets'
+make: Nothing to be done for 'default'.
+make: Leaving directory '/workspace/training/Megatron-LM/megatron/core/datasets'
+>>> done with dataset index builder. Compilation time: 0.015 seconds
+WARNING: constraints for invoking optimized fused softmax kernel are not met. We default back to unfused kernel invocations.
+> compiling and loading fused kernels ...
+>>> done with compiling and loading fused kernels. Compilation time: 0.115 seconds
+time to initialize megatron (seconds): 0.989
+[after megatron is initialized] datetime: 2025-09-29 05:38:43 
+building GPT model ...
+ > number of parameters on (tensor, pipeline) model parallel rank (0, 0): 943462656
+INFO:megatron.core.distributed.distributed_data_parallel:Setting up DistributedDataParallel with config DistributedDataParallelConfig(grad_reduce_in_fp32=False, overlap_grad_reduce=True, overlap_param_gather=True, align_param_gather=False, use_distributed_optimizer=True, num_distributed_optimizer_instances=1, check_for_nan_in_grad=True, check_for_large_grads=False, bucket_size=40000000, pad_buckets_for_high_nccl_busbw=False, average_in_collective=False, fp8_param_gather=False, reuse_grad_buf_for_mxfp8_param_ag=False, use_megatron_fsdp=False, use_custom_fsdp=False, data_parallel_sharding_strategy='no_shard', gradient_reduce_div_fusion=True, suggested_communication_unit_size=None, preserve_fp32_weights=True, keep_fp8_transpose_cache=False, nccl_ub=False, fsdp_double_buffer=False, outer_dp_sharding_strategy='no_shard', disable_symmetric_registration=False, delay_wgrad_compute=False)
+INFO:megatron.core.distributed.param_and_grad_buffer:Number of buckets for gradient all-reduce / reduce-scatter: 2
+Params for bucket 1 (311164928 elements, 311164928 padded size):
+	module.output_layer.weight
+Params for bucket 2 (330307840 elements, 330307840 padded size):
+	module.decoder.layers.0.mlp.router.weight
+	module.decoder.layers.0.pre_mlp_layernorm.weight
+	module.decoder.layers.0.self_attention.q_layernorm.weight
+	module.decoder.layers.0.self_attention.linear_qkv.weight
+	module.embedding.word_embeddings.weight
+	module.decoder.final_layernorm.weight
+	module.decoder.layers.0.self_attention.k_layernorm.weight
+	module.decoder.layers.0.self_attention.linear_qkv.layer_norm_weight
+	module.decoder.layers.0.self_attention.linear_proj.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:Number of buckets for gradient all-reduce / reduce-scatter: 8
+Params for bucket 1 (40894464 elements, 40894464 padded size):
+	module.decoder.layers.0.mlp.experts.linear_fc2.weight58
+	module.decoder.layers.0.mlp.experts.linear_fc2.weight50
+	module.decoder.layers.0.mlp.experts.linear_fc2.weight42
+	module.decoder.layers.0.mlp.experts.linear_fc2.weight63
+	module.decoder.layers.0.mlp.experts.linear_fc2.weight55
+	module.decoder.layers.0.mlp.experts.linear_fc2.weight47
+	module.decoder.layers.0.mlp.experts.linear_fc2.weight39
+	module.decoder.layers.0.mlp.experts.linear_fc2.weight60
+	module.decoder.layers.0.mlp.experts.linear_fc2.weight52
+	module.decoder.layers.0.mlp.experts.linear_fc2.weight44
+	module.decoder.layers.0.mlp.experts.linear_fc2.weight57
+	module.decoder.layers.0.mlp.experts.linear_fc2.weight49
+	module.decoder.layers.0.mlp.experts.linear_fc2.weight41
+	module.decoder.layers.0.mlp.experts.linear_fc2.weight62
+	module.decoder.layers.0.mlp.experts.linear_fc2.weight54
+	module.decoder.layers.0.mlp.experts.linear_fc2.weight46
+	module.decoder.layers.0.mlp.experts.linear_fc2.weight38
+	module.decoder.layers.0.mlp.experts.linear_fc2.weight59
+	module.decoder.layers.0.mlp.experts.linear_fc2.weight51
+	module.decoder.layers.0.mlp.experts.linear_fc2.weight43
+	module.decoder.layers.0.mlp.experts.linear_fc2.weight56
+	module.decoder.layers.0.mlp.experts.linear_fc2.weight48
+	module.decoder.layers.0.mlp.experts.linear_fc2.weight40
+	module.decoder.layers.0.mlp.experts.linear_fc2.weight61
+	module.decoder.layers.0.mlp.experts.linear_fc2.weight53
+	module.decoder.layers.0.mlp.experts.linear_fc2.weight45
+Params for bucket 2 (40894464 elements, 40894464 padded size):
+	module.decoder.layers.0.mlp.experts.linear_fc2.weight30
+	module.decoder.layers.0.mlp.experts.linear_fc2.weight22
+	module.decoder.layers.0.mlp.experts.linear_fc2.weight14
+	module.decoder.layers.0.mlp.experts.linear_fc2.weight27
+	module.decoder.layers.0.mlp.experts.linear_fc2.weight19
+	module.decoder.layers.0.mlp.experts.linear_fc2.weight33
+	module.decoder.layers.0.mlp.experts.linear_fc2.weight36
+	module.decoder.layers.0.mlp.experts.linear_fc2.weight32
+	module.decoder.layers.0.mlp.experts.linear_fc2.weight24
+	module.decoder.layers.0.mlp.experts.linear_fc2.weight16
+	module.decoder.layers.0.mlp.experts.linear_fc2.weight29
+	module.decoder.layers.0.mlp.experts.linear_fc2.weight21
+	module.decoder.layers.0.mlp.experts.linear_fc2.weight13
+	module.decoder.layers.0.mlp.experts.linear_fc2.weight35
+	module.decoder.layers.0.mlp.experts.linear_fc2.weight26
+	module.decoder.layers.0.mlp.experts.linear_fc2.weight18
+	module.decoder.layers.0.mlp.experts.linear_fc2.weight31
+	module.decoder.layers.0.mlp.experts.linear_fc2.weight23
+	module.decoder.layers.0.mlp.experts.linear_fc2.weight15
+	module.decoder.layers.0.mlp.experts.linear_fc2.weight28
+	module.decoder.layers.0.mlp.experts.linear_fc2.weight20
+	module.decoder.layers.0.mlp.experts.linear_fc2.weight12
+	module.decoder.layers.0.mlp.experts.linear_fc2.weight37
+	module.decoder.layers.0.mlp.experts.linear_fc2.weight34
+	module.decoder.layers.0.mlp.experts.linear_fc2.weight25
+	module.decoder.layers.0.mlp.experts.linear_fc2.weight17
+Params for bucket 3 (40894464 elements, 40894464 padded size):
+	module.decoder.layers.0.mlp.experts.linear_fc2.weight6
+	module.decoder.layers.0.mlp.experts.linear_fc1.weight62
+	module.decoder.layers.0.mlp.experts.linear_fc1.weight60
+	module.decoder.layers.0.mlp.experts.linear_fc2.weight11
+	module.decoder.layers.0.mlp.experts.linear_fc2.weight3
+	module.decoder.layers.0.mlp.experts.linear_fc1.weight57
+	module.decoder.layers.0.mlp.experts.linear_fc2.weight8
+	module.decoder.layers.0.mlp.experts.linear_fc1.weight63
+	module.decoder.layers.0.mlp.experts.linear_fc2.weight5
+	module.decoder.layers.0.mlp.experts.linear_fc1.weight61
+	module.decoder.layers.0.mlp.experts.linear_fc2.weight10
+	module.decoder.layers.0.mlp.experts.linear_fc2.weight1
+	module.decoder.layers.0.mlp.experts.linear_fc2.weight7
+	module.decoder.layers.0.mlp.experts.linear_fc1.weight59
+	module.decoder.layers.0.mlp.experts.linear_fc2.weight4
+	module.decoder.layers.0.mlp.experts.linear_fc2.weight2
+	module.decoder.layers.0.mlp.experts.linear_fc1.weight58
+	module.decoder.layers.0.mlp.experts.linear_fc2.weight9
+	module.decoder.layers.0.mlp.experts.linear_fc2.weight0
+Params for bucket 4 (40894464 elements, 40894464 padded size):
+	module.decoder.layers.0.mlp.experts.linear_fc1.weight56
+	module.decoder.layers.0.mlp.experts.linear_fc1.weight55
+	module.decoder.layers.0.mlp.experts.linear_fc1.weight51
+	module.decoder.layers.0.mlp.experts.linear_fc1.weight45
+	module.decoder.layers.0.mlp.experts.linear_fc1.weight44
+	module.decoder.layers.0.mlp.experts.linear_fc1.weight54
+	module.decoder.layers.0.mlp.experts.linear_fc1.weight52
+	module.decoder.layers.0.mlp.experts.linear_fc1.weight53
+	module.decoder.layers.0.mlp.experts.linear_fc1.weight50
+	module.decoder.layers.0.mlp.experts.linear_fc1.weight49
+	module.decoder.layers.0.mlp.experts.linear_fc1.weight48
+	module.decoder.layers.0.mlp.experts.linear_fc1.weight47
+	module.decoder.layers.0.mlp.experts.linear_fc1.weight46
+Params for bucket 5 (40894464 elements, 40894464 padded size):
+	module.decoder.layers.0.mlp.experts.linear_fc1.weight42
+	module.decoder.layers.0.mlp.experts.linear_fc1.weight38
+	module.decoder.layers.0.mlp.experts.linear_fc1.weight36
+	module.decoder.layers.0.mlp.experts.linear_fc1.weight35
+	module.decoder.layers.0.mlp.experts.linear_fc1.weight43
+	module.decoder.layers.0.mlp.experts.linear_fc1.weight41
+	module.decoder.layers.0.mlp.experts.linear_fc1.weight40
+	module.decoder.layers.0.mlp.experts.linear_fc1.weight39
+	module.decoder.layers.0.mlp.experts.linear_fc1.weight37
+	module.decoder.layers.0.mlp.experts.linear_fc1.weight34
+	module.decoder.layers.0.mlp.experts.linear_fc1.weight33
+	module.decoder.layers.0.mlp.experts.linear_fc1.weight32
+	module.decoder.layers.0.mlp.experts.linear_fc1.weight31
+Params for bucket 6 (40894464 elements, 40894464 padded size):
+	module.decoder.layers.0.mlp.experts.linear_fc1.weight30
+	module.decoder.layers.0.mlp.experts.linear_fc1.weight26
+	module.decoder.layers.0.mlp.experts.linear_fc1.weight27
+	module.decoder.layers.0.mlp.experts.linear_fc1.weight29
+	module.decoder.layers.0.mlp.experts.linear_fc1.weight24
+	module.decoder.layers.0.mlp.experts.linear_fc1.weight23
+	module.decoder.layers.0.mlp.experts.linear_fc1.weight21
+	module.decoder.layers.0.mlp.experts.linear_fc1.weight20
+	module.decoder.layers.0.mlp.experts.linear_fc1.weight18
+	module.decoder.layers.0.mlp.experts.linear_fc1.weight28
+	module.decoder.layers.0.mlp.experts.linear_fc1.weight25
+	module.decoder.layers.0.mlp.experts.linear_fc1.weight22
+	module.decoder.layers.0.mlp.experts.linear_fc1.weight19
+Params for bucket 7 (40894464 elements, 40894464 padded size):
+	module.decoder.layers.0.mlp.experts.linear_fc1.weight16
+	module.decoder.layers.0.mlp.experts.linear_fc1.weight9
+	module.decoder.layers.0.mlp.experts.linear_fc1.weight7
+	module.decoder.layers.0.mlp.experts.linear_fc1.weight5
+	module.decoder.layers.0.mlp.experts.linear_fc1.weight17
+	module.decoder.layers.0.mlp.experts.linear_fc1.weight14
+	module.decoder.layers.0.mlp.experts.linear_fc1.weight13
+	module.decoder.layers.0.mlp.experts.linear_fc1.weight15
+	module.decoder.layers.0.mlp.experts.linear_fc1.weight12
+	module.decoder.layers.0.mlp.experts.linear_fc1.weight11
+	module.decoder.layers.0.mlp.experts.linear_fc1.weight10
+	module.decoder.layers.0.mlp.experts.linear_fc1.weight8
+	module.decoder.layers.0.mlp.experts.linear_fc1.weight6
+Params for bucket 8 (15728640 elements, 15728640 padded size):
+	module.decoder.layers.0.mlp.experts.linear_fc1.weight4
+	module.decoder.layers.0.mlp.experts.linear_fc1.weight0
+	module.decoder.layers.0.mlp.experts.linear_fc1.weight2
+	module.decoder.layers.0.mlp.experts.linear_fc1.weight3
+	module.decoder.layers.0.mlp.experts.linear_fc1.weight1
+INFO:megatron.core.optimizer:Setting up optimizer with config OptimizerConfig(optimizer='adam', lr=5e-05, min_lr=1e-07, decoupled_lr=None, decoupled_min_lr=None, weight_decay=0.0, fp8_recipe='delayed', fp16=False, bf16=True, reuse_grad_buf_for_mxfp8_param_ag=False, params_dtype=torch.bfloat16, use_precision_aware_optimizer=True, store_param_remainders=True, main_grads_dtype=torch.bfloat16, main_params_dtype=torch.float16, exp_avg_dtype=torch.float16, exp_avg_sq_dtype=torch.float16, loss_scale=None, initial_loss_scale=4294967296, min_loss_scale=1.0, loss_scale_window=1000, hysteresis=2, adam_beta1=0.9, adam_beta2=0.95, adam_eps=1e-08, sgd_momentum=0.9, use_distributed_optimizer=True, overlap_param_gather=True, overlap_param_gather_with_optimizer_step=False, use_megatron_fsdp=False, optimizer_cpu_offload=False, optimizer_offload_fraction=1.0, use_torch_optimizer_for_cpu_offload=False, overlap_cpu_optimizer_d2h_h2d=False, pin_cpu_grads=True, pin_cpu_params=True, clip_grad=1.0, log_num_zeros_in_grad=True, barrier_with_L1_time=True, timers=<megatron.core.timers.Timers object at 0x7f73c1a37200>, config_logger_dir='')
+setting training iterations to 896
+INFO:megatron.core.optimizer_param_scheduler:> learning rate decay style: cosine
+[after model, optimizer, and learning rate scheduler are built] datetime: 2025-09-29 05:38:43 
+> building train, validation, and test datasets ...
+ > datasets target sizes (minimum size):
+    train:      896
+    validation: 60
+    test:       1
+INFO:megatron.core.datasets.blended_megatron_dataset_config:Let split_matrix = [(0, 0.99), (0.99, 1.0), None]
+> building train, validation, and test datasets for GPT ...
+INFO:megatron.core.datasets.blended_megatron_dataset_builder:Building SFTDataset splits with sizes=(896, 60, 1) and config=GPTDatasetConfig(random_seed=1234, sequence_length=65000, blend=(['/workspace/data//data/test_output.jsonl'], None), blend_per_split=None, multiple_validation_sets=False, full_validation=False, split="'99,1,0'", split_matrix=[(0, 0.99), (0.99, 1.0), None], num_dataset_builder_threads=1, path_to_cache=None, mmap_bin_files=False, mock=False, tokenizer=<megatron.training.tokenizer.tokenizer._HuggingFaceTokenizer object at 0x7f73c8971c40>, mid_level_dataset_surplus=0.005, reset_position_ids=False, reset_attention_mask=False, eod_mask_loss=False, create_attention_mask=False, variable_seq_lengths=True, drop_last_partial_validation_sequence=True, add_extra_token_to_sequence=True, object_storage_cache_path=None)
+DEBUG:datasets:PyTorch version 2.7.0a0+79aa17489c.nv25.4 available.
+DEBUG:datasets:PyTorch version 2.7.0a0+79aa17489c.nv25.4 available.
+DEBUG:datasets:Polars version 1.21.0 available.
+DEBUG:datasets:Polars version 1.21.0 available.
+DEBUG:urllib3.connectionpool:Starting new HTTPS connection (1): s3.amazonaws.com:443
+DEBUG:urllib3.connectionpool:Starting new HTTPS connection (1): s3.amazonaws.com:443
+DEBUG:urllib3.connectionpool:https://s3.amazonaws.com:443 "HEAD /datasets.huggingface.co/datasets/datasets/json/json.py HTTP/1.1" 200 0
+DEBUG:filelock:Attempting to acquire lock 140354706983968 on /root/.cache/huggingface/datasets/_root_.cache_huggingface_datasets_json_default-9d3c7425e184ad8c_0.0.0_4d80ec5faec344ea842e25017a662668bf00c8eec2b59a13536060e6e7492b91.lock
+DEBUG:filelock:Lock 140354706983968 acquired on /root/.cache/huggingface/datasets/_root_.cache_huggingface_datasets_json_default-9d3c7425e184ad8c_0.0.0_4d80ec5faec344ea842e25017a662668bf00c8eec2b59a13536060e6e7492b91.lock
+DEBUG:fsspec.local:open file: /root/.cache/huggingface/datasets/json/default-9d3c7425e184ad8c/0.0.0/4d80ec5faec344ea842e25017a662668bf00c8eec2b59a13536060e6e7492b91/dataset_info.json
+DEBUG:filelock:Attempting to release lock 140354706983968 on /root/.cache/huggingface/datasets/_root_.cache_huggingface_datasets_json_default-9d3c7425e184ad8c_0.0.0_4d80ec5faec344ea842e25017a662668bf00c8eec2b59a13536060e6e7492b91.lock
+DEBUG:filelock:Lock 140354706983968 released on /root/.cache/huggingface/datasets/_root_.cache_huggingface_datasets_json_default-9d3c7425e184ad8c_0.0.0_4d80ec5faec344ea842e25017a662668bf00c8eec2b59a13536060e6e7492b91.lock
+DEBUG:filelock:Attempting to acquire lock 140354737834368 on /root/.cache/huggingface/datasets/json/default-9d3c7425e184ad8c/0.0.0/4d80ec5faec344ea842e25017a662668bf00c8eec2b59a13536060e6e7492b91_builder.lock
+DEBUG:filelock:Lock 140354737834368 acquired on /root/.cache/huggingface/datasets/json/default-9d3c7425e184ad8c/0.0.0/4d80ec5faec344ea842e25017a662668bf00c8eec2b59a13536060e6e7492b91_builder.lock
+DEBUG:fsspec.local:open file: /root/.cache/huggingface/datasets/json/default-9d3c7425e184ad8c/0.0.0/4d80ec5faec344ea842e25017a662668bf00c8eec2b59a13536060e6e7492b91/dataset_info.json
+DEBUG:filelock:Attempting to release lock 140354737834368 on /root/.cache/huggingface/datasets/json/default-9d3c7425e184ad8c/0.0.0/4d80ec5faec344ea842e25017a662668bf00c8eec2b59a13536060e6e7492b91_builder.lock
+DEBUG:filelock:Lock 140354737834368 released on /root/.cache/huggingface/datasets/json/default-9d3c7425e184ad8c/0.0.0/4d80ec5faec344ea842e25017a662668bf00c8eec2b59a13536060e6e7492b91_builder.lock
+DEBUG:urllib3.connectionpool:https://s3.amazonaws.com:443 "HEAD /datasets.huggingface.co/datasets/datasets/json/json.py HTTP/1.1" 200 0
+DEBUG:filelock:Attempting to acquire lock 140134720303232 on /root/.cache/huggingface/datasets/_root_.cache_huggingface_datasets_json_default-9d3c7425e184ad8c_0.0.0_4d80ec5faec344ea842e25017a662668bf00c8eec2b59a13536060e6e7492b91.lock
+DEBUG:filelock:Lock 140134720303232 acquired on /root/.cache/huggingface/datasets/_root_.cache_huggingface_datasets_json_default-9d3c7425e184ad8c_0.0.0_4d80ec5faec344ea842e25017a662668bf00c8eec2b59a13536060e6e7492b91.lock
+DEBUG:fsspec.local:open file: /root/.cache/huggingface/datasets/json/default-9d3c7425e184ad8c/0.0.0/4d80ec5faec344ea842e25017a662668bf00c8eec2b59a13536060e6e7492b91/dataset_info.json
+DEBUG:filelock:Attempting to release lock 140134720303232 on /root/.cache/huggingface/datasets/_root_.cache_huggingface_datasets_json_default-9d3c7425e184ad8c_0.0.0_4d80ec5faec344ea842e25017a662668bf00c8eec2b59a13536060e6e7492b91.lock
+DEBUG:filelock:Lock 140134720303232 released on /root/.cache/huggingface/datasets/_root_.cache_huggingface_datasets_json_default-9d3c7425e184ad8c_0.0.0_4d80ec5faec344ea842e25017a662668bf00c8eec2b59a13536060e6e7492b91.lock
+DEBUG:filelock:Attempting to acquire lock 140134248300176 on /root/.cache/huggingface/datasets/json/default-9d3c7425e184ad8c/0.0.0/4d80ec5faec344ea842e25017a662668bf00c8eec2b59a13536060e6e7492b91_builder.lock
+DEBUG:filelock:Lock 140134248300176 acquired on /root/.cache/huggingface/datasets/json/default-9d3c7425e184ad8c/0.0.0/4d80ec5faec344ea842e25017a662668bf00c8eec2b59a13536060e6e7492b91_builder.lock
+DEBUG:fsspec.local:open file: /root/.cache/huggingface/datasets/json/default-9d3c7425e184ad8c/0.0.0/4d80ec5faec344ea842e25017a662668bf00c8eec2b59a13536060e6e7492b91/dataset_info.json
+DEBUG:filelock:Attempting to release lock 140134248300176 on /root/.cache/huggingface/datasets/json/default-9d3c7425e184ad8c/0.0.0/4d80ec5faec344ea842e25017a662668bf00c8eec2b59a13536060e6e7492b91_builder.lock
+DEBUG:filelock:Lock 140134248300176 released on /root/.cache/huggingface/datasets/json/default-9d3c7425e184ad8c/0.0.0/4d80ec5faec344ea842e25017a662668bf00c8eec2b59a13536060e6e7492b91_builder.lock
+> finished creating GPT datasets ...
+> Length of train_ds: 896, valid_ds: 60, test_ds: 0
+[after dataloaders are built] datetime: 2025-09-29 05:38:44 
+done with setup ...
+training ...
+times across ranks (ms):
+  model-and-optimizer-setup:
+     rank  0: 67.44
+     rank  1: 67.39
+  train/valid/test-data-iterators-setup:
+     rank  0: 1070.47
+     rank  1: 1070.29
+Overwriting rerun_state_machine.current_iteration from -1 to 0...
+[before the start of training step] datetime: 2025-09-29 05:38:44 
+rank 1 tp rank 0 cp rank 1 tensor([[ 11, 220,  16,  ...,  23,  25, 304]], device='cuda:1') tensor([[-100, -100, -100,  ..., -100, -100, -100]], device='cuda:1') tensor([[0., 0., 0.,  ..., 0., 0., 0.]], device='cuda:1') tensor([[12938, 12939, 12940,  ..., 38811, 38812, 38813]], device='cuda:1')
+rank 1 tp rank 0 cp rank 1 token shape torch.Size([1, 25876]) labels shape torch.Size([1, 25876]) loss mask shape torch.Size([1, 25876]) trainable 13364.0 loss mask 0 tokens 0 labels 0 pos 0
+rank 0 tp rank 0 cp rank 0 tensor([[151644,   8948,    198,  ..., 151645, 151643, 151643]],
+       device='cuda:0') tensor([[-100, -100, -100,  ..., -100, -100, -100]], device='cuda:0') tensor([[0., 0., 0.,  ..., 0., 0., 0.]], device='cuda:0') tensor([[    0,     1,     2,  ..., 51749, 51750, 51751]], device='cuda:0')
+rank 0 tp rank 0 cp rank 0 token shape torch.Size([1, 25876]) labels shape torch.Size([1, 25876]) loss mask shape torch.Size([1, 25876]) trainable 7523.0 loss mask 0 tokens 0 labels 0 pos 0
+Rank 0 loss: 92764.1328125
+WARNING:megatron.core.rerun_state_machine:Result validation enabled
+Rank 1 loss: 164074.8125
+Number of parameters in transformer block in billions:  0.62
+Number of parameters in embedding layers in billions: 0.62
+Total number of parameters in billions: 1.25
+Number of parameters in most loaded shard in billions: 1.2452
+compute_activation_memory_without_sp
+Activation memory footprint per transformer layer (precise, without SP): 4316.4 MB
+Theoretical memory footprints: weight and optimizer=21375.21 MB, activation=24711.15 MB, total=46086.36 MB
+
+ [2025-09-29 05:38:57] iteration        1/     896 | consumed samples:            1 | elapsed time per iteration (ms): 12882.8 | throughput per GPU (TFLOP/s/GPU): 9.6 | learning rate: 4.999985E-05 | global batch size:     1 | lm loss: 1.230406E+01 | loss scale: 1.0 | grad norm: 7.426 | num zeros: 342415648.0 | params norm: 448.692 | number of skipped iterations:   0 | number of nan iterations:   0 |
+[Rank 1] (after 1 iterations) memory (MB) | allocated: 7392.44287109375 | max allocated: 14872.9501953125 | reserved: 15550.0 | max reserved: 15550.0
+[Rank 0] (after 1 iterations) memory (MB) | allocated: 7392.4560546875 | max allocated: 12544.087890625 | reserved: 13930.0 | max reserved: 13930.0
+times across ranks (ms):
+  forward-backward:
+     rank  0: 12458.72
+     rank  1: 12458.93
+  forward-compute:
+     rank  0: 7189.13
+     rank  1: 7999.94
+  backward-compute:
+     rank  0: 5255.26
+     rank  1: 4444.90
+  batch-generator:
+     rank  0: 82.94
+     rank  1: 77.61
+  embedding-grads-all-reduce:
+     rank  0: 0.01
+     rank  1: 0.01
+  all-grads-sync:
+     rank  0: 0.09
+     rank  1: 0.09
+  params-all-gather:
+     rank  0: 0.01
+     rank  1: 0.01
+  optimizer-copy-to-main-grad:
+     rank  0: 0.50
+     rank  1: 0.48
+  optimizer-inner-step:
+     rank  0: 93.02
+     rank  1: 93.93
+  optimizer-copy-main-to-model-params:
+     rank  0: 0.02
+     rank  1: 0.02
+  optimizer:
+     rank  0: 118.13
+     rank  1: 118.13
+rank 1 tp rank 0 cp rank 1 tensor([[  262,   220,    17,  ...,  8749, 23266,   198]], device='cuda:1') tensor([[-100, -100, -100,  ..., -100, -100, -100]], device='cuda:1') tensor([[0., 0., 0.,  ..., 0., 0., 0.]], device='cuda:1') tensor([[12477, 12478, 12479,  ..., 37428, 37429, 37430]], device='cuda:1')
+rank 0 tp rank 0 cp rank 0 tensor([[151644,   8948,    198,  ...,    198, 151645, 151643]],
+       device='cuda:0') tensor([[  -100,   -100,   -100,  ..., 151645,   -100,   -100]],
+       device='cuda:0') tensor([[0., 0., 0.,  ..., 1., 0., 0.]], device='cuda:0') tensor([[    0,     1,     2,  ..., 49905, 49906, 49907]], device='cuda:0')
+rank 0 tp rank 0 cp rank 0 token shape torch.Size([1, 24954]) labels shape torch.Size([1, 24954]) loss mask shape torch.Size([1, 24954]) trainable 6367.0 loss mask 0 tokens 0 labels 0 pos 0
+rank 1 tp rank 0 cp rank 1 token shape torch.Size([1, 24954]) labels shape torch.Size([1, 24954]) loss mask shape torch.Size([1, 24954]) trainable 7895.0 loss mask 0 tokens 0 labels 0 pos 0
+Rank 0 loss: 75696.5
+Rank 1 loss: 93607.265625
+ [2025-09-29 05:39:00] iteration        2/     896 | consumed samples:            2 | elapsed time per iteration (ms): 2719.5 | throughput per GPU (TFLOP/s/GPU): 45.5 | learning rate: 4.999939E-05 | global batch size:     1 | lm loss: 1.187270E+01 | loss scale: 1.0 | grad norm: 7.917 | num zeros: 346301760.0 | params norm: 448.693 | number of skipped iterations:   0 | number of nan iterations:   0 |
+[Rank 0] (after 2 iterations) memory (MB) | allocated: 7403.17919921875 | max allocated: 14446.42236328125 | reserved: 19154.0 | max reserved: 19154.0
+[Rank 1] (after 2 iterations) memory (MB) | allocated: 7403.166015625 | max allocated: 14872.9501953125 | reserved: 17252.0 | max reserved: 17252.0
+times across ranks (ms):
+  forward-backward:
+     rank  0: 2605.31
+     rank  1: 2605.30
+  forward-compute:
+     rank  0: 1821.92
+     rank  1: 1828.02
+  backward-compute:
+     rank  0: 779.32
+     rank  1: 773.65
+  batch-generator:
+     rank  0: 1.79
+     rank  1: 1.79
+  embedding-grads-all-reduce:
+     rank  0: 0.01
+     rank  1: 0.01
+  all-grads-sync:
+     rank  0: 0.07
+     rank  1: 0.07
+  params-all-gather:
+     rank  0: 0.01
+     rank  1: 0.01
+  optimizer-copy-to-main-grad:
+     rank  0: 0.44
+     rank  1: 0.43
+  optimizer-inner-step:
+     rank  0: 54.63
+     rank  1: 55.19
+  optimizer-copy-main-to-model-params:
+     rank  0: 0.01
+     rank  1: 0.01
+  optimizer:
+     rank  0: 67.50
+     rank  1: 67.50
+rank 0 tp rank 0 cp rank 0 tensor([[151644,   8948,    198,  ..., 151643, 151643, 151643]],
+       device='cuda:0') tensor([[-100, -100, -100,  ..., -100, -100, -100]], device='cuda:0') tensor([[0., 0., 0.,  ..., 0., 0., 0.]], device='cuda:0') tensor([[    0,     1,     2,  ..., 32193, 32194, 32195]], device='cuda:0')
+rank 0 tp rank 0 cp rank 0 token shape torch.Size([1, 16098]) labels shape torch.Size([1, 16098]) loss mask shape torch.Size([1, 16098]) trainable 4489.0 loss mask 0 tokens 0 labels 0 pos 0
+rank 1 tp rank 0 cp rank 1 tensor([[14120, 63521,   905,  ...,   698,   522, 16181]], device='cuda:1') tensor([[ -100,  -100,  -100,  ...,   522, 16181,   397]], device='cuda:1') tensor([[0., 0., 0.,  ..., 1., 1., 1.]], device='cuda:1') tensor([[ 8049,  8050,  8051,  ..., 24144, 24145, 24146]], device='cuda:1')
+rank 1 tp rank 0 cp rank 1 token shape torch.Size([1, 16098]) labels shape torch.Size([1, 16098]) loss mask shape torch.Size([1, 16098]) trainable 6716.0 loss mask 0 tokens 0 labels 0 pos 0
+Rank 0 loss: 51710.9140625
+Rank 1 loss: 77415.296875
+ [2025-09-29 05:39:01] iteration        3/     896 | consumed samples:            3 | elapsed time per iteration (ms): 1116.4 | throughput per GPU (TFLOP/s/GPU): 110.7 | learning rate: 4.999862E-05 | global batch size:     1 | lm loss: 1.152323E+01 | loss scale: 1.0 | grad norm: 6.932 | num zeros: 352715232.0 | params norm: 448.698 | number of skipped iterations:   0 | number of nan iterations:   0 |
+[Rank 0] (after 3 iterations) memory (MB) | allocated: 7396.9873046875 | max allocated: 14446.42236328125 | reserved: 19154.0 | max reserved: 19154.0
+[Rank 1] (after 3 iterations) memory (MB) | allocated: 7396.97412109375 | max allocated: 14872.9501953125 | reserved: 17252.0 | max reserved: 17252.0
+times across ranks (ms):
+  forward-backward:
+     rank  0: 1000.45
+     rank  1: 1000.45
+  forward-compute:
+     rank  0: 499.46
+     rank  1: 504.46
+  backward-compute:
+     rank  0: 496.75
+     rank  1: 492.18
+  batch-generator:
+     rank  0: 1.56
+     rank  1: 2.05
+  embedding-grads-all-reduce:
+     rank  0: 0.01
+     rank  1: 0.01
+  all-grads-sync:
+     rank  0: 0.08
+     rank  1: 0.08
+  params-all-gather:
+     rank  0: 0.01
+     rank  1: 0.01
+  optimizer-copy-to-main-grad:
+     rank  0: 0.46
+     rank  1: 0.43
+  optimizer-inner-step:
+     rank  0: 54.56
+     rank  1: 55.19
+  optimizer-copy-main-to-model-params:
+     rank  0: 0.01
+     rank  1: 0.01
+  optimizer:
+     rank  0: 67.44
+     rank  1: 67.44
+rank 0 tp rank 0 cp rank 0 tensor([[151644,   8948,    198,  ..., 151645,    198, 151645]],
+       device='cuda:0') tensor([[  -100,   -100,   -100,  ...,    198, 151645,   -100]],
+       device='cuda:0') tensor([[0., 0., 0.,  ..., 1., 1., 0.]], device='cuda:0') tensor([[    0,     1,     2,  ..., 54913, 54914, 54915]], device='cuda:0')
+rank 1 tp rank 0 cp rank 1 tensor([[151645,    198, 151644,  ...,   5435,   1614,    304]],
+       device='cuda:1') tensor([[  -100, 151644,  77091,  ...,   -100,   -100,   -100]],
+       device='cuda:1') tensor([[0., 1., 1.,  ..., 0., 0., 0.]], device='cuda:1') tensor([[13729, 13730, 13731,  ..., 41184, 41185, 41186]], device='cuda:1')
+rank 0 tp rank 0 cp rank 0 token shape torch.Size([1, 27458]) labels shape torch.Size([1, 27458]) loss mask shape torch.Size([1, 27458]) trainable 6818.0 loss mask 0 tokens 0 labels 0 pos 0
+rank 1 tp rank 0 cp rank 1 token shape torch.Size([1, 27458]) labels shape torch.Size([1, 27458]) loss mask shape torch.Size([1, 27458]) trainable 9262.0 loss mask 0 tokens 0 labels 0 pos 0
+Rank 0 loss: 74474.625
+Rank 1 loss: 101946.7734375
+ [2025-09-29 05:39:03] iteration        4/     896 | consumed samples:            4 | elapsed time per iteration (ms): 1511.5 | throughput per GPU (TFLOP/s/GPU): 81.8 | learning rate: 4.999755E-05 | global batch size:     1 | lm loss: 1.096511E+01 | loss scale: 1.0 | grad norm: 7.488 | num zeros: 360779648.0 | params norm: 448.698 | number of skipped iterations:   0 | number of nan iterations:   0 |
+[Rank 0] (after 4 iterations) memory (MB) | allocated: 7428.42333984375 | max allocated: 15646.46826171875 | reserved: 19674.0 | max reserved: 19674.0
+[Rank 1] (after 4 iterations) memory (MB) | allocated: 7428.41015625 | max allocated: 14872.9501953125 | reserved: 17772.0 | max reserved: 17772.0
+times across ranks (ms):
+  forward-backward:
+     rank  0: 1382.61
+     rank  1: 1382.61
+  forward-compute:
+     rank  0: 596.30
+     rank  1: 606.25
+  backward-compute:
+     rank  0: 782.23
+     rank  1: 772.56
+  batch-generator:
+     rank  0: 1.78
+     rank  1: 1.81
+  embedding-grads-all-reduce:
+     rank  0: 0.01
+     rank  1: 0.01
+  all-grads-sync:
+     rank  0: 0.08
+     rank  1: 0.09
+  params-all-gather:
+     rank  0: 0.01
+     rank  1: 0.01
+  optimizer-copy-to-main-grad:
+     rank  0: 0.46
+     rank  1: 0.42
+  optimizer-inner-step:
+     rank  0: 55.66
+     rank  1: 55.25
+  optimizer-copy-main-to-model-params:
+     rank  0: 0.01
+     rank  1: 0.01
+  optimizer:
+     rank  0: 68.19
+     rank  1: 68.19
+rank 0 tp rank 0 cp rank 0 tensor([[151644,   8948,    198,  ..., 151645, 151643, 151643]],
+       device='cuda:0') tensor([[-100, -100, -100,  ..., -100, -100, -100]], device='cuda:0') tensor([[0., 0., 0.,  ..., 0., 0., 0.]], device='cuda:0') tensor([[    0,     1,     2,  ..., 34389, 34390, 34391]], device='cuda:0')
+rank 1 tp rank 0 cp rank 1 tensor([[72761, 10656,  2140,  ...,    11,  5003, 36202]], device='cuda:1') tensor([[-100, -100, -100,  ..., -100, -100, -100]], device='cuda:1') tensor([[0., 0., 0.,  ..., 0., 0., 0.]], device='cuda:1') tensor([[ 8598,  8599,  8600,  ..., 25791, 25792, 25793]], device='cuda:1')
+rank 0 tp rank 0 cp rank 0 token shape torch.Size([1, 17196]) labels shape torch.Size([1, 17196]) loss mask shape torch.Size([1, 17196]) trainable 4623.0 loss mask 0 tokens 0 labels 0 pos 0
+rank 1 tp rank 0 cp rank 1 token shape torch.Size([1, 17196]) labels shape torch.Size([1, 17196]) loss mask shape torch.Size([1, 17196]) trainable 3600.0 loss mask 0 tokens 0 labels 0 pos 0
+Rank 1 loss: 36778.7734375
+Rank 0 loss: 48054.1484375
+ [2025-09-29 05:39:04] iteration        5/     896 | consumed samples:            5 | elapsed time per iteration (ms): 1095.4 | throughput per GPU (TFLOP/s/GPU): 112.9 | learning rate: 4.999616E-05 | global batch size:     1 | lm loss: 1.030545E+01 | loss scale: 1.0 | grad norm: 6.969 | num zeros: 446466976.0 | params norm: 448.705 | number of skipped iterations:   0 | number of nan iterations:   0 |
+[Rank 0] (after 5 iterations) memory (MB) | allocated: 7420.5361328125 | max allocated: 15646.46826171875 | reserved: 19674.0 | max reserved: 19674.0
+[Rank 1] (after 5 iterations) memory (MB) | allocated: 7420.52294921875 | max allocated: 14872.9501953125 | reserved: 17772.0 | max reserved: 17772.0
+times across ranks (ms):
+  forward-backward:
+     rank  0: 961.09
+     rank  1: 961.09
+  forward-compute:
+     rank  0: 444.87
+     rank  1: 441.66
+  backward-compute:
+     rank  0: 512.17
+     rank  1: 515.80
+  batch-generator:
+     rank  0: 1.71
+     rank  1: 1.77
+  embedding-grads-all-reduce:
+     rank  0: 0.01
+     rank  1: 0.01
+  all-grads-sync:
+     rank  0: 0.08
+     rank  1: 0.08
+  params-all-gather:
+     rank  0: 0.01
+     rank  1: 0.01
+  optimizer-copy-to-main-grad:
+     rank  0: 0.43
+     rank  1: 0.42
+  optimizer-inner-step:
+     rank  0: 54.57
+     rank  1: 55.19
+  optimizer-copy-main-to-model-params:
+     rank  0: 0.01
+     rank  1: 0.01
+  optimizer:
+     rank  0: 67.43
+     rank  1: 67.43
+rank 0 tp rank 0 cp rank 0 tensor([[151644,   8948,    198,  ..., 151643, 151643, 151643]],
+       device='cuda:0') tensor([[-100, -100, -100,  ..., -100, -100, -100]], device='cuda:0') tensor([[0., 0., 0.,  ..., 0., 0., 0.]], device='cuda:0') tensor([[    0,     1,     2,  ..., 47553, 47554, 47555]], device='cuda:0')
+rank 0 tp rank 0 cp rank 0 token shape torch.Size([1, 23778]) labels shape torch.Size([1, 23778]) loss mask shape torch.Size([1, 23778]) trainable 6601.0 loss mask 0 tokens 0 labels 0 pos 0rank 1 tp rank 0 cp rank 1 tensor([[  19,   19, 7472,  ..., 7233,  320, 2528]], device='cuda:1') tensor([[-100, -100, -100,  ..., -100, -100, -100]], device='cuda:1') tensor([[0., 0., 0.,  ..., 0., 0., 0.]], device='cuda:1') tensor([[11889, 11890, 11891,  ..., 35664, 35665, 35666]], device='cuda:1')
+
+rank 1 tp rank 0 cp rank 1 token shape torch.Size([1, 23778]) labels shape torch.Size([1, 23778]) loss mask shape torch.Size([1, 23778]) trainable 8601.0 loss mask 0 tokens 0 labels 0 pos 0
+Rank 0 loss: 65321.578125
+Rank 1 loss: 86149.46875
+ [2025-09-29 05:39:05] iteration        6/     896 | consumed samples:            6 | elapsed time per iteration (ms): 1615.4 | throughput per GPU (TFLOP/s/GPU): 76.5 | learning rate: 4.999448E-05 | global batch size:     1 | lm loss: 9.955962E+00 | loss scale: 1.0 | grad norm: 5.580 | num zeros: 431435936.0 | params norm: 448.708 | number of skipped iterations:   0 | number of nan iterations:   0 |
+[Rank 0] (after 6 iterations) memory (MB) | allocated: 7442.59326171875 | max allocated: 15646.46826171875 | reserved: 19674.0 | max reserved: 19674.0
+[Rank 1] (after 6 iterations) memory (MB) | allocated: 7442.580078125 | max allocated: 14872.9501953125 | reserved: 17772.0 | max reserved: 17772.0
+times across ranks (ms):
+  forward-backward:
+     rank  0: 1207.27
+     rank  1: 1207.26
+  forward-compute:
+     rank  0: 537.22
+     rank  1: 543.35
+  backward-compute:
+     rank  0: 665.82
+     rank  1: 660.11
+  batch-generator:
+     rank  0: 1.63
+     rank  1: 1.79
+  embedding-grads-all-reduce:
+     rank  0: 0.01
+     rank  1: 0.01
+  all-grads-sync:
+     rank  0: 0.09
+     rank  1: 0.09
+  params-all-gather:
+     rank  0: 0.01
+     rank  1: 0.01
+  optimizer-copy-to-main-grad:
+     rank  0: 0.48
+     rank  1: 0.46
+  optimizer-inner-step:
+     rank  0: 54.59
+     rank  1: 55.05
+  optimizer-copy-main-to-model-params:
+     rank  0: 0.01
+     rank  1: 0.01
+  optimizer:
+     rank  0: 67.63
+     rank  1: 67.62
+rank 1 tp rank 0 cp rank 1 tensor([[25433, 62433,  5237,  ...,   982,   256,   220]], device='cuda:1') tensor([[-100, -100, -100,  ..., -100, -100, -100]], device='cuda:1') tensor([[0., 0., 0.,  ..., 0., 0., 0.]], device='cuda:1') tensor([[ 8041,  8042,  8043,  ..., 24120, 24121, 24122]], device='cuda:1')
+rank 0 tp rank 0 cp rank 0 tensor([[151644,   8948,    198,  ..., 151643, 151643, 151643]],
+       device='cuda:0') tensor([[-100, -100, -100,  ..., -100, -100, -100]], device='cuda:0') tensor([[0., 0., 0.,  ..., 0., 0., 0.]], device='cuda:0') tensor([[    0,     1,     2,  ..., 32161, 32162, 32163]], device='cuda:0')
+rank 1 tp rank 0 cp rank 1 token shape torch.Size([1, 16082]) labels shape torch.Size([1, 16082]) loss mask shape torch.Size([1, 16082]) trainable 4277.0 loss mask 0 tokens 0 labels 0 pos 0
+rank 0 tp rank 0 cp rank 0 token shape torch.Size([1, 16082]) labels shape torch.Size([1, 16082]) loss mask shape torch.Size([1, 16082]) trainable 6530.0 loss mask 0 tokens 0 labels 0 pos 0
+Rank 1 loss: 39431.296875
+Rank 0 loss: 65462.91796875
+ [2025-09-29 05:39:06] iteration        7/     896 | consumed samples:            7 | elapsed time per iteration (ms): 1058.1 | throughput per GPU (TFLOP/s/GPU): 116.8 | learning rate: 4.999249E-05 | global batch size:     1 | lm loss: 9.622166E+00 | loss scale: 1.0 | grad norm: 6.263 | num zeros: 427889088.0 | params norm: 448.709 | number of skipped iterations:   0 | number of nan iterations:   0 |
+[Rank 0] (after 7 iterations) memory (MB) | allocated: 7438.234375 | max allocated: 15646.46826171875 | reserved: 19674.0 | max reserved: 19674.0
+[Rank 1] (after 7 iterations) memory (MB) | allocated: 7438.22119140625 | max allocated: 14872.9501953125 | reserved: 17772.0 | max reserved: 17772.0
+times across ranks (ms):
+  forward-backward:
+     rank  0: 917.42
+     rank  1: 917.43
+  forward-compute:
+     rank  0: 438.42
+     rank  1: 431.82
+  backward-compute:
+     rank  0: 474.77
+     rank  1: 481.80
+  batch-generator:
+     rank  0: 2.02
+     rank  1: 1.91
+  embedding-grads-all-reduce:
+     rank  0: 0.01
+     rank  1: 0.01
+  all-grads-sync:
+     rank  0: 0.09
+     rank  1: 0.08
+  params-all-gather:
+     rank  0: 0.01
+     rank  1: 0.01
+  optimizer-copy-to-main-grad:
+     rank  0: 0.47
+     rank  1: 0.44
+  optimizer-inner-step:
+     rank  0: 54.56
+     rank  1: 55.01
+  optimizer-copy-main-to-model-params:
+     rank  0: 0.01
+     rank  1: 0.01
+  optimizer:
+     rank  0: 67.51
+     rank  1: 67.51
+rank 0 tp rank 0 cp rank 0 tensor([[151644,   8948,    198,  ...,    198, 151645, 151643]],
+       device='cuda:0') tensor([[  -100,   -100,   -100,  ..., 151645,   -100,   -100]],
+       device='cuda:0') tensor([[0., 0., 0.,  ..., 1., 0., 0.]], device='cuda:0') tensor([[    0,     1,     2,  ..., 53189, 53190, 53191]], device='cuda:0')
+rank 1 tp rank 0 cp rank 1 tensor([[   18,    19,    19,  ..., 36386, 11662,  2528]], device='cuda:1') tensor([[-100, -100, -100,  ..., -100, -100, -100]], device='cuda:1') tensor([[0., 0., 0.,  ..., 0., 0., 0.]], device='cuda:1') tensor([[13298, 13299, 13300,  ..., 39891, 39892, 39893]], device='cuda:1')
+rank 0 tp rank 0 cp rank 0 token shape torch.Size([1, 26596]) labels shape torch.Size([1, 26596]) loss mask shape torch.Size([1, 26596]) trainable 4213.0 loss mask 0 tokens 0 labels 0 pos 0
+rank 1 tp rank 0 cp rank 1 token shape torch.Size([1, 26596]) labels shape torch.Size([1, 26596]) loss mask shape torch.Size([1, 26596]) trainable 9113.0 loss mask 0 tokens 0 labels 0 pos 0
+Rank 0 loss: 40718.0390625
+Rank 1 loss: 86525.078125
+ [2025-09-29 05:39:08] iteration        8/     896 | consumed samples:            8 | elapsed time per iteration (ms): 1472.0 | throughput per GPU (TFLOP/s/GPU): 84.0 | learning rate: 4.999019E-05 | global batch size:     1 | lm loss: 9.579771E+00 | loss scale: 1.0 | grad norm: 6.389 | num zeros: 416588224.0 | params norm: 448.713 | number of skipped iterations:   0 | number of nan iterations:   0 |
+[Rank 0] (after 8 iterations) memory (MB) | allocated: 7467.90673828125 | max allocated: 15646.46826171875 | reserved: 19674.0 | max reserved: 19674.0
+[Rank 1] (after 8 iterations) memory (MB) | allocated: 7467.8935546875 | max allocated: 14872.9501953125 | reserved: 17772.0 | max reserved: 17772.0
+times across ranks (ms):
+  forward-backward:
+     rank  0: 1333.93
+     rank  1: 1333.92
+  forward-compute:
+     rank  0: 572.64
+     rank  1: 587.27
+  backward-compute:
+     rank  0: 757.19
+     rank  1: 742.99
+  batch-generator:
+     rank  0: 1.75
+     rank  1: 1.80
+  embedding-grads-all-reduce:
+     rank  0: 0.01
+     rank  1: 0.01
+  all-grads-sync:
+     rank  0: 0.08
+     rank  1: 0.08
+  params-all-gather:
+     rank  0: 0.01
+     rank  1: 0.01
+  optimizer-copy-to-main-grad:
+     rank  0: 0.46
+     rank  1: 0.43
+  optimizer-inner-step:
+     rank  0: 54.47
+     rank  1: 55.30
+  optimizer-copy-main-to-model-params:
+     rank  0: 0.01
+     rank  1: 0.01
+  optimizer:
+     rank  0: 67.54
+     rank  1: 67.54
+rank 0 tp rank 0 cp rank 0 tensor([[151644,   8948,    198,  ..., 151645, 151643, 151643]],
+       device='cuda:0') tensor([[-100, -100, -100,  ..., -100, -100, -100]], device='cuda:0') tensor([[0., 0., 0.,  ..., 0., 0., 0.]], device='cuda:0') tensor([[    0,     1,     2,  ..., 40877, 40878, 40879]], device='cuda:0')
+rank 0 tp rank 0 cp rank 0 token shape torch.Size([1, 20440]) labels shape torch.Size([1, 20440]) loss mask shape torch.Size([1, 20440]) trainable 7809.0 loss mask 0 tokens 0 labels 0 pos 0
+rank 1 tp rank 0 cp rank 1 tensor([[2760,  707,  738,  ..., 3073,  510,  262]], device='cuda:1') tensor([[-100, -100, -100,  ...,  510,  262, 5003]], device='cuda:1') tensor([[0., 0., 0.,  ..., 1., 1., 1.]], device='cuda:1') tensor([[10220, 10221, 10222,  ..., 30657, 30658, 30659]], device='cuda:1')
+rank 1 tp rank 0 cp rank 1 token shape torch.Size([1, 20440]) labels shape torch.Size([1, 20440]) loss mask shape torch.Size([1, 20440]) trainable 7721.0 loss mask 0 tokens 0 labels 0 pos 0
+Rank 1 loss: 70202.21875
+Rank 0 loss: 73257.234375
+ [2025-09-29 05:39:09] iteration        9/     896 | consumed samples:            9 | elapsed time per iteration (ms): 1213.5 | throughput per GPU (TFLOP/s/GPU): 101.9 | learning rate: 4.998758E-05 | global batch size:     1 | lm loss: 9.236752E+00 | loss scale: 1.0 | grad norm: 6.234 | num zeros: 426888928.0 | params norm: 448.716 | number of skipped iterations:   0 | number of nan iterations:   0 |
+[Rank 0] (after 9 iterations) memory (MB) | allocated: 7468.11962890625 | max allocated: 15646.46826171875 | reserved: 19674.0 | max reserved: 19674.0
+[Rank 1] (after 9 iterations) memory (MB) | allocated: 7468.1064453125 | max allocated: 14872.9501953125 | reserved: 17772.0 | max reserved: 17772.0
+times across ranks (ms):
+  forward-backward:
+     rank  0: 1074.56
+     rank  1: 1074.56
+  forward-compute:
+     rank  0: 488.24
+     rank  1: 488.21
+  backward-compute:
+     rank  0: 582.26
+     rank  1: 582.71
+  batch-generator:
+     rank  0: 1.59
+     rank  1: 1.96
+  embedding-grads-all-reduce:
+     rank  0: 0.01
+     rank  1: 0.01
+  all-grads-sync:
+     rank  0: 0.08
+     rank  1: 0.07
+  params-all-gather:
+     rank  0: 0.01
+     rank  1: 0.01
+  optimizer-copy-to-main-grad:
+     rank  0: 0.45
+     rank  1: 0.43
+  optimizer-inner-step:
+     rank  0: 54.52
+     rank  1: 55.38
+  optimizer-copy-main-to-model-params:
+     rank  0: 0.01
+     rank  1: 0.01
+  optimizer:
+     rank  0: 67.53
+     rank  1: 67.53
+rank 0 tp rank 0 cp rank 0 tensor([[151644,   8948,    198,  ..., 151645,    198, 151645]],
+       device='cuda:0') tensor([[  -100,   -100,   -100,  ...,    198, 151645,   -100]],
+       device='cuda:0') tensor([[0., 0., 0.,  ..., 1., 1., 0.]], device='cuda:0') tensor([[    0,     1,     2,  ..., 63321, 63322, 63323]], device='cuda:0')
+rank 0 tp rank 0 cp rank 0 token shape torch.Size([1, 31662]) labels shape torch.Size([1, 31662]) loss mask shape torch.Size([1, 31662]) trainable 9142.0 loss mask 0 tokens 0 labels 0 pos 0
+rank 1 tp rank 0 cp rank 1 tensor([[  476,   364, 20819,  ...,   445,    80,    17]], device='cuda:1') tensor([[ -100,  -100,  -100,  ...,    80,    17, 39527]], device='cuda:1') tensor([[0., 0., 0.,  ..., 1., 1., 1.]], device='cuda:1') tensor([[15831, 15832, 15833,  ..., 47490, 47491, 47492]], device='cuda:1')
+rank 1 tp rank 0 cp rank 1 token shape torch.Size([1, 31662]) labels shape torch.Size([1, 31662]) loss mask shape torch.Size([1, 31662]) trainable 7978.0 loss mask 0 tokens 0 labels 0 pos 0
+Rank 1 loss: 70632.96875
+Rank 0 loss: 84202.6875
+ [2025-09-29 05:39:11] iteration       10/     896 | consumed samples:           10 | elapsed time per iteration (ms): 1678.7 | throughput per GPU (TFLOP/s/GPU): 73.6 | learning rate: 4.998466E-05 | global batch size:     1 | lm loss: 9.032000E+00 | loss scale: 1.0 | grad norm: 8.186 | num zeros: 458971072.0 | params norm: 448.720 | number of skipped iterations:   0 | number of nan iterations:   0 |
+[Rank 0] (after 10 iterations) memory (MB) | allocated: 7501.3896484375 | max allocated: 16513.80908203125 | reserved: 20574.0 | max reserved: 20574.0
+[Rank 1] (after 10 iterations) memory (MB) | allocated: 7501.37646484375 | max allocated: 14872.9501953125 | reserved: 18254.0 | max reserved: 18254.0
+times across ranks (ms):
+  forward-backward:
+     rank  0: 1539.22
+     rank  1: 1539.22
+  forward-compute:
+     rank  0: 662.29
+     rank  1: 659.16
+  backward-compute:
+     rank  0: 872.81
+     rank  1: 876.37
+  batch-generator:
+     rank  0: 1.79
+     rank  1: 2.08
+  embedding-grads-all-reduce:
+     rank  0: 0.01
+     rank  1: 0.01
+  all-grads-sync:
+     rank  0: 0.08
+     rank  1: 0.08
+  params-all-gather:
+     rank  0: 0.01
+     rank  1: 0.01
+  optimizer-copy-to-main-grad:
+     rank  0: 0.46
+     rank  1: 0.43
+  optimizer-inner-step:
+     rank  0: 54.56
+     rank  1: 55.27
+  optimizer-copy-main-to-model-params:
+     rank  0: 0.01
+     rank  1: 0.01
+  optimizer:
+     rank  0: 67.53
+     rank  1: 67.53
+rank 0 tp rank 0 cp rank 0 tensor([[151644,   8948,    198,  ..., 151643, 151643, 151643]],
+       device='cuda:0') tensor([[-100, -100, -100,  ..., -100, -100, -100]], device='cuda:0') tensor([[0., 0., 0.,  ..., 0., 0., 0.]], device='cuda:0') tensor([[    0,     1,     2,  ..., 56929, 56930, 56931]], device='cuda:0')
+rank 0 tp rank 0 cp rank 0 token shape torch.Size([1, 28466]) labels shape torch.Size([1, 28466]) loss mask shape torch.Size([1, 28466]) trainable 10010.0 loss mask 0 tokens 0 labels 0 pos 0
+rank 1 tp rank 0 cp rank 1 tensor([[ 2503,  5394,   198,  ..., 11948,    63,  2303]], device='cuda:1') tensor([[-100, -100, -100,  ...,   63, 2303,   17]], device='cuda:1') tensor([[0., 0., 0.,  ..., 1., 1., 1.]], device='cuda:1') tensor([[14233, 14234, 14235,  ..., 42696, 42697, 42698]], device='cuda:1')
+rank 1 tp rank 0 cp rank 1 token shape torch.Size([1, 28466]) labels shape torch.Size([1, 28466]) loss mask shape torch.Size([1, 28466]) trainable 2043.0 loss mask 0 tokens 0 labels 0 pos 0
+Rank 1 loss: 16757.42578125
+Rank 0 loss: 90446.015625
+ [2025-09-29 05:39:12] iteration       11/     896 | consumed samples:           11 | elapsed time per iteration (ms): 1792.1 | throughput per GPU (TFLOP/s/GPU): 69.0 | learning rate: 4.998145E-05 | global batch size:     1 | lm loss: 8.618964E+00 | loss scale: 1.0 | grad norm: 5.563 | num zeros: 429826560.0 | params norm: 448.724 | number of skipped iterations:   0 | number of nan iterations:   0 |
+[Rank 0] (after 11 iterations) memory (MB) | allocated: 7510.21875 | max allocated: 16513.80908203125 | reserved: 20574.0 | max reserved: 20574.0
+[Rank 1] (after 11 iterations) memory (MB) | allocated: 7510.20556640625 | max allocated: 14872.9501953125 | reserved: 18714.0 | max reserved: 18714.0
+times across ranks (ms):
+  forward-backward:
+     rank  0: 1388.90
+     rank  1: 1388.90
+  forward-compute:
+     rank  0: 599.21
+     rank  1: 575.80
+  backward-compute:
+     rank  0: 785.41
+     rank  1: 809.24
+  batch-generator:
+     rank  0: 1.66
+     rank  1: 2.08
+  embedding-grads-all-reduce:
+     rank  0: 0.01
+     rank  1: 0.01
+  all-grads-sync:
+     rank  0: 0.09
+     rank  1: 0.09
+  params-all-gather:
+     rank  0: 0.01
+     rank  1: 0.01
+  optimizer-copy-to-main-grad:
+     rank  0: 0.45
+     rank  1: 0.44
+  optimizer-inner-step:
+     rank  0: 54.55
+     rank  1: 55.31
+  optimizer-copy-main-to-model-params:
+     rank  0: 0.01
+     rank  1: 0.01
+  optimizer:
+     rank  0: 67.64
+     rank  1: 67.64
+rank 0 tp rank 0 cp rank 0 tensor([[151644,   8948,    198,  ..., 151645, 151643, 151643]],
+       device='cuda:0') tensor([[-100, -100, -100,  ..., -100, -100, -100]], device='cuda:0') tensor([[0., 0., 0.,  ..., 0., 0., 0.]], device='cuda:0') tensor([[    0,     1,     2,  ..., 41081, 41082, 41083]], device='cuda:0')
+rank 0 tp rank 0 cp rank 0 token shape torch.Size([1, 20542]) labels shape torch.Size([1, 20542]) loss mask shape torch.Size([1, 20542]) trainable 6660.0 loss mask 0 tokens 0 labels 0 pos 0
+rank 1 tp rank 0 cp rank 1 tensor([[ 345,   16,   17,  ...,   24, 2760, 4210]], device='cuda:1') tensor([[-100, -100, -100,  ..., -100, -100, -100]], device='cuda:1') tensor([[0., 0., 0.,  ..., 0., 0., 0.]], device='cuda:1') tensor([[10271, 10272, 10273,  ..., 30810, 30811, 30812]], device='cuda:1')
+rank 1 tp rank 0 cp rank 1 token shape torch.Size([1, 20542]) labels shape torch.Size([1, 20542]) loss mask shape torch.Size([1, 20542]) trainable 7027.0 loss mask 0 tokens 0 labels 0 pos 0
+Rank 0 loss: 58730.25
+Rank 1 loss: 57746.5234375
+ [2025-09-29 05:39:14] iteration       12/     896 | consumed samples:           12 | elapsed time per iteration (ms): 1229.6 | throughput per GPU (TFLOP/s/GPU): 100.5 | learning rate: 4.997792E-05 | global batch size:     1 | lm loss: 8.518081E+00 | loss scale: 1.0 | grad norm: 4.613 | num zeros: 449633728.0 | params norm: 448.727 | number of skipped iterations:   0 | number of nan iterations:   0 |
+[Rank 0] (after 12 iterations) memory (MB) | allocated: 7507.67578125 | max allocated: 16513.80908203125 | reserved: 20574.0 | max reserved: 20574.0
+[Rank 1] (after 12 iterations) memory (MB) | allocated: 7507.66259765625 | max allocated: 14872.9501953125 | reserved: 18714.0 | max reserved: 18714.0
+times across ranks (ms):
+  forward-backward:
+     rank  0: 1087.06
+     rank  1: 1087.06
+  forward-compute:
+     rank  0: 490.79
+     rank  1: 491.64
+  backward-compute:
+     rank  0: 592.20
+     rank  1: 591.78
+  batch-generator:
+     rank  0: 1.58
+     rank  1: 1.84
+  embedding-grads-all-reduce:
+     rank  0: 0.01
+     rank  1: 0.01
+  all-grads-sync:
+     rank  0: 0.08
+     rank  1: 0.07
+  params-all-gather:
+     rank  0: 0.01
+     rank  1: 0.01
+  optimizer-copy-to-main-grad:
+     rank  0: 0.45
+     rank  1: 0.42
+  optimizer-inner-step:
+     rank  0: 54.53
+     rank  1: 55.27
+  optimizer-copy-main-to-model-params:
+     rank  0: 0.01
+     rank  1: 0.01
+  optimizer:
+     rank  0: 67.46
+     rank  1: 67.46
+rank 0 tp rank 0 cp rank 0 tensor([[151644,   8948,    198,  ..., 151645,    198, 151645]],
+       device='cuda:0') tensor([[  -100,   -100,   -100,  ...,    198, 151645,   -100]],
+       device='cuda:0') tensor([[0., 0., 0.,  ..., 1., 1., 0.]], device='cuda:0') tensor([[    0,     1,     2,  ..., 43149, 43150, 43151]], device='cuda:0')
+rank 0 tp rank 0 cp rank 0 token shape torch.Size([1, 21576]) labels shape torch.Size([1, 21576]) loss mask shape torch.Size([1, 21576]) trainable 6425.0 loss mask 0 tokens 0 labels 0 pos 0
+rank 1 tp rank 0 cp rank 1 tensor([[  323,   537, 31056,  ...,  2346,  8384,    11]], device='cuda:1') tensor([[-100, -100, -100,  ..., 8384,   11, 8135]], device='cuda:1') tensor([[0., 0., 0.,  ..., 1., 1., 1.]], device='cuda:1') tensor([[10788, 10789, 10790,  ..., 32361, 32362, 32363]], device='cuda:1')
+rank 1 tp rank 0 cp rank 1 token shape torch.Size([1, 21576]) labels shape torch.Size([1, 21576]) loss mask shape torch.Size([1, 21576]) trainable 6354.0 loss mask 0 tokens 0 labels 0 pos 0
+Rank 1 loss: 52299.26171875
+Rank 0 loss: 55624.5234375
+ [2025-09-29 05:39:15] iteration       13/     896 | consumed samples:           13 | elapsed time per iteration (ms): 1262.5 | throughput per GPU (TFLOP/s/GPU): 97.9 | learning rate: 4.997409E-05 | global batch size:     1 | lm loss: 8.444217E+00 | loss scale: 1.0 | grad norm: 4.228 | num zeros: 441233920.0 | params norm: 448.731 | number of skipped iterations:   0 | number of nan iterations:   0 |
+[Rank 0] (after 13 iterations) memory (MB) | allocated: 7519.85302734375 | max allocated: 16513.80908203125 | reserved: 20574.0 | max reserved: 20574.0
+[Rank 1] (after 13 iterations) memory (MB) | allocated: 7519.83984375 | max allocated: 14872.9501953125 | reserved: 18714.0 | max reserved: 18714.0
+times across ranks (ms):
+  forward-backward:
+     rank  0: 1122.06
+     rank  1: 1122.05
+  forward-compute:
+     rank  0: 505.29
+     rank  1: 505.29
+  backward-compute:
+     rank  0: 612.63
+     rank  1: 613.04
+  batch-generator:
+     rank  0: 1.78
+     rank  1: 2.00
+  embedding-grads-all-reduce:
+     rank  0: 0.01
+     rank  1: 0.01
+  all-grads-sync:
+     rank  0: 0.08
+     rank  1: 0.08
+  params-all-gather:
+     rank  0: 0.01
+     rank  1: 0.01
+  optimizer-copy-to-main-grad:
+     rank  0: 0.45
+     rank  1: 0.43
+  optimizer-inner-step:
+     rank  0: 54.50
+     rank  1: 55.29
+  optimizer-copy-main-to-model-params:
+     rank  0: 0.01
+     rank  1: 0.01
+  optimizer:
+     rank  0: 67.50
+     rank  1: 67.50
+rank 1 tp rank 0 cp rank 1 tensor([[  16, 7472,  421,  ...,   25,  256,  330]], device='cuda:1') tensor([[-100, -100, -100,  ..., -100, -100, -100]], device='cuda:1') tensor([[0., 0., 0.,  ..., 0., 0., 0.]], device='cuda:1') tensor([[10873, 10874, 10875,  ..., 32616, 32617, 32618]], device='cuda:1')rank 0 tp rank 0 cp rank 0 tensor([[151644,   8948,    198,  ..., 151645,    198, 151645]],
+       device='cuda:0') tensor([[  -100,   -100,   -100,  ...,    198, 151645,   -100]],
+       device='cuda:0') tensor([[0., 0., 0.,  ..., 1., 1., 0.]], device='cuda:0') tensor([[    0,     1,     2,  ..., 43489, 43490, 43491]], device='cuda:0')
+
+rank 0 tp rank 0 cp rank 0 token shape torch.Size([1, 21746]) labels shape torch.Size([1, 21746]) loss mask shape torch.Size([1, 21746]) trainable 4992.0 loss mask 0 tokens 0 labels 0 pos 0
+rank 1 tp rank 0 cp rank 1 token shape torch.Size([1, 21746]) labels shape torch.Size([1, 21746]) loss mask shape torch.Size([1, 21746]) trainable 5957.0 loss mask 0 tokens 0 labels 0 pos 0
+Rank 0 loss: 41123.375
+Rank 1 loss: 46121.8984375
+ [2025-09-29 05:39:16] iteration       14/     896 | consumed samples:           14 | elapsed time per iteration (ms): 1261.2 | throughput per GPU (TFLOP/s/GPU): 98.0 | learning rate: 4.996995E-05 | global batch size:     1 | lm loss: 7.990163E+00 | loss scale: 1.0 | grad norm: 4.438 | num zeros: 454819328.0 | params norm: 448.736 | number of skipped iterations:   0 | number of nan iterations:   0 |
+[Rank 0] (after 14 iterations) memory (MB) | allocated: 7530.74267578125 | max allocated: 16513.80908203125 | reserved: 20574.0 | max reserved: 20574.0
+[Rank 1] (after 14 iterations) memory (MB) | allocated: 7530.7294921875 | max allocated: 14872.9501953125 | reserved: 18714.0 | max reserved: 18714.0
+times across ranks (ms):
+  forward-backward:
+     rank  0: 1120.33
+     rank  1: 1120.33
+  forward-compute:
+     rank  0: 499.29
+     rank  1: 502.47
+  backward-compute:
+     rank  0: 616.95
+     rank  1: 614.19
+  batch-generator:
+     rank  0: 1.77
+     rank  1: 1.78
+  embedding-grads-all-reduce:
+     rank  0: 0.01
+     rank  1: 0.01
+  all-grads-sync:
+     rank  0: 0.08
+     rank  1: 0.08
+  params-all-gather:
+     rank  0: 0.01
+     rank  1: 0.01
+  optimizer-copy-to-main-grad:
+     rank  0: 0.47
+     rank  1: 0.42
+  optimizer-inner-step:
+     rank  0: 54.47
+     rank  1: 55.31
+  optimizer-copy-main-to-model-params:
+     rank  0: 0.01
+     rank  1: 0.01
+  optimizer:
+     rank  0: 67.55
+     rank  1: 67.55
+rank 0 tp rank 0 cp rank 0 tensor([[151644,   8948,    198,  ...,    198, 151645, 151643]],
+       device='cuda:0') tensor([[  -100,   -100,   -100,  ..., 151645,   -100,   -100]],
+       device='cuda:0') tensor([[0., 0., 0.,  ..., 1., 0., 0.]], device='cuda:0') tensor([[    0,     1,     2,  ..., 39373, 39374, 39375]], device='cuda:0')
+rank 0 tp rank 0 cp rank 0 token shape torch.Size([1, 19688]) labels shape torch.Size([1, 19688]) loss mask shape torch.Size([1, 19688]) trainable 5795.0 loss mask 0 tokens 0 labels 0 pos 0
+rank 1 tp rank 0 cp rank 1 tensor([[ 677,  872,  660,  ..., 2657, 8383, 2520]], device='cuda:1') tensor([[-100, -100, -100,  ..., 8383, 2520, 3317]], device='cuda:1') tensor([[0., 0., 0.,  ..., 1., 1., 1.]], device='cuda:1') tensor([[ 9844,  9845,  9846,  ..., 29529, 29530, 29531]], device='cuda:1')
+rank 1 tp rank 0 cp rank 1 token shape torch.Size([1, 19688]) labels shape torch.Size([1, 19688]) loss mask shape torch.Size([1, 19688]) trainable 7409.0 loss mask 0 tokens 0 labels 0 pos 0
+Rank 0 loss: 48334.484375
+Rank 1 loss: 60522.6796875
+ [2025-09-29 05:39:17] iteration       15/     896 | consumed samples:           15 | elapsed time per iteration (ms): 1195.0 | throughput per GPU (TFLOP/s/GPU): 103.5 | learning rate: 4.996550E-05 | global batch size:     1 | lm loss: 8.254764E+00 | loss scale: 1.0 | grad norm: 3.731 | num zeros: 479204480.0 | params norm: 448.741 | number of skipped iterations:   0 | number of nan iterations:   0 |
+[Rank 0] (after 15 iterations) memory (MB) | allocated: 7537.09130859375 | max allocated: 16513.80908203125 | reserved: 20574.0 | max reserved: 20574.0
+[Rank 1] (after 15 iterations) memory (MB) | allocated: 7537.078125 | max allocated: 14872.9501953125 | reserved: 18714.0 | max reserved: 18714.0
+times across ranks (ms):
+  forward-backward:
+     rank  0: 1048.70
+     rank  1: 1048.65
+  forward-compute:
+     rank  0: 471.91
+     rank  1: 476.43
+  backward-compute:
+     rank  0: 572.69
+     rank  1: 568.49
+  batch-generator:
+     rank  0: 1.74
+     rank  1: 2.02
+  embedding-grads-all-reduce:
+     rank  0: 0.01
+     rank  1: 0.01
+  all-grads-sync:
+     rank  0: 0.08
+     rank  1: 0.08
+  params-all-gather:
+     rank  0: 0.01
+     rank  1: 0.01
+  optimizer-copy-to-main-grad:
+     rank  0: 0.45
+     rank  1: 0.42
+  optimizer-inner-step:
+     rank  0: 54.54
+     rank  1: 55.26
+  optimizer-copy-main-to-model-params:
+     rank  0: 0.01
+     rank  1: 0.01
+  optimizer:
+     rank  0: 67.55
+     rank  1: 67.55
+WARNING:megatron.core.rerun_state_machine:Setting RerunStateMachine mode RerunMode.DISABLED
+rank 0 tp rank 0 cp rank 0 tensor([[151644,   8948,    198,  ..., 151643, 151643, 151643]],
+       device='cuda:0') tensor([[-100, -100, -100,  ..., -100, -100, -100]], device='cuda:0') tensor([[0., 0., 0.,  ..., 0., 0., 0.]], device='cuda:0') tensor([[    0,     1,     2,  ..., 58325, 58326, 58327]], device='cuda:0')
+rank 0 tp rank 0 cp rank 0 token shape torch.Size([1, 29164]) labels shape torch.Size([1, 29164]) loss mask shape torch.Size([1, 29164]) trainable 10567.0 loss mask 0 tokens 0 labels 0 pos 0
+rank 1 tp rank 0 cp rank 1 tensor([[   40,   980, 32097,  ...,   291,   681, 46186]], device='cuda:1') tensor([[ -100,  -100,  -100,  ...,   681, 46186,   892]], device='cuda:1') tensor([[0., 0., 0.,  ..., 1., 1., 1.]], device='cuda:1') tensor([[14582, 14583, 14584,  ..., 43743, 43744, 43745]], device='cuda:1')
+rank 1 tp rank 0 cp rank 1 token shape torch.Size([1, 29164]) labels shape torch.Size([1, 29164]) loss mask shape torch.Size([1, 29164]) trainable 14541.0 loss mask 0 tokens 0 labels 0 pos 0
+Rank 0 loss: 95304.0859375
+Rank 1 loss: 134036.21875
+times across ranks (ms):
+  evaluate:
+     rank  0: 763.18
+     rank  1: 763.18
+WARNING:megatron.core.rerun_state_machine:Setting RerunStateMachine mode RerunMode.VALIDATE_RESULTS
+WARNING:megatron.core.rerun_state_machine:Setting RerunStateMachine mode RerunMode.VALIDATE_RESULTS
+----------------------------------------------------------------------------------------------
+ validation loss at iteration 15 | lm loss value: 9.118422E+00 | lm loss PPL: 9.121792E+03 | 
+----------------------------------------------------------------------------------------------
+rank 0 tp rank 0 cp rank 0 tensor([[151644,   8948,    198,  ..., 151645, 151643, 151643]],
+       device='cuda:0') tensor([[-100, -100, -100,  ..., -100, -100, -100]], device='cuda:0') tensor([[0., 0., 0.,  ..., 0., 0., 0.]], device='cuda:0') tensor([[    0,     1,     2,  ..., 64001, 64002, 64003]], device='cuda:0')
+rank 0 tp rank 0 cp rank 0 token shape torch.Size([1, 32002]) labels shape torch.Size([1, 32002]) loss mask shape torch.Size([1, 32002]) trainable 13323.0 loss mask 0 tokens 0 labels 0 pos 0
+rank 1 tp rank 0 cp rank 1 tensor([[ 256,  220,   24,  ...,   13, 1985, 4847]], device='cuda:1') tensor([[-100, -100, -100,  ..., -100, -100, -100]], device='cuda:1') tensor([[0., 0., 0.,  ..., 0., 0., 0.]], device='cuda:1') tensor([[16001, 16002, 16003,  ..., 48000, 48001, 48002]], device='cuda:1')
+rank 1 tp rank 0 cp rank 1 token shape torch.Size([1, 32002]) labels shape torch.Size([1, 32002]) loss mask shape torch.Size([1, 32002]) trainable 11356.0 loss mask 0 tokens 0 labels 0 pos 0
+Rank 1 loss: 91920.796875
+Rank 0 loss: 112439.84375
+ [2025-09-29 05:39:20] iteration       16/     896 | consumed samples:           16 | elapsed time per iteration (ms): 1744.2 | throughput per GPU (TFLOP/s/GPU): 70.9 | learning rate: 4.996075E-05 | global batch size:     1 | lm loss: 8.266999E+00 | loss scale: 1.0 | grad norm: 5.830 | num zeros: 416185856.0 | params norm: 448.745 | number of skipped iterations:   0 | number of nan iterations:   0 |
+[Rank 0] (after 16 iterations) memory (MB) | allocated: 7586.501953125 | max allocated: 16513.80908203125 | reserved: 20574.0 | max reserved: 20574.0
+[Rank 1] (after 16 iterations) memory (MB) | allocated: 7586.48876953125 | max allocated: 16104.00341796875 | reserved: 22154.0 | max reserved: 22154.0
+times across ranks (ms):
+  forward-backward:
+     rank  0: 1333.59
+     rank  1: 1333.58
+  forward-compute:
+     rank  0: 451.69
+     rank  1: 448.87
+  backward-compute:
+     rank  0: 877.76
+     rank  1: 881.00
+  batch-generator:
+     rank  0: 3.30
+     rank  1: 4.37
+  embedding-grads-all-reduce:
+     rank  0: 0.01
+     rank  1: 0.01
+  all-grads-sync:
+     rank  0: 0.08
+     rank  1: 0.08
+  params-all-gather:
+     rank  0: 0.01
+     rank  1: 0.01
+  optimizer-copy-to-main-grad:
+     rank  0: 0.45
+     rank  1: 0.43
+  optimizer-inner-step:
+     rank  0: 54.53
+     rank  1: 55.21
+  optimizer-copy-main-to-model-params:
+     rank  0: 0.01
+     rank  1: 0.01
+  optimizer:
+     rank  0: 67.50
+     rank  1: 67.50
+rank 0 tp rank 0 cp rank 0 tensor([[151644,   8948,    198,  ...,    198, 151645, 151643]],
+       device='cuda:0') tensor([[  -100,   -100,   -100,  ..., 151645,   -100,   -100]],
+       device='cuda:0') tensor([[0., 0., 0.,  ..., 1., 0., 0.]], device='cuda:0') tensor([[    0,     1,     2,  ..., 42845, 42846, 42847]], device='cuda:0')
+rank 1 tp rank 0 cp rank 1 tensor([[ 3190,   256,   220,  ..., 41228,  1159,  1638]], device='cuda:1') tensor([[-100, -100, -100,  ..., -100, -100, -100]], device='cuda:1') tensor([[0., 0., 0.,  ..., 0., 0., 0.]], device='cuda:1') tensor([[10712, 10713, 10714,  ..., 32133, 32134, 32135]], device='cuda:1')
+rank 0 tp rank 0 cp rank 0 token shape torch.Size([1, 21424]) labels shape torch.Size([1, 21424]) loss mask shape torch.Size([1, 21424]) trainable 5409.0 loss mask 0 tokens 0 labels 0 pos 0
+rank 1 tp rank 0 cp rank 1 token shape torch.Size([1, 21424]) labels shape torch.Size([1, 21424]) loss mask shape torch.Size([1, 21424]) trainable 10972.0 loss mask 0 tokens 0 labels 0 pos 0
+Rank 0 loss: 45208.09765625
+Rank 1 loss: 96172.328125
+ [2025-09-29 05:39:22] iteration       17/     896 | consumed samples:           17 | elapsed time per iteration (ms): 1467.1 | throughput per GPU (TFLOP/s/GPU): 84.3 | learning rate: 4.995569E-05 | global batch size:     1 | lm loss: 8.561595E+00 | loss scale: 1.0 | grad norm: 8.576 | num zeros: 445948160.0 | params norm: 448.749 | number of skipped iterations:   0 | number of nan iterations:   0 |
+[Rank 1] (after 17 iterations) memory (MB) | allocated: 7580.16455078125 | max allocated: 16104.00341796875 | reserved: 22154.0 | max reserved: 22154.0[Rank 0] (after 17 iterations) memory (MB) | allocated: 7580.177734375 | max allocated: 16513.80908203125 | reserved: 20574.0 | max reserved: 20574.0
+
+times across ranks (ms):
+  forward-backward:
+     rank  0: 1323.72
+     rank  1: 1323.72
+  forward-compute:
+     rank  0: 663.58
+     rank  1: 679.92
+  backward-compute:
+     rank  0: 656.08
+     rank  1: 640.16
+  batch-generator:
+     rank  0: 1.70
+     rank  1: 1.73
+  embedding-grads-all-reduce:
+     rank  0: 0.01
+     rank  1: 0.01
+  all-grads-sync:
+     rank  0: 0.07
+     rank  1: 0.08
+  params-all-gather:
+     rank  0: 0.01
+     rank  1: 0.01
+  optimizer-copy-to-main-grad:
+     rank  0: 0.44
+     rank  1: 0.42
+  optimizer-inner-step:
+     rank  0: 54.51
+     rank  1: 55.29
+  optimizer-copy-main-to-model-params:
+     rank  0: 0.01
+     rank  1: 0.01
+  optimizer:
+     rank  0: 67.54
+     rank  1: 67.54
+rank 0 tp rank 0 cp rank 0 tensor([[151644,   8948,    198,  ..., 151645, 151643, 151643]],
+       device='cuda:0') tensor([[-100, -100, -100,  ..., -100, -100, -100]], device='cuda:0') tensor([[0., 0., 0.,  ..., 0., 0., 0.]], device='cuda:0') tensor([[    0,     1,     2,  ..., 52057, 52058, 52059]], device='cuda:0')
+rank 0 tp rank 0 cp rank 0 token shape torch.Size([1, 26030]) labels shape torch.Size([1, 26030]) loss mask shape torch.Size([1, 26030]) trainable 9981.0 loss mask 0 tokens 0 labels 0 pos 0
+rank 1 tp rank 0 cp rank 1 tensor([[  220,    17,    15,  ...,   397,    27, 16181]], device='cuda:1') tensor([[ -100,  -100,  -100,  ...,    27, 16181,    28]], device='cuda:1') tensor([[0., 0., 0.,  ..., 1., 1., 1.]], device='cuda:1') tensor([[13015, 13016, 13017,  ..., 39042, 39043, 39044]], device='cuda:1')
+rank 1 tp rank 0 cp rank 1 token shape torch.Size([1, 26030]) labels shape torch.Size([1, 26030]) loss mask shape torch.Size([1, 26030]) trainable 8457.0 loss mask 0 tokens 0 labels 0 pos 0
+Rank 1 loss: 66226.25
+Rank 0 loss: 83720.3125
+ [2025-09-29 05:39:23] iteration       18/     896 | consumed samples:           18 | elapsed time per iteration (ms): 1432.6 | throughput per GPU (TFLOP/s/GPU): 86.3 | learning rate: 4.995033E-05 | global batch size:     1 | lm loss: 8.109453E+00 | loss scale: 1.0 | grad norm: 5.535 | num zeros: 446271552.0 | params norm: 448.752 | number of skipped iterations:   0 | number of nan iterations:   0 |
+[Rank 0] (after 18 iterations) memory (MB) | allocated: 7600.19873046875 | max allocated: 16513.80908203125 | reserved: 20574.0 | max reserved: 20574.0
+[Rank 1] (after 18 iterations) memory (MB) | allocated: 7600.185546875 | max allocated: 16104.00341796875 | reserved: 22154.0 | max reserved: 22154.0
+times across ranks (ms):
+  forward-backward:
+     rank  0: 1287.28
+     rank  1: 1287.28
+  forward-compute:
+     rank  0: 562.74
+     rank  1: 558.67
+  backward-compute:
+     rank  0: 720.54
+     rank  1: 725.02
+  batch-generator:
+     rank  0: 1.65
+     rank  1: 2.63
+  embedding-grads-all-reduce:
+     rank  0: 0.01
+     rank  1: 0.01
+  all-grads-sync:
+     rank  0: 0.07
+     rank  1: 0.08
+  params-all-gather:
+     rank  0: 0.01
+     rank  1: 0.01
+  optimizer-copy-to-main-grad:
+     rank  0: 0.43
+     rank  1: 0.43
+  optimizer-inner-step:
+     rank  0: 54.51
+     rank  1: 55.28
+  optimizer-copy-main-to-model-params:
+     rank  0: 0.01
+     rank  1: 0.01
+  optimizer:
+     rank  0: 67.52
+     rank  1: 67.52
+rank 0 tp rank 0 cp rank 0 tensor([[151644,   8948,    198,  ..., 151645, 151643, 151643]],
+       device='cuda:0') tensor([[-100, -100, -100,  ..., -100, -100, -100]], device='cuda:0') tensor([[0., 0., 0.,  ..., 0., 0., 0.]], device='cuda:0') tensor([[    0,     1,     2,  ..., 59873, 59874, 59875]], device='cuda:0')
+rank 0 tp rank 0 cp rank 0 token shape torch.Size([1, 29938]) labels shape torch.Size([1, 29938]) loss mask shape torch.Size([1, 29938]) trainable 7798.0 loss mask 0 tokens 0 labels 0 pos 0
+rank 1 tp rank 0 cp rank 1 tensor([[   24,    17,  7472,  ..., 11043,   220,   220]], device='cuda:1') tensor([[-100, -100, -100,  ..., -100, -100, -100]], device='cuda:1') tensor([[0., 0., 0.,  ..., 0., 0., 0.]], device='cuda:1') tensor([[14969, 14970, 14971,  ..., 44904, 44905, 44906]], device='cuda:1')
+rank 1 tp rank 0 cp rank 1 token shape torch.Size([1, 29938]) labels shape torch.Size([1, 29938]) loss mask shape torch.Size([1, 29938]) trainable 13002.0 loss mask 0 tokens 0 labels 0 pos 0
+Rank 0 loss: 66944.3125
+Rank 1 loss: 116163.3125
+ [2025-09-29 05:39:25] iteration       19/     896 | consumed samples:           19 | elapsed time per iteration (ms): 1594.5 | throughput per GPU (TFLOP/s/GPU): 77.5 | learning rate: 4.994465E-05 | global batch size:     1 | lm loss: 8.759535E+00 | loss scale: 1.0 | grad norm: 3.974 | num zeros: 440420768.0 | params norm: 448.755 | number of skipped iterations:   0 | number of nan iterations:   0 |
+[Rank 0] (after 19 iterations) memory (MB) | allocated: 7621.02001953125 | max allocated: 16513.80908203125 | reserved: 20574.0 | max reserved: 20574.0
+[Rank 1] (after 19 iterations) memory (MB) | allocated: 7621.0068359375 | max allocated: 16104.00341796875 | reserved: 22154.0 | max reserved: 22154.0
+times across ranks (ms):
+  forward-backward:
+     rank  0: 1451.75
+     rank  1: 1451.74
+  forward-compute:
+     rank  0: 610.02
+     rank  1: 625.65
+  backward-compute:
+     rank  0: 837.67
+     rank  1: 822.47
+  batch-generator:
+     rank  0: 1.60
+     rank  1: 2.35
+  embedding-grads-all-reduce:
+     rank  0: 0.01
+     rank  1: 0.01
+  all-grads-sync:
+     rank  0: 0.08
+     rank  1: 0.08
+  params-all-gather:
+     rank  0: 0.01
+     rank  1: 0.01
+  optimizer-copy-to-main-grad:
+     rank  0: 0.45
+     rank  1: 0.43
+  optimizer-inner-step:
+     rank  0: 54.54
+     rank  1: 55.24
+  optimizer-copy-main-to-model-params:
+     rank  0: 0.01
+     rank  1: 0.01
+  optimizer:
+     rank  0: 67.47
+     rank  1: 67.47
+rank 0 tp rank 0 cp rank 0 tensor([[151644,   8948,    198,  ..., 151645,    198, 151645]],
+       device='cuda:0') tensor([[  -100,   -100,   -100,  ...,    198, 151645,   -100]],
+       device='cuda:0') tensor([[0., 0., 0.,  ..., 1., 1., 0.]], device='cuda:0') tensor([[    0,     1,     2,  ..., 45353, 45354, 45355]], device='cuda:0')
+rank 0 tp rank 0 cp rank 0 token shape torch.Size([1, 22678]) labels shape torch.Size([1, 22678]) loss mask shape torch.Size([1, 22678]) trainable 9738.0 loss mask 0 tokens 0 labels 0 pos 0
+rank 1 tp rank 0 cp rank 1 tensor([[  19,   17,   15,  ..., 1193,   11, 2935]], device='cuda:1') tensor([[  17,   15,  921,  ..., -100, -100, -100]], device='cuda:1') tensor([[1., 1., 1.,  ..., 0., 0., 0.]], device='cuda:1') tensor([[11339, 11340, 11341,  ..., 34014, 34015, 34016]], device='cuda:1')
+rank 1 tp rank 0 cp rank 1 token shape torch.Size([1, 22678]) labels shape torch.Size([1, 22678]) loss mask shape torch.Size([1, 22678]) trainable 9003.0 loss mask 0 tokens 0 labels 0 pos 0
+Rank 1 loss: 63623.5390625
+Rank 0 loss: 82497.6484375
+ [2025-09-29 05:39:26] iteration       20/     896 | consumed samples:           20 | elapsed time per iteration (ms): 1292.3 | throughput per GPU (TFLOP/s/GPU): 95.7 | learning rate: 4.993868E-05 | global batch size:     1 | lm loss: 7.769325E+00 | loss scale: 1.0 | grad norm: 3.883 | num zeros: 426545248.0 | params norm: 448.757 | number of skipped iterations:   0 | number of nan iterations:   0 |
+[Rank 0] (after 20 iterations) memory (MB) | allocated: 7620.57373046875 | max allocated: 16513.80908203125 | reserved: 20574.0 | max reserved: 20574.0
+[Rank 1] (after 20 iterations) memory (MB) | allocated: 7620.560546875 | max allocated: 16104.00341796875 | reserved: 22154.0 | max reserved: 22154.0
+times across ranks (ms):
+  forward-backward:
+     rank  0: 1150.14
+     rank  1: 1150.13
+  forward-compute:
+     rank  0: 509.91
+     rank  1: 507.82
+  backward-compute:
+     rank  0: 636.19
+     rank  1: 638.68
+  batch-generator:
+     rank  0: 1.77
+     rank  1: 2.54
+  embedding-grads-all-reduce:
+     rank  0: 0.01
+     rank  1: 0.01
+  all-grads-sync:
+     rank  0: 0.09
+     rank  1: 0.08
+  params-all-gather:
+     rank  0: 0.01
+     rank  1: 0.01
+  optimizer-copy-to-main-grad:
+     rank  0: 0.45
+     rank  1: 0.43
+  optimizer-inner-step:
+     rank  0: 54.58
+     rank  1: 55.32
+  optimizer-copy-main-to-model-params:
+     rank  0: 0.01
+     rank  1: 0.01
+  optimizer:
+     rank  0: 67.50
+     rank  1: 67.50
+rank 0 tp rank 0 cp rank 0 tensor([[151644,   8948,    198,  ..., 151643, 151643, 151643]],
+       device='cuda:0') tensor([[-100, -100, -100,  ..., -100, -100, -100]], device='cuda:0') tensor([[0., 0., 0.,  ..., 0., 0., 0.]], device='cuda:0') tensor([[    0,     1,     2,  ..., 50037, 50038, 50039]], device='cuda:0')
+rank 0 tp rank 0 cp rank 0 token shape torch.Size([1, 25020]) labels shape torch.Size([1, 25020]) loss mask shape torch.Size([1, 25020]) trainable 7856.0 loss mask 0 tokens 0 labels 0 pos 0
+rank 1 tp rank 0 cp rank 1 tensor([[  15,  340,  262,  ..., 1746, 4997, 1364]], device='cuda:1') tensor([[ -100,  -100,  -100,  ...,  4997,  1364, 12132]], device='cuda:1') tensor([[0., 0., 0.,  ..., 1., 1., 1.]], device='cuda:1') tensor([[12510, 12511, 12512,  ..., 37527, 37528, 37529]], device='cuda:1')
+rank 1 tp rank 0 cp rank 1 token shape torch.Size([1, 25020]) labels shape torch.Size([1, 25020]) loss mask shape torch.Size([1, 25020]) trainable 11254.0 loss mask 0 tokens 0 labels 0 pos 0
+Rank 0 loss: 61106.8046875
+Rank 1 loss: 89687.125
+ [2025-09-29 05:39:28] iteration       21/     896 | consumed samples:           21 | elapsed time per iteration (ms): 1658.9 | throughput per GPU (TFLOP/s/GPU): 74.5 | learning rate: 4.993240E-05 | global batch size:     1 | lm loss: 7.873858E+00 | loss scale: 1.0 | grad norm: 3.349 | num zeros: 440767360.0 | params norm: 448.760 | number of skipped iterations:   0 | number of nan iterations:   0 |
+[Rank 0] (after 21 iterations) memory (MB) | allocated: 7636.50830078125 | max allocated: 16513.80908203125 | reserved: 20574.0 | max reserved: 20574.0
+[Rank 1] (after 21 iterations) memory (MB) | allocated: 7636.4951171875 | max allocated: 16104.00341796875 | reserved: 22154.0 | max reserved: 22154.0
+times across ranks (ms):
+  forward-backward:
+     rank  0: 1247.57
+     rank  1: 1247.58
+  forward-compute:
+     rank  0: 536.57
+     rank  1: 546.57
+  backward-compute:
+     rank  0: 706.24
+     rank  1: 696.67
+  batch-generator:
+     rank  0: 1.68
+     rank  1: 2.07
+  embedding-grads-all-reduce:
+     rank  0: 0.01
+     rank  1: 0.01
+  all-grads-sync:
+     rank  0: 0.08
+     rank  1: 0.07
+  params-all-gather:
+     rank  0: 0.01
+     rank  1: 0.01
+  optimizer-copy-to-main-grad:
+     rank  0: 0.45
+     rank  1: 0.44
+  optimizer-inner-step:
+     rank  0: 54.55
+     rank  1: 55.26
+  optimizer-copy-main-to-model-params:
+     rank  0: 0.01
+     rank  1: 0.01
+  optimizer:
+     rank  0: 67.47
+     rank  1: 67.47
+rank 0 tp rank 0 cp rank 0 tensor([[151644,   8948,    198,  ...,    198, 151645, 151643]],
+       device='cuda:0') tensor([[  -100,   -100,   -100,  ..., 151645,   -100,   -100]],
+       device='cuda:0') tensor([[0., 0., 0.,  ..., 1., 0., 0.]], device='cuda:0') tensor([[    0,     1,     2,  ..., 63785, 63786, 63787]], device='cuda:0')
+rank 1 tp rank 0 cp rank 1 tensor([[  262,   220,    16,  ..., 39527,   284,  1614]], device='cuda:1') tensor([[-100, -100, -100,  ..., -100, -100, -100]], device='cuda:1') tensor([[0., 0., 0.,  ..., 0., 0., 0.]], device='cuda:1') tensor([[15947, 15948, 15949,  ..., 47838, 47839, 47840]], device='cuda:1')
+rank 0 tp rank 0 cp rank 0 token shape torch.Size([1, 31894]) labels shape torch.Size([1, 31894]) loss mask shape torch.Size([1, 31894]) trainable 9705.0 loss mask 0 tokens 0 labels 0 pos 0
+rank 1 tp rank 0 cp rank 1 token shape torch.Size([1, 31894]) labels shape torch.Size([1, 31894]) loss mask shape torch.Size([1, 31894]) trainable 13207.0 loss mask 0 tokens 0 labels 0 pos 0
+Rank 0 loss: 75653.2890625
+Rank 1 loss: 94106.234375
+ [2025-09-29 05:39:29] iteration       22/     896 | consumed samples:           22 | elapsed time per iteration (ms): 1683.5 | throughput per GPU (TFLOP/s/GPU): 73.4 | learning rate: 4.992581E-05 | global batch size:     1 | lm loss: 7.460386E+00 | loss scale: 1.0 | grad norm: 4.162 | num zeros: 446957920.0 | params norm: 448.763 | number of skipped iterations:   0 | number of nan iterations:   0 |
+[Rank 0] (after 22 iterations) memory (MB) | allocated: 7662.99169921875 | max allocated: 16513.80908203125 | reserved: 21434.0 | max reserved: 21434.0
+[Rank 1] (after 22 iterations) memory (MB) | allocated: 7662.978515625 | max allocated: 16104.00341796875 | reserved: 22154.0 | max reserved: 22154.0
+times across ranks (ms):
+  forward-backward:
+     rank  0: 1539.89
+     rank  1: 1539.90
+  forward-compute:
+     rank  0: 650.14
+     rank  1: 659.54
+  backward-compute:
+     rank  0: 885.67
+     rank  1: 876.70
+  batch-generator:
+     rank  0: 1.80
+     rank  1: 1.94
+  embedding-grads-all-reduce:
+     rank  0: 0.01
+     rank  1: 0.01
+  all-grads-sync:
+     rank  0: 0.08
+     rank  1: 0.09
+  params-all-gather:
+     rank  0: 0.01
+     rank  1: 0.01
+  optimizer-copy-to-main-grad:
+     rank  0: 0.46
+     rank  1: 0.44
+  optimizer-inner-step:
+     rank  0: 54.57
+     rank  1: 55.33
+  optimizer-copy-main-to-model-params:
+     rank  0: 0.01
+     rank  1: 0.01
+  optimizer:
+     rank  0: 67.62
+     rank  1: 67.62
+rank 0 tp rank 0 cp rank 0 tensor([[151644,   8948,    198,  ..., 151645,    198, 151645]],
+       device='cuda:0') tensor([[  -100,   -100,   -100,  ...,    198, 151645,   -100]],
+       device='cuda:0') tensor([[0., 0., 0.,  ..., 1., 1., 0.]], device='cuda:0') tensor([[    0,     1,     2,  ..., 60185, 60186, 60187]], device='cuda:0')
+rank 0 tp rank 0 cp rank 0 token shape torch.Size([1, 30094]) labels shape torch.Size([1, 30094]) loss mask shape torch.Size([1, 30094]) trainable 11771.0 loss mask 0 tokens 0 labels 0 pos 0
+rank 1 tp rank 0 cp rank 1 tensor([[77240, 89754,   345,  ..., 46984,   198,   394]], device='cuda:1') tensor([[-100, -100, -100,  ...,  198,  394,  323]], device='cuda:1') tensor([[0., 0., 0.,  ..., 1., 1., 1.]], device='cuda:1') tensor([[15047, 15048, 15049,  ..., 45138, 45139, 45140]], device='cuda:1')
+rank 1 tp rank 0 cp rank 1 token shape torch.Size([1, 30094]) labels shape torch.Size([1, 30094]) loss mask shape torch.Size([1, 30094]) trainable 7029.0 loss mask 0 tokens 0 labels 0 pos 0
+Rank 1 loss: 52397.59375
+Rank 0 loss: 93277.671875
+ [2025-09-29 05:39:31] iteration       23/     896 | consumed samples:           23 | elapsed time per iteration (ms): 1571.8 | throughput per GPU (TFLOP/s/GPU): 78.7 | learning rate: 4.991892E-05 | global batch size:     1 | lm loss: 7.689425E+00 | loss scale: 1.0 | grad norm: 5.529 | num zeros: 445159040.0 | params norm: 448.766 | number of skipped iterations:   0 | number of nan iterations:   0 |
+[Rank 0] (after 23 iterations) memory (MB) | allocated: 7674.8310546875 | max allocated: 16513.80908203125 | reserved: 21434.0 | max reserved: 21434.0
+[Rank 1] (after 23 iterations) memory (MB) | allocated: 7674.81787109375 | max allocated: 16104.00341796875 | reserved: 22154.0 | max reserved: 22154.0
+times across ranks (ms):
+  forward-backward:
+     rank  0: 1428.72
+     rank  1: 1428.72
+  forward-compute:
+     rank  0: 611.98
+     rank  1: 598.19
+  backward-compute:
+     rank  0: 812.36
+     rank  1: 826.57
+  batch-generator:
+     rank  0: 1.74
+     rank  1: 2.03
+  embedding-grads-all-reduce:
+     rank  0: 0.01
+     rank  1: 0.01
+  all-grads-sync:
+     rank  0: 0.09
+     rank  1: 0.11
+  params-all-gather:
+     rank  0: 0.01
+     rank  1: 0.01
+  optimizer-copy-to-main-grad:
+     rank  0: 0.47
+     rank  1: 0.44
+  optimizer-inner-step:
+     rank  0: 54.55
+     rank  1: 55.33
+  optimizer-copy-main-to-model-params:
+     rank  0: 0.01
+     rank  1: 0.01
+  optimizer:
+     rank  0: 67.67
+     rank  1: 67.67
+rank 0 tp rank 0 cp rank 0 tensor([[151644,   8948,    198,  ..., 151643, 151643, 151643]],
+       device='cuda:0') tensor([[-100, -100, -100,  ..., -100, -100, -100]], device='cuda:0') tensor([[0., 0., 0.,  ..., 0., 0., 0.]], device='cuda:0') tensor([[    0,     1,     2,  ..., 62313, 62314, 62315]], device='cuda:0')
+rank 0 tp rank 0 cp rank 0 token shape torch.Size([1, 31158]) labels shape torch.Size([1, 31158]) loss mask shape torch.Size([1, 31158]) trainable 11676.0 loss mask 0 tokens 0 labels 0 pos 0
+rank 1 tp rank 0 cp rank 1 tensor([[  397,    27, 16181,  ...,   522,  1688,    29]], device='cuda:1') tensor([[    27,  16181,  81940,  ...,   1688,     29, 151645]],
+       device='cuda:1') tensor([[1., 1., 1.,  ..., 1., 1., 1.]], device='cuda:1') tensor([[15579, 15580, 15581,  ..., 46734, 46735, 46736]], device='cuda:1')
+rank 1 tp rank 0 cp rank 1 token shape torch.Size([1, 31158]) labels shape torch.Size([1, 31158]) loss mask shape torch.Size([1, 31158]) trainable 10313.0 loss mask 0 tokens 0 labels 0 pos 0
+Rank 1 loss: 75293.5625
+Rank 0 loss: 90227.71875
+ [2025-09-29 05:39:33] iteration       24/     896 | consumed samples:           24 | elapsed time per iteration (ms): 1632.6 | throughput per GPU (TFLOP/s/GPU): 75.7 | learning rate: 4.991172E-05 | global batch size:     1 | lm loss: 7.514231E+00 | loss scale: 1.0 | grad norm: 4.105 | num zeros: 445912704.0 | params norm: 448.768 | number of skipped iterations:   0 | number of nan iterations:   0 |
+[Rank 0] (after 24 iterations) memory (MB) | allocated: 7691.73486328125 | max allocated: 16513.80908203125 | reserved: 22114.0 | max reserved: 22114.0
+[Rank 1] (after 24 iterations) memory (MB) | allocated: 7691.7216796875 | max allocated: 16104.00341796875 | reserved: 22154.0 | max reserved: 22154.0
+times across ranks (ms):
+  forward-backward:
+     rank  0: 1489.55
+     rank  1: 1489.55
+  forward-compute:
+     rank  0: 638.34
+     rank  1: 633.16
+  backward-compute:
+     rank  0: 847.02
+     rank  1: 852.63
+  batch-generator:
+     rank  0: 1.62
+     rank  1: 2.12
+  embedding-grads-all-reduce:
+     rank  0: 0.01
+     rank  1: 0.01
+  all-grads-sync:
+     rank  0: 0.09
+     rank  1: 0.09
+  params-all-gather:
+     rank  0: 0.01
+     rank  1: 0.01
+  optimizer-copy-to-main-grad:
+     rank  0: 0.45
+     rank  1: 0.44
+  optimizer-inner-step:
+     rank  0: 54.60
+     rank  1: 55.27
+  optimizer-copy-main-to-model-params:
+     rank  0: 0.01
+     rank  1: 0.01
+  optimizer:
+     rank  0: 67.56
+     rank  1: 67.56
+rank 0 tp rank 0 cp rank 0 tensor([[151644,   8948,    198,  ..., 151643, 151643, 151643]],
+       device='cuda:0') tensor([[-100, -100, -100,  ..., -100, -100, -100]], device='cuda:0') tensor([[0., 0., 0.,  ..., 0., 0., 0.]], device='cuda:0') tensor([[    0,     1,     2,  ..., 64001, 64002, 64003]], device='cuda:0')
+rank 1 tp rank 0 cp rank 1 tensor([[  18,   22, 7472,  ..., 1438,  279, 7385]], device='cuda:1') tensor([[-100, -100, -100,  ...,  279, 7385,  315]], device='cuda:1') tensor([[0., 0., 0.,  ..., 1., 1., 1.]], device='cuda:1') tensor([[16001, 16002, 16003,  ..., 48000, 48001, 48002]], device='cuda:1')rank 0 tp rank 0 cp rank 0 token shape torch.Size([1, 32002]) labels shape torch.Size([1, 32002]) loss mask shape torch.Size([1, 32002]) trainable 8976.0 loss mask 0 tokens 0 labels 0 pos 0
+
+rank 1 tp rank 0 cp rank 1 token shape torch.Size([1, 32002]) labels shape torch.Size([1, 32002]) loss mask shape torch.Size([1, 32002]) trainable 18058.0 loss mask 0 tokens 0 labels 0 pos 0
+Rank 0 loss: 63658.3671875
+Rank 1 loss: 137762.671875
+ [2025-09-29 05:39:34] iteration       25/     896 | consumed samples:           25 | elapsed time per iteration (ms): 1680.1 | throughput per GPU (TFLOP/s/GPU): 73.6 | learning rate: 4.990421E-05 | global batch size:     1 | lm loss: 7.360482E+00 | loss scale: 1.0 | grad norm: 3.827 | num zeros: 458854848.0 | params norm: 448.771 | number of skipped iterations:   0 | number of nan iterations:   0 |
+[Rank 0] (after 25 iterations) memory (MB) | allocated: 7693.07421875 | max allocated: 16513.80908203125 | reserved: 22114.0 | max reserved: 22114.0
+[Rank 1] (after 25 iterations) memory (MB) | allocated: 7693.06103515625 | max allocated: 16888.16162109375 | reserved: 22154.0 | max reserved: 22154.0
+times across ranks (ms):
+  forward-backward:
+     rank  0: 1537.36
+     rank  1: 1537.35
+  forward-compute:
+     rank  0: 560.81
+     rank  1: 663.26
+  backward-compute:
+     rank  0: 972.42
+     rank  1: 870.41
+  batch-generator:
+     rank  0: 1.99
+     rank  1: 2.16
+  embedding-grads-all-reduce:
+     rank  0: 0.01
+     rank  1: 0.01
+  all-grads-sync:
+     rank  0: 0.08
+     rank  1: 0.09
+  params-all-gather:
+     rank  0: 0.01
+     rank  1: 0.01
+  optimizer-copy-to-main-grad:
+     rank  0: 0.46
+     rank  1: 0.46
+  optimizer-inner-step:
+     rank  0: 54.53
+     rank  1: 55.21
+  optimizer-copy-main-to-model-params:
+     rank  0: 0.01
+     rank  1: 0.01
+  optimizer:
+     rank  0: 67.55
+     rank  1: 67.54
+rank 0 tp rank 0 cp rank 0 tensor([[151644,   8948,    198,  ..., 151643, 151643, 151643]],
+       device='cuda:0') tensor([[-100, -100, -100,  ..., -100, -100, -100]], device='cuda:0') tensor([[0., 0., 0.,  ..., 0., 0., 0.]], device='cuda:0') tensor([[    0,     1,     2,  ..., 58985, 58986, 58987]], device='cuda:0')
+rank 0 tp rank 0 cp rank 0 token shape torch.Size([1, 29494]) labels shape torch.Size([1, 29494]) loss mask shape torch.Size([1, 29494]) trainable 4633.0 loss mask 0 tokens 0 labels 0 pos 0
+rank 1 tp rank 0 cp rank 1 tensor([[ 198, 7039,   11,  ...,    4,  921, 2740]], device='cuda:1') tensor([[7039,   11, 1077,  ..., -100, -100, -100]], device='cuda:1') tensor([[1., 1., 1.,  ..., 0., 0., 0.]], device='cuda:1') tensor([[14747, 14748, 14749,  ..., 44238, 44239, 44240]], device='cuda:1')
+rank 1 tp rank 0 cp rank 1 token shape torch.Size([1, 29494]) labels shape torch.Size([1, 29494]) loss mask shape torch.Size([1, 29494]) trainable 10357.0 loss mask 0 tokens 0 labels 0 pos 0
+Rank 0 loss: 35858.328125
+Rank 1 loss: 82514.9375
+ [2025-09-29 05:39:36] iteration       26/     896 | consumed samples:           26 | elapsed time per iteration (ms): 1824.7 | throughput per GPU (TFLOP/s/GPU): 67.8 | learning rate: 4.989640E-05 | global batch size:     1 | lm loss: 7.853416E+00 | loss scale: 1.0 | grad norm: 3.786 | num zeros: 465171456.0 | params norm: 448.774 | number of skipped iterations:   0 | number of nan iterations:   0 |
+[Rank 0] (after 26 iterations) memory (MB) | allocated: 7703.4970703125 | max allocated: 16513.80908203125 | reserved: 22114.0 | max reserved: 22114.0
+[Rank 1] (after 26 iterations) memory (MB) | allocated: 7703.48388671875 | max allocated: 16888.16162109375 | reserved: 22154.0 | max reserved: 22154.0
+times across ranks (ms):
+  forward-backward:
+     rank  0: 1415.74
+     rank  1: 1415.73
+  forward-compute:
+     rank  0: 593.50
+     rank  1: 610.25
+  backward-compute:
+     rank  0: 818.15
+     rank  1: 801.82
+  batch-generator:
+     rank  0: 1.67
+     rank  1: 2.09
+  embedding-grads-all-reduce:
+     rank  0: 0.01
+     rank  1: 0.01
+  all-grads-sync:
+     rank  0: 0.08
+     rank  1: 0.08
+  params-all-gather:
+     rank  0: 0.01
+     rank  1: 0.01
+  optimizer-copy-to-main-grad:
+     rank  0: 0.45
+     rank  1: 0.43
+  optimizer-inner-step:
+     rank  0: 54.44
+     rank  1: 55.00
+  optimizer-copy-main-to-model-params:
+     rank  0: 0.01
+     rank  1: 0.01
+  optimizer:
+     rank  0: 67.25
+     rank  1: 67.25
+rank 0 tp rank 0 cp rank 0 tensor([[151644,   8948,    198,  ..., 151643, 151643, 151643]],
+       device='cuda:0') tensor([[-100, -100, -100,  ..., -100, -100, -100]], device='cuda:0') tensor([[0., 0., 0.,  ..., 0., 0., 0.]], device='cuda:0') tensor([[    0,     1,     2,  ..., 53169, 53170, 53171]], device='cuda:0')
+rank 0 tp rank 0 cp rank 0 token shape torch.Size([1, 26586]) labels shape torch.Size([1, 26586]) loss mask shape torch.Size([1, 26586]) trainable 4279.0 loss mask 0 tokens 0 labels 0 pos 0
+rank 1 tp rank 0 cp rank 1 tensor([[ 16,  18,  15,  ...,  21,   4, 921]], device='cuda:1') tensor([[-100, -100, -100,  ..., -100, -100, -100]], device='cuda:1') tensor([[0., 0., 0.,  ..., 0., 0., 0.]], device='cuda:1') tensor([[13293, 13294, 13295,  ..., 39876, 39877, 39878]], device='cuda:1')
+rank 1 tp rank 0 cp rank 1 token shape torch.Size([1, 26586]) labels shape torch.Size([1, 26586]) loss mask shape torch.Size([1, 26586]) trainable 4782.0 loss mask 0 tokens 0 labels 0 pos 0
+Rank 0 loss: 29849.041015625
+Rank 1 loss: 32719.109375

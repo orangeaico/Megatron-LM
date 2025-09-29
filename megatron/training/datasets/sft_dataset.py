@@ -138,56 +138,62 @@ class SFTDataset(MegatronDataset):
             else:  # right to left
                 tokens = tokens[-(max_seq_len - 1) :]
                 target = target[-(max_seq_len - 1) :]
-        # padding
-        def _lcm(a: int, b: int) -> int:
-            if a == 0 or b == 0:
-                return max(a, b)
-            return abs(a * b) // gcd(a, b)
 
-        base_seq_len = len(tokens) + 1  # account for EOS added before shifting
-        required_multiple = 1
+        use_variable_seq_len = getattr(self.config, "variable_seq_lengths", False)
 
-        cp_size = parallel_state.get_context_parallel_world_size()
-        if cp_size > 1:
-            required_multiple = _lcm(required_multiple, 2 * cp_size)
+        if use_variable_seq_len:
+            def _lcm(a: int, b: int) -> int:
+                if a == 0 or b == 0:
+                    return max(a, b)
+                return abs(a * b) // gcd(a, b)
 
-        tp_size = 1
-        if torch.distributed.is_available() and torch.distributed.is_initialized():
-            try:
-                tp_size = parallel_state.get_tensor_model_parallel_world_size()
-            except AssertionError:
-                tp_size = 1
-        if tp_size > 1:
-            required_multiple = _lcm(required_multiple, tp_size)
+            base_seq_len = len(tokens) + 1  # account for EOS added before shifting
+            required_multiple = 1
 
-        padding_len = 0
-        if required_multiple > 1:
-            remainder = base_seq_len % required_multiple
-            if remainder != 0:
-                padding_len = required_multiple - remainder
+            cp_size = parallel_state.get_context_parallel_world_size()
+            if cp_size > 1:
+                required_multiple = _lcm(required_multiple, 2 * cp_size)
 
-        final_seq_len = base_seq_len + padding_len
-        if final_seq_len > max_seq_len:
-            # Trim tokens until both constraints fit within max_seq_len.
-            while final_seq_len > max_seq_len and tokens:
-                tokens.pop()
-                target.pop()
-                base_seq_len = len(tokens) + 1
-                padding_len = 0
-                if required_multiple > 1:
-                    remainder = base_seq_len % required_multiple
-                    if remainder != 0:
-                        padding_len = required_multiple - remainder
-                final_seq_len = base_seq_len + padding_len
+            tp_size = 1
+            if torch.distributed.is_available() and torch.distributed.is_initialized():
+                try:
+                    tp_size = parallel_state.get_tensor_model_parallel_world_size()
+                except AssertionError:
+                    tp_size = 1
+            if tp_size > 1:
+                required_multiple = _lcm(required_multiple, tp_size)
+
+            padding_len = 0
+            if required_multiple > 1:
+                remainder = base_seq_len % required_multiple
+                if remainder != 0:
+                    padding_len = required_multiple - remainder
+
+            final_seq_len = base_seq_len + padding_len
             if final_seq_len > max_seq_len:
-                raise ValueError(
-                    "Unable to satisfy tensor/context parallel padding within max_seq_len"
-                )
+                # Trim tokens until both constraints fit within max_seq_len.
+                while final_seq_len > max_seq_len and tokens:
+                    tokens.pop()
+                    target.pop()
+                    base_seq_len = len(tokens) + 1
+                    padding_len = 0
+                    if required_multiple > 1:
+                        remainder = base_seq_len % required_multiple
+                        if remainder != 0:
+                            padding_len = required_multiple - remainder
+                    final_seq_len = base_seq_len + padding_len
+                if final_seq_len > max_seq_len:
+                    raise ValueError(
+                        "Unable to satisfy tensor/context parallel padding within max_seq_len"
+                    )
+        else:
+            num_tokens = len(tokens) + 1
+            padding_len = max_seq_len - num_tokens
+            if padding_len < 0:
+                raise ValueError("Sample longer than configured sequence length after truncation")
 
-        filler = [tokenizer.pad] * (padding_len + 1)
-
-        tokens = np.array(tokens + [tokenizer.eod] + filler, dtype=np.int64)
-        target = np.array(target + [tokenizer.eod] + filler, dtype=np.int64)
+        tokens = np.array(tokens + [tokenizer.eod] + [tokenizer.pad] * (padding_len + 1), dtype=np.int64)
+        target = np.array(target + [tokenizer.eod] + [IGNORE_INDEX] * (padding_len + 1), dtype=np.int64)
 
         tokens = torch.tensor(tokens)
         target = torch.tensor(target)
@@ -196,7 +202,7 @@ class SFTDataset(MegatronDataset):
         target = target[1:].contiguous()
 
         loss_mask, position_ids, attention_mask = self._get_ltor_masks_and_position_ids(
-            max_seq_len, target, tokenizer.pad
+            max_seq_len, target, tokenizer.pad, use_variable_seq_len
         )
 
         if DEBUG:
@@ -247,12 +253,15 @@ class SFTDataset(MegatronDataset):
 
         return ret
 
-    def _get_ltor_masks_and_position_ids(self, max_seq_len, target, pad_token):
+    def _get_ltor_masks_and_position_ids(self, max_seq_len, target, pad_token, use_variable_seq_len):
         """Build masks and position id for left to right model for SFT"""
 
         assert not self.config.reset_position_ids and not self.config.reset_attention_mask
 
-        seq_length = target.size(0)
+        if use_variable_seq_len:
+            seq_length = target.size(0)
+        else:
+            seq_length = max_seq_len
         # Position ids.
         position_ids = torch.arange(seq_length, dtype=torch.long)
 

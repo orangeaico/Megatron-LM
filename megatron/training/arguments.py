@@ -713,7 +713,10 @@ def validate_args(args, defaults={}):
     # across batches/microbatches. Due to additional communication overhead
     # during pipeline parallelism, it should not be set if sequence length
     # is constant during training.
-    args.variable_seq_lengths = True
+    if args.sft:
+        args.variable_seq_lengths = args.variable_seq_lengths
+    else:
+        args.variable_seq_lengths = False
 
     # Iteration-based training.
     if args.train_iters:
@@ -3168,4 +3171,9 @@ def _add_sft_args(parser):
     group.add_argument('--sft', action="store_true", help='Megatron SFT training')
     group.add_argument('--sft-tokenizer-prompt-format', type=str, default="nemotron-h-aligned", 
                        help='SFT prompt format.')
+    group.add_argument(
+        '--variable-seq-lengths',
+        action='store_true',
+        help='Enable variable sequence length packing for SFT datasets.'
+    )
     return parser

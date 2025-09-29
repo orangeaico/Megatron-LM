@@ -251,7 +251,7 @@ class ModelParallelConfig:
     pipeline_dtype: torch.dtype = None
     """dtype used in p2p communication, usually params_dtype"""
 
-    variable_seq_lengths: bool = True
+    variable_seq_lengths: bool = False
     """Support for variable sequence lengths across microbatches. Setting this communicates the size
         of tensors during pipeline parallelism communication, because of this extra overhead it
         should only be set if the sequence length varies by microbatch within a global batch.

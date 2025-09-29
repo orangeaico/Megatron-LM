@@ -81,10 +81,10 @@ def loss_func(
         return loss_func_modelopt(loss_mask, output_tensor, model=model)
 
     losses = output_tensor.view(-1).float()
-    print(f"losses is nan {torch.isnan(losses).sum()} shape {losses.shape} ")
     loss_mask = loss_mask.view(-1).float()
-    print(f"loss_mask is nan {torch.isnan(loss_mask).sum()} shape {loss_mask.shape} ")
     loss = torch.sum(losses * loss_mask)
+    curr_rank = torch.distributed.get_rank()
+    print(f"Rank {curr_rank} loss: {loss}", flush=True)
 
     # Check individual rank losses are not NaN prior to DP all-reduce.
     rerun_state_machine = get_rerun_state_machine()
@@ -199,6 +199,7 @@ def core_gpt_dataset_config_from_args(args):
         create_attention_mask=args.create_attention_mask_in_dataloader,
         object_storage_cache_path=args.object_storage_cache_path,
         mid_level_dataset_surplus=args.mid_level_dataset_surplus,
+        variable_seq_lengths=args.variable_seq_lengths,
     )
 
 

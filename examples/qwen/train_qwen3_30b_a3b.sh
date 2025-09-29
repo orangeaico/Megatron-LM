@@ -56,12 +56,12 @@ EP_SIZE=2
 EXPERT_TP_SIZE=1
 PP_SIZE=1
 LAYERS_PER_VP=1
-MICRO_BATCH_SIZE=1 
-GLOBAL_BATCH_SIZE=8
-NUM_LAYERS=2 
+MICRO_BATCH_SIZE=1
+GLOBAL_BATCH_SIZE=1
+NUM_LAYERS=1
 DTYPE="bf16"
-SEQ_LENGTH=40960
-MAX_POSITION_EMBEDDINGS=40960
+SEQ_LENGTH=65000
+MAX_POSITION_EMBEDDINGS=65000
 
 DISTRIBUTED_ARGS=(
     --nproc_per_node $GPUS_PER_NODE
@@ -216,6 +216,7 @@ else
         "--num-workers 1"
         # "--vocab-size 151936"
         "--sft"
+        "--variable-seq-lengths"
         # "--reset-position-ids"
         # "--reset-attention-mask"
         # "--eod-mask-loss"
