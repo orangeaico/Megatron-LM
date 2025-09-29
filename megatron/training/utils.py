@@ -42,7 +42,11 @@ from megatron.core.utils import (
     unwrap_model,
 )
 from megatron.legacy.model.module import param_is_not_shared
-
+from megatron.training.teacher_data_utils import (
+    allocate_teacher_tensors,
+    pack_teacher_batch,
+)
+from megatron.core.fusions.distillation import generate_fake_teacher_data
 
 def calc_params_l2_norm(model, force_create_fp32_copy=False):
     """Calculate l2 norm of parameters"""
@@ -490,6 +494,7 @@ def get_blend_and_blend_per_split(args):
 def get_batch_on_this_tp_rank(data_iterator):
 
     args = get_args()
+    device = torch.device('cuda', torch.cuda.current_device())
 
     def _broadcast(item):
         if item is not None:
@@ -499,7 +504,14 @@ def get_batch_on_this_tp_rank(data_iterator):
                 group=mpu.get_tensor_model_parallel_group(),
             )
 
-    if mpu.get_tensor_model_parallel_rank() == 0:
+    is_tp0 = mpu.get_tensor_model_parallel_rank() == 0
+
+    if args.distillation_loss:
+        teacher_header = torch.empty(2, dtype=torch.int64, device=device)
+        
+    teacher_tensors = None
+
+    if is_tp0:
 
         if data_iterator is not None:
             data = next(data_iterator)
@@ -517,6 +529,28 @@ def get_batch_on_this_tp_rank(data_iterator):
             ),
             'position_ids': data["position_ids"].cuda(non_blocking=True),
         }
+        if args.distillation_loss:
+            # Get teacher data.
+            teacher_raw = data.get("teacher_data") if data is not None else None
+            if teacher_raw is None and args.generate_fake_teacher_data:
+                batch_size, seq_length = batch['tokens'].shape
+                print_rank_0(
+                    "Generating fake teacher data. This should only be used for debugging."
+                )
+                teacher_raw = generate_fake_teacher_data(
+                    batch_size,
+                    seq_length,
+                    args.vocab_size,
+                    10,
+                    device,
+                )
+            packed, shape = pack_teacher_batch(teacher_raw, args.seq_length, device)
+            if shape[0] < 0 or shape[1] < 0:
+                teacher_header.fill_(-1)
+            else:
+                teacher_header[0] = shape[0]
+                teacher_header[1] = shape[1]
+            teacher_tensors = packed
 
         if args.pipeline_model_parallel_size == 1:
             _broadcast(batch['tokens'])
@@ -609,6 +643,33 @@ def get_batch_on_this_tp_rank(data_iterator):
             'attention_mask': attention_mask,
             'position_ids': position_ids,
         }
+
+    if args.distillation_loss:
+
+        _broadcast(teacher_header)
+
+        max_positions = int(teacher_header[0].item())
+        max_k = int(teacher_header[1].item())
+        if max_positions >= 0 and max_k >= 0:
+            if teacher_tensors is None:
+                teacher_tensors = allocate_teacher_tensors(
+                    args.micro_batch_size,
+                    max_positions,
+                    max_k,
+                    device,
+                )
+            _broadcast(teacher_tensors['positions'])
+            _broadcast(teacher_tensors['counts'])
+            _broadcast(teacher_tensors['indices'])
+            _broadcast(teacher_tensors['values'])
+        else:
+            teacher_tensors = None
+
+        if args.pipeline_model_parallel_size != 1:
+            if mpu.is_pipeline_first_stage() or not mpu.is_pipeline_last_stage():
+                teacher_tensors = None
+
+    batch['teacher_data'] = teacher_tensors
 
     return batch
 

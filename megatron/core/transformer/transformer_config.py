@@ -691,6 +691,23 @@ class TransformerConfig(ModelParallelConfig):
     # For debugging CCE loss issues: enable verbose logging
     debug_cce_loss: bool = False
 
+    # ---------------- Distillation integration ----------------
+
+    # For debugging distillation issues
+    debug_distillation: bool = False
+
+    # For distillation loss
+    distillation_loss: bool = False
+
+    # Calculate using traditional method
+    distillation_with_traditional: bool = False
+
+    # Distillation Temperature
+    distillation_temperature: float = 3.0
+
+    # Distillation loss alpha
+    distillation_loss_alpha: float = 0.5
+
     def __post_init__(self):
         """Python dataclass method that is used to modify attributes after initialization.
         See https://docs.python.org/3/library/dataclasses.html#post-init-processing for more

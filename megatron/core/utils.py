@@ -1812,6 +1812,8 @@ def get_batch_on_this_cp_rank(batch: Dict[str, Any]):
     if cp_size > 1:
         cp_rank = parallel_state.get_context_parallel_rank()
         for key, val in batch.items():
+            if key == "teacher_data":
+                continue
             if val is not None:
                 seq_dim = 1 if key != "attention_mask" else 2
                 val = val.view(

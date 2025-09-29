@@ -54,17 +54,21 @@ def build_pretraining_data_loader(dataset, consumed_samples):
         # External dataloaders are passed through. User is expected to provide a
         # torch-compatible dataloader and define samplers, if needed.
         return dataset
+        
     else:
         raise Exception('{} dataloader type is not supported.'.format(
                 args.dataloader_type))
 
     # Torch dataloader.
-    return torch.utils.data.DataLoader(dataset,
-                                       batch_sampler=batch_sampler,
-                                       num_workers=args.num_workers,
-                                       pin_memory=True,
-                                       persistent_workers=True if args.num_workers > 0 else False,
-                                       )
+    collate_fn = getattr(dataset, "collate_fn", None)
+    return torch.utils.data.DataLoader(
+        dataset,
+        batch_sampler=batch_sampler,
+        num_workers=args.num_workers,
+        pin_memory=True,
+        persistent_workers=True if args.num_workers > 0 else False,
+        collate_fn=collate_fn,
+    )
 
 class MegatronPretrainingSampler:
 
