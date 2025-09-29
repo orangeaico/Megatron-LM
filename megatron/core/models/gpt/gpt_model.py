@@ -391,7 +391,9 @@ class GPTModel(LanguageModule):
             runtime_gather_output (bool): Gather output at runtime. Default None means
                 `parallel_output` arg in the constructor will be used.
         """
+
         inference_context = deprecate_inference_params(inference_context, inference_params)
+        
         decoder_input, rotary_pos_emb, rotary_pos_cos, rotary_pos_sin, sequence_len_offset = (
             self._preprocess(
                 input_ids=input_ids,
@@ -498,28 +500,28 @@ class GPTModel(LanguageModule):
             and parallel_state.is_pipeline_last_stage()
         ):
             if self.config.distillation_with_traditional and self.config.distillation_loss:
-                    logits, _ = self.output_layer(
-                        hidden_states,
-                        weight=output_weight,
-                        runtime_gather_output=runtime_gather_output,
-                    )
-                    logits = gather_from_tensor_model_parallel_region(
-                        logits, group=self.pg_collection.tp
-                    )
-                    logits = logits.transpose(0, 1).contiguous()  # [B, T, V]
-                    logits = _gather_full_sequence_across_context_parallel(
-                        logits
-                    )
-                    labels_cp = _gather_full_sequence_across_context_parallel(
-                        labels
-                    )
-                    traditional_kl_loss = traditional_distillation_loss(
-                        logits,
-                        teacher_data,
-                        labels_cp,
-                        T=self.config.distillation_temp,
-                        ignore_index=self.config.linear_ce_ignore_index,
-                    )
+                logits, _ = self.output_layer(
+                    hidden_states,
+                    weight=output_weight,
+                    runtime_gather_output=runtime_gather_output,
+                )
+                logits = gather_from_tensor_model_parallel_region(
+                    logits, group=self.pg_collection.tp
+                )
+                logits = logits.transpose(0, 1).contiguous()  # [B, T, V]
+                logits = _gather_full_sequence_across_context_parallel(
+                    logits
+                )
+                labels_cp = _gather_full_sequence_across_context_parallel(
+                    labels
+                )
+                traditional_kl_loss = traditional_distillation_loss(
+                    logits,
+                    teacher_data,
+                    labels_cp,
+                    T=self.config.distillation_temperature,
+                    ignore_index=self.config.linear_ce_ignore_index,
+                )
                     
             sequence_parallel_override = False
             if self.config.sequence_parallel:
@@ -596,8 +598,8 @@ class GPTModel(LanguageModule):
                 world_rank = torch.distributed.get_rank()
                 print(
                     f"[CCE debug] rank={world_rank} tp_rank={tp_rank} vocab_size={vocab_size}"
-                ) 
-            
+                )
+
             token_losses = cce_per_token_loss(
                 embeddings=hidden_states,             # [B, T, H]
                 classifier_weight=classifier_weight,  # [V, H] (or [V_local, H])
@@ -620,7 +622,7 @@ class GPTModel(LanguageModule):
                 shift=self.config.linear_ce_shift,
                 ignore_index=self.config.linear_ce_ignore_index,
                 debug=self.config.debug_distillation,
-                temp=self.config.distillation_temp,
+                temperature=self.config.distillation_temperature,
                 teacher_data=teacher_data,
             )
 

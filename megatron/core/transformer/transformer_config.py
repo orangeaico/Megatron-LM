@@ -703,7 +703,7 @@ class TransformerConfig(ModelParallelConfig):
     distillation_with_traditional: bool = False
 
     # Distillation Temperature
-    distillation_temp: float = 3.0
+    distillation_temperature: float = 3.0
 
     # Distillation loss alpha
     distillation_loss_alpha: float = 0.5

@@ -93,8 +93,8 @@ MODEL_ARGS=(
 TRAINING_ARGS=(
     --micro-batch-size $MICRO_BATCH_SIZE
     --global-batch-size $GLOBAL_BATCH_SIZE
-    --train-samples 1
-    --lr-decay-samples 1
+    --train-samples 10
+    --lr-decay-samples 10
     --exit-duration-in-mins 235
 
     # Learning rate args
@@ -165,13 +165,13 @@ MODEL_PARALLEL_ARGS=(
 # Data arguments (conditional for mock vs real data)
 DATA_ARGS_LIST=(
     "--distillation-loss"
-    "--distillation-temp 3.0"
+    "--distillation-temperature 3.0"
     "--distillation-loss-alpha 0.5"
     "--tokenizer-type HuggingFaceTokenizer"
     "--tokenizer-model $TOKENIZER_ARG"
     "--data-path $JSON_TRAIN_DIR"
     "--data-cache-path ${DATA_CACHE_PATH}"
-    "--split '99,1,0'"
+    "--split '95,5,0'"
     "--num-workers 0"
     "--vocab-size 151936"
 )

@@ -3177,7 +3177,7 @@ def _add_distillation_args(parser):
     group.add_argument('--distillation-loss', action='store_true',
                        help='Enable knowledge distillation during training. When enabled, '
                        'data paths should reference JSONL directories containing teacher logits.')
-    group.add_argument('--distillation-temp', type=float, default=3.0,
+    group.add_argument('--distillation-temperature', type=float, default=3.0,
                        help='Temperature to apply when softening teacher logits for distillation.')
     group.add_argument('--distillation-loss-alpha', type=float, default=0.5,
                        help='Interpolation weight between student CE and distillation losses.')

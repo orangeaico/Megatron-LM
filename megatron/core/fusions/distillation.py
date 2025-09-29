@@ -35,7 +35,7 @@ Example:
     ...     labels=target_labels,
     ...     vocab_size=50000,
     ...     teacher_data=teacher_logits_data,
-    ...     temp=3.0
+    ...     temperature=3.0
     ... )
 """
 
@@ -71,7 +71,7 @@ def distillation_loss(
     shift: bool = True,
     ignore_index: int = DEFAULT_IGNORE_INDEX,
     teacher_data: Optional[List[Dict[str, Any]]] = None,
-    temp: float = DEFAULT_TEMPERATURE,
+    temperature: float = DEFAULT_TEMPERATURE,
     chunk_size: int = DEFAULT_CHUNK_SIZE,
     debug: bool = False,
 ) -> Tuple[torch.Tensor, torch.Tensor, List[Dict[str, Any]]]:
@@ -93,7 +93,7 @@ def distillation_loss(
         ignore_index: Index to ignore in loss computation (default: -100)
         teacher_data: List of teacher data dictionaries, one per batch element.
                      Each dict contains 'positions', 'indices', 'values' keys.
-        temp: Temperature parameter for softmax (default: 1.0)
+        temperature: Temperature parameter for softmax (default: 1.0)
         chunk_size: Sequence chunk size for memory-efficient processing (default: 1024)
         debug: Enable debug output (default: False)
         
@@ -114,7 +114,7 @@ def distillation_loss(
         shift=int(shift),
         ignore_index=ignore_index,
         return_lse=True,
-        temp=temp,
+        temperature=temperature,
     )
     # Transpose embeddings to batch-first format: [B, S, H]
     batch_first_embeddings = embeddings.transpose(0, 1).contiguous()
@@ -152,7 +152,7 @@ def distillation_loss(
             vocab_start_idx=vocab_start_idx,
             vocab_end_idx=vocab_end_idx,
             is_tensor_parallel=is_tensor_parallel,
-            temp=temp,
+            temperature=temperature,
             chunk_size=chunk_size,
             debug=debug,
             ignore_index=ignore_index,
@@ -179,7 +179,7 @@ def _process_batch_element_kl_loss(
     vocab_start_idx: int,
     vocab_end_idx: int,
     is_tensor_parallel: bool,
-    temp: float,
+    temperature: float,
     chunk_size: int,
     debug: bool,
     ignore_index: int = DEFAULT_IGNORE_INDEX,
@@ -198,7 +198,7 @@ def _process_batch_element_kl_loss(
         vocab_start_idx: Start index of vocabulary partition
         vocab_end_idx: End index of vocabulary partition
         is_tensor_parallel: Whether tensor parallelism is enabled
-        temp: Temperature parameter
+        temperature: Temperature parameter
         chunk_size: Processing chunk size
         ignore_index: Index to ignore
         debug: Enable debug output
@@ -221,7 +221,7 @@ def _process_batch_element_kl_loss(
             vocab_start_idx=vocab_start_idx,
             vocab_end_idx=vocab_end_idx,
             is_tensor_parallel=is_tensor_parallel,
-            temp=temp,
+            temperature=temperature,
             debug=debug,
             ignore_index=ignore_index
         )
@@ -238,7 +238,7 @@ def _process_batch_element_kl_loss(
             kl_loss_tensor=kl_loss_tensor,
             chunk_start=chunk_start,
             chunk_end=chunk_end,
-            temp=temp,
+            temperature=temperature,
             debug=debug,
         )
         
@@ -286,7 +286,7 @@ def _extract_chunk_teacher_data(
     vocab_start_idx: int,
     vocab_end_idx: int,
     is_tensor_parallel: bool,
-    temp: float,
+    temperature: float,
     debug: bool,
     ignore_index: int = DEFAULT_IGNORE_INDEX,
 ) -> Dict[str, List]:
@@ -301,7 +301,7 @@ def _extract_chunk_teacher_data(
         vocab_start_idx: Start of vocabulary partition
         vocab_end_idx: End of vocabulary partition
         is_tensor_parallel: Whether tensor parallelism is enabled
-        temp: Temperature parameter
+        temperature: Temperature parameter
         ignore_index: Index to ignore
         
     Returns:
@@ -364,7 +364,7 @@ def _extract_chunk_teacher_data(
 
         # Apply temperature and compute log probabilities
         teacher_log_probs = F.log_softmax(
-            teacher_values / temp, dim=0, dtype=torch.float32
+            teacher_values / temperature, dim=0, dtype=torch.float32
         )
         
         # Filter for local vocabulary partition if using tensor parallelism
@@ -400,7 +400,7 @@ def _compute_chunk_kl_losses(
     kl_loss_tensor: torch.Tensor,
     chunk_start: int,
     chunk_end: int,
-    temp: float,
+    temperature: float,
     debug: bool,
 ) -> None:
     """
@@ -415,7 +415,7 @@ def _compute_chunk_kl_losses(
         kl_loss_tensor: Output tensor for KL losses
         chunk_start: Start index of chunk
         chunk_end: End index of chunk
-        temp: Temperature parameter
+        temperature: Temperature parameter
         debug: Enable debug output
     """
     device = batch_embeddings.device
@@ -469,7 +469,7 @@ def _compute_chunk_kl_losses(
     gathered_student_logits = torch.gather(position_logits, 1, teacher_columns)
     
     # Apply temperature and compute student log probabilities
-    scaled_student_logits = gathered_student_logits / temp
+    scaled_student_logits = gathered_student_logits / temperature
     position_log_sum_exp = batch_log_sum_exp[chunk_data['positions']].unsqueeze(1)
     student_log_probs = scaled_student_logits - position_log_sum_exp
     
@@ -480,7 +480,7 @@ def _compute_chunk_kl_losses(
     kl_per_position = kl_per_token.sum(dim=1)
     
     # Apply temperature scaling
-    kl_per_position_scaled = kl_per_position * (temp ** 2)
+    kl_per_position_scaled = kl_per_position * (temperature ** 2)
     
     # Store results in output tensor
     kl_loss_tensor[batch_idx, chunk_data['positions']] = kl_per_position_scaled

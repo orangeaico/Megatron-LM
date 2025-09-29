@@ -54,13 +54,16 @@ def get_batch(data_iterator):
     with mem_phase("LOAD_BATCH", do_barrier=True), nvtx_range("LOAD_BATCH"):
         batch = get_batch_on_this_tp_rank(data_iterator)
 
-    # slice batch along sequence dimension for context parallelism
-    batch = get_batch_on_this_cp_rank(batch)
-
-    teacher_packed = batch.pop('teacher_data', None)
+        # slice batch along sequence dimension for context parallelism
+        batch = get_batch_on_this_cp_rank(batch)
+    
     teacher_data = None
-    if teacher_packed is not None and has_teacher_data(teacher_packed):
-        teacher_data = unpack_teacher_batch(teacher_packed)
+    args = get_args()
+    # if distillation is enabled, unpack teacher data
+    if args.distillation_loss:
+        teacher_packed = batch.pop('teacher_data', None)
+        if teacher_packed is not None and has_teacher_data(teacher_packed):
+            teacher_data = unpack_teacher_batch(teacher_packed)
 
     tokens = batch['tokens']
     labels = batch['labels']

@@ -506,7 +506,9 @@ def get_batch_on_this_tp_rank(data_iterator):
 
     is_tp0 = mpu.get_tensor_model_parallel_rank() == 0
 
-    teacher_header = torch.empty(2, dtype=torch.int64, device=device)
+    if args.distillation_loss:
+        teacher_header = torch.empty(2, dtype=torch.int64, device=device)
+        
     teacher_tensors = None
 
     if is_tp0:
@@ -527,26 +529,29 @@ def get_batch_on_this_tp_rank(data_iterator):
             ),
             'position_ids': data["position_ids"].cuda(non_blocking=True),
         }
-        batch_size, seq_length = batch['tokens'].shape
-        teacher_raw = data.get("teacher_data") if data is not None else None
-        if teacher_raw is None and args.generate_fake_teacher_data:
-            print_rank_0(
-                "Generating fake teacher data. This should only be used for debugging."
-            )
-            teacher_raw = generate_fake_teacher_data(
-                batch_size,
-                seq_length,
-                args.vocab_size,
-                10,
-                device,
-            )
-        packed, shape = pack_teacher_batch(teacher_raw, args.seq_length, device)
-        if shape[0] < 0 or shape[1] < 0:
-            teacher_header.fill_(-1)
-        else:
-            teacher_header[0] = shape[0]
-            teacher_header[1] = shape[1]
-        teacher_tensors = packed
+        if args.distillation_loss:
+            # Get teacher data.
+            teacher_raw = data.get("teacher_data") if data is not None else None
+            if teacher_raw is None and args.generate_fake_teacher_data:
+                batch_size, seq_length = batch['tokens'].shape
+                print_rank_0(
+                    "Generating fake teacher data. This should only be used for debugging."
+                )
+                teacher_raw = generate_fake_teacher_data(
+                    batch_size,
+                    seq_length,
+                    args.vocab_size,
+                    10,
+                    device,
+                )
+            packed, shape = pack_teacher_batch(teacher_raw, args.seq_length, device)
+            if shape[0] < 0 or shape[1] < 0:
+                teacher_header.fill_(-1)
+            else:
+                teacher_header[0] = shape[0]
+                teacher_header[1] = shape[1]
+            teacher_tensors = packed
+
         if args.pipeline_model_parallel_size == 1:
             _broadcast(batch['tokens'])
             _broadcast(batch['labels'])
@@ -560,6 +565,9 @@ def get_batch_on_this_tp_rank(data_iterator):
             _broadcast(batch['position_ids'])
 
         elif mpu.is_pipeline_last_stage():
+            # Multi-Token Prediction (MTP) layers need tokens and position_ids to calculate embedding.
+            # Currently the Multi-Token Prediction (MTP) layers is fixed on the last stage, so we need
+            # to broadcast tokens and position_ids to all of the tensor parallel ranks on the last stage.
             if args.mtp_num_layers is not None:
                 _broadcast(batch['tokens'])
                 _broadcast(batch['position_ids'])
@@ -572,30 +580,30 @@ def get_batch_on_this_tp_rank(data_iterator):
         tokens = torch.empty(
             (args.micro_batch_size, args.seq_length),
             dtype=torch.int64,
-            device=device,
+            device=torch.cuda.current_device(),
         )
         labels = torch.empty(
             (args.micro_batch_size, args.seq_length),
             dtype=torch.int64,
-            device=device,
+            device=torch.cuda.current_device(),
         )
         loss_mask = torch.empty(
             (args.micro_batch_size, args.seq_length),
             dtype=torch.float32,
-            device=device,
+            device=torch.cuda.current_device(),
         )
         if args.create_attention_mask_in_dataloader:
             attention_mask = torch.empty(
                 (args.micro_batch_size, 1, args.seq_length, args.seq_length),
                 dtype=torch.bool,
-                device=device,
+                device=torch.cuda.current_device(),
             )
         else:
             attention_mask = None
         position_ids = torch.empty(
             (args.micro_batch_size, args.seq_length),
             dtype=torch.int64,
-            device=device,
+            device=torch.cuda.current_device(),
         )
 
         if args.pipeline_model_parallel_size == 1:
@@ -614,6 +622,9 @@ def get_batch_on_this_tp_rank(data_iterator):
             _broadcast(position_ids)
 
         elif mpu.is_pipeline_last_stage():
+            # Multi-Token Prediction (MTP) layers need tokens and position_ids to calculate embedding.
+            # Currently the Multi-Token Prediction (MTP) layers is fixed on the last stage, so we need
+            # to broadcast tokens and position_ids to all of the tensor parallel ranks on the last stage.
             if args.mtp_num_layers is not None:
                 _broadcast(tokens)
                 _broadcast(position_ids)
@@ -633,28 +644,30 @@ def get_batch_on_this_tp_rank(data_iterator):
             'position_ids': position_ids,
         }
 
-    _broadcast(teacher_header)
+    if args.distillation_loss:
 
-    max_positions = int(teacher_header[0].item())
-    max_k = int(teacher_header[1].item())
-    if max_positions >= 0 and max_k >= 0:
-        if teacher_tensors is None:
-            teacher_tensors = allocate_teacher_tensors(
-                args.micro_batch_size,
-                max_positions,
-                max_k,
-                device,
-            )
-        _broadcast(teacher_tensors['positions'])
-        _broadcast(teacher_tensors['counts'])
-        _broadcast(teacher_tensors['indices'])
-        _broadcast(teacher_tensors['values'])
-    else:
-        teacher_tensors = None
+        _broadcast(teacher_header)
 
-    if args.pipeline_model_parallel_size != 1:
-        if mpu.is_pipeline_first_stage() or not mpu.is_pipeline_last_stage():
+        max_positions = int(teacher_header[0].item())
+        max_k = int(teacher_header[1].item())
+        if max_positions >= 0 and max_k >= 0:
+            if teacher_tensors is None:
+                teacher_tensors = allocate_teacher_tensors(
+                    args.micro_batch_size,
+                    max_positions,
+                    max_k,
+                    device,
+                )
+            _broadcast(teacher_tensors['positions'])
+            _broadcast(teacher_tensors['counts'])
+            _broadcast(teacher_tensors['indices'])
+            _broadcast(teacher_tensors['values'])
+        else:
             teacher_tensors = None
+
+        if args.pipeline_model_parallel_size != 1:
+            if mpu.is_pipeline_first_stage() or not mpu.is_pipeline_last_stage():
+                teacher_tensors = None
 
     batch['teacher_data'] = teacher_tensors
 

@@ -1808,7 +1808,7 @@ def get_batch_on_this_cp_rank(batch: Dict[str, Any]):
     # we split sequence into 2*CP ranks. Assuming CP=2, we then get 4 chunks, chunk_0
     # and chunk_3 are assigned to GPU0, chunk_1 and chunk_2 are assigned to GPU1, so
     # that we can get balanced workload among GPUs in a context parallel group.
-    cp_size = parallel_state.get_context_parallel_world_size()  
+    cp_size = parallel_state.get_context_parallel_world_size()
     if cp_size > 1:
         cp_rank = parallel_state.get_context_parallel_rank()
         for key, val in batch.items():

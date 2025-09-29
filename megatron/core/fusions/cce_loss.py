@@ -36,8 +36,6 @@ def _maybe_build_vp_opts(vocab_size: int) -> Optional["VocabParallelOptions"]:
     group = get_tensor_model_parallel_group()
     return VocabParallelOptions.from_vocab(vocab_size, group=group)
     # return VocabParallelOptions(start, end, group=group)
-    return VocabParallelOptions.from_vocab(vocab_size, group=group)
-    # return VocabParallelOptions(start, end, group=group)
 
 
 def cce_per_token_loss(
@@ -51,7 +49,7 @@ def cce_per_token_loss(
     shift: bool = True,
     ignore_index: int = -100,
     return_lse: bool = False,
-    temp: float = 1.0,
+    temperature: float = 1.0,
 ) -> torch.Tensor:
     """Compute (optionally shifted) per-token cross-entropy via CCE.
     Returns [B, T-1] if shift=True, else [B, T].
@@ -83,7 +81,7 @@ def cce_per_token_loss(
         ignore_index=ignore_index,
         vocab_parallel_options=vp_opts,
         return_lse=return_lse,
-        softcap = temp
+        softcap = temperature
     )
 
     return losses # return losses or (losses, lse)
