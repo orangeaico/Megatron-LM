@@ -14,7 +14,7 @@ export NVTE_ALLOW_NONDETERMINISTIC_ALGO=1
 export NCCL_NVLS_ENABLE=0
 
 # CRITICAL - DOUBLE CHECK THIS VALUE
-TRAINING_MODE="mock" # set from mock, cpt, sft or distillation
+TRAINING_MODE="cpt" # set from mock, cpt, sft or distillation
 
 MODEL_NAME="qwen3_1.7b"
 
@@ -37,11 +37,13 @@ elif [[ "$TRAINING_MODE" == "distillation" ]]; then
     TRAIN_DATA_PATH="$BASE_DIR/data/distillation_data"
 
 elif [[ "$TRAINING_MODE" == "mock" ]]; then
-    echo "Running with mock data"
+    TRAIN_DATA_PATH="MOCK"
 else
     echo "Training mode should be one of mock, cpt, sft or distillation. Invalid training mode: $TRAINING_MODE"
     exit 1
 fi
+
+echo "TRAIN DATA PATH: $TRAIN_DATA_PATH"
 
 BASE_OUTPUT_DIR="$BASE_DIR/himanshu/output"
 SAVE_CHECKPOINT_PATH="$BASE_OUTPUT_DIR/$MODEL_NAME/checkpoints"
@@ -188,11 +190,10 @@ MODEL_PARALLEL_ARGS=(
 
 # Data arguments (conditional for mock vs real data)
 DATA_ARGS_LIST=(
-    "--vocab-size 151936"  # Qwen3-1.7B vocab size
-    "--data-cache-path ${DATA_CACHE_PATH}"
-    "--no-create-attention-mask-in-dataloader"
-    "--num-workers 1"
+    "--vocab-size 151936"  # Qwen3-1.7B vocab size    
+    "--no-create-attention-mask-in-dataloader"    
     "--no-mmap-bin-files"
+    # "--data-cache-path ${DATA_CACHE_PATH}"
     # "--no-check-for-nan-in-loss-and-grad"
 )
 if [[ "$TRAINING_MODE" == "mock" ]]; then
@@ -200,7 +201,8 @@ if [[ "$TRAINING_MODE" == "mock" ]]; then
         "--mock-data"
         "--tokenizer-type NullTokenizer"        
         "--tiktoken-pattern v2" 
-        "--split '99,1,0'"                      
+        "--split '99,1,0'"
+        "--num-workers 1"                      
     )
 elif [[ "$TRAINING_MODE" == "cpt" ]]; then
     # Settings for real data
@@ -210,6 +212,7 @@ elif [[ "$TRAINING_MODE" == "cpt" ]]; then
         "--test-data-path $TEST_DATA_PATH"
         "--tokenizer-type HuggingFaceTokenizer" 
         "--tokenizer-model $TOKENIZER_ARG"               
+        "--num-workers 1"
         # "--reset-position-ids"
         # "--reset-attention-mask"
         # "--eod-mask-loss"        
@@ -222,6 +225,7 @@ elif [[ "$TRAINING_MODE" == "sft" ]]; then
         "--tokenizer-type HuggingFaceTokenizer" 
         "--tokenizer-model $TOKENIZER_ARG"               
         "--sft"
+        "--num-workers 1"
         # "--reset-position-ids"
         # "--reset-attention-mask"
         # "--eod-mask-loss"        
@@ -233,7 +237,8 @@ elif [[ "$TRAINING_MODE" == "distillation" ]]; then
         "--split '95,5,0'"
         "--tokenizer-type HuggingFaceTokenizer" 
         "--tokenizer-model $TOKENIZER_ARG"                
-        "--sft"          
+        "--sft"
+        "--num-workers 0"         
         "--distillation-loss"
         "--distillation-temperature 3.0"
         "--distillation-loss-alpha 0.5"      
@@ -279,7 +284,7 @@ EVAL_AND_LOGGING_ARGS=(
     --memory-snapshot-path "$MEMORY_SNAPSHOT_PATH"
     # --dump-model-params-to-pickle
     # --timing-log-level 2
-    --logging-level 10
+    # --logging-level 10
 )
 
 if [ -n "${WANDB_API_KEY}" ]; then
