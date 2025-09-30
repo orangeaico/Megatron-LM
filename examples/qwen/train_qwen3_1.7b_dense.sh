@@ -190,8 +190,7 @@ MODEL_PARALLEL_ARGS=(
 
 # Data arguments (conditional for mock vs real data)
 DATA_ARGS_LIST=(
-    "--vocab-size 151936"  # Qwen3-1.7B vocab size    
-    "--no-create-attention-mask-in-dataloader"    
+    "--vocab-size 151936"  # Qwen3-1.7B vocab size         
     "--no-mmap-bin-files"
     # "--data-cache-path ${DATA_CACHE_PATH}"
     # "--no-check-for-nan-in-loss-and-grad"
@@ -202,7 +201,8 @@ if [[ "$TRAINING_MODE" == "mock" ]]; then
         "--tokenizer-type NullTokenizer"        
         "--tiktoken-pattern v2" 
         "--split '99,1,0'"
-        "--num-workers 1"                      
+        "--num-workers 1"
+        "--no-create-attention-mask-in-dataloader"                      
     )
 elif [[ "$TRAINING_MODE" == "cpt" ]]; then
     # Settings for real data
@@ -213,6 +213,7 @@ elif [[ "$TRAINING_MODE" == "cpt" ]]; then
         "--tokenizer-type HuggingFaceTokenizer" 
         "--tokenizer-model $TOKENIZER_ARG"               
         "--num-workers 1"
+        "--no-create-attention-mask-in-dataloader"
         # "--reset-position-ids"
         # "--reset-attention-mask"
         # "--eod-mask-loss"        
@@ -226,6 +227,7 @@ elif [[ "$TRAINING_MODE" == "sft" ]]; then
         "--tokenizer-model $TOKENIZER_ARG"               
         "--sft"
         "--num-workers 1"
+        "--no-create-attention-mask-in-dataloader"
         # "--reset-position-ids"
         # "--reset-attention-mask"
         # "--eod-mask-loss"        
