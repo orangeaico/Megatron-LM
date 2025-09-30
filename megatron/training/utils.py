@@ -524,7 +524,7 @@ def get_batch_on_this_tp_rank(data_iterator):
             'loss_mask': data["loss_mask"].cuda(non_blocking=True),
             'attention_mask': (
                 None
-                if "attention_mask" not in data
+                if "attention_mask" not in data or data["attention_mask"] is None
                 else data["attention_mask"].cuda(non_blocking=True)
             ),
             'position_ids': data["position_ids"].cuda(non_blocking=True),
