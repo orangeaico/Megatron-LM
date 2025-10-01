@@ -518,167 +518,7 @@ def get_batch_on_this_tp_rank(data_iterator):
     )
     teacher_tensors = None
 
-    if not use_variable_seq:
-        if is_tp0:
-
-            if data_iterator is not None:
-                data = next(data_iterator)
-            else:
-                data = None
-
-            batch = {
-                'tokens': data["tokens"].cuda(non_blocking=True),
-                'labels': data["labels"].cuda(non_blocking=True),
-                'loss_mask': data["loss_mask"].cuda(non_blocking=True),
-                'attention_mask': (
-                    None
-                    if "attention_mask" not in data or data["attention_mask"] is None
-                    else data["attention_mask"].cuda(non_blocking=True)
-                ),
-                'position_ids': data["position_ids"].cuda(non_blocking=True),
-            }
-
-            if args.distillation_loss:
-                teacher_raw = data.get("teacher_data") if data is not None else None
-                if teacher_raw is None and args.generate_fake_teacher_data:
-                    batch_size, seq_length = batch['tokens'].shape
-                    print_rank_0(
-                        "Generating fake teacher data. This should only be used for debugging."
-                    )
-                    teacher_raw = generate_fake_teacher_data(
-                        batch_size,
-                        seq_length,
-                        args.vocab_size,
-                        10,
-                        torch.cuda.current_device(),
-                    )
-                packed, shape = pack_teacher_batch(teacher_raw, args.seq_length, torch.cuda.current_device())
-                if shape[0] < 0 or shape[1] < 0:
-                    teacher_header.fill_(-1)
-                else:
-                    teacher_header[0] = shape[0]
-                    teacher_header[1] = shape[1]
-                teacher_tensors = packed
-
-            if args.pipeline_model_parallel_size == 1:
-                _broadcast(batch['tokens'])
-                _broadcast(batch['labels'])
-                _broadcast(batch['loss_mask'])
-                _broadcast(batch['attention_mask'])
-                _broadcast(batch['position_ids'])
-
-            elif mpu.is_pipeline_first_stage():
-                _broadcast(batch['tokens'])
-                _broadcast(batch['attention_mask'])
-                _broadcast(batch['position_ids'])
-
-            elif mpu.is_pipeline_last_stage():
-                # Multi-Token Prediction (MTP) layers need tokens and position_ids to calculate embedding.
-                # Currently the Multi-Token Prediction (MTP) layers is fixed on the last stage, so we need
-                # to broadcast tokens and position_ids to all of the tensor parallel ranks on the last stage.
-                if args.mtp_num_layers is not None:
-                    _broadcast(batch['tokens'])
-                    _broadcast(batch['position_ids'])
-                _broadcast(batch['labels'])
-                _broadcast(batch['loss_mask'])
-                _broadcast(batch['attention_mask'])
-
-        else:
-
-            tokens = torch.empty(
-                (args.micro_batch_size, args.seq_length),
-                dtype=torch.int64,
-                device=torch.cuda.current_device(),
-            )
-            labels = torch.empty(
-                (args.micro_batch_size, args.seq_length),
-                dtype=torch.int64,
-                device=torch.cuda.current_device(),
-            )
-            loss_mask = torch.empty(
-                (args.micro_batch_size, args.seq_length),
-                dtype=torch.float32,
-                device=torch.cuda.current_device(),
-            )
-            if args.create_attention_mask_in_dataloader:
-                attention_mask = torch.empty(
-                    (args.micro_batch_size, 1, args.seq_length, args.seq_length),
-                    dtype=torch.bool,
-                    device=torch.cuda.current_device(),
-                )
-            else:
-                attention_mask = None
-            position_ids = torch.empty(
-                (args.micro_batch_size, args.seq_length),
-                dtype=torch.int64,
-                device=torch.cuda.current_device(),
-            )
-
-            if args.pipeline_model_parallel_size == 1:
-                _broadcast(tokens)
-                _broadcast(labels)
-                _broadcast(loss_mask)
-                _broadcast(attention_mask)
-                _broadcast(position_ids)
-
-            elif mpu.is_pipeline_first_stage():
-                labels = None
-                loss_mask = None
-
-                _broadcast(tokens)
-                _broadcast(attention_mask)
-                _broadcast(position_ids)
-
-            elif mpu.is_pipeline_last_stage():
-                # Multi-Token Prediction (MTP) layers need tokens and position_ids to calculate embedding.
-                # Currently the Multi-Token Prediction (MTP) layers is fixed on the last stage, so we need
-                # to broadcast tokens and position_ids to all of the tensor parallel ranks on the last stage.
-                if args.mtp_num_layers is not None:
-                    _broadcast(tokens)
-                    _broadcast(position_ids)
-                else:
-                    tokens = None
-                    position_ids = None
-
-                _broadcast(labels)
-                _broadcast(loss_mask)
-                _broadcast(attention_mask)
-
-            batch = {
-                'tokens': tokens,
-                'labels': labels,
-                'loss_mask': loss_mask,
-                'attention_mask': attention_mask,
-                'position_ids': position_ids,
-            }
-
-        if args.distillation_loss:
-            _broadcast(teacher_header)
-
-            max_positions = int(teacher_header[0].item())
-            max_k = int(teacher_header[1].item())
-            if max_positions >= 0 and max_k >= 0:
-                if teacher_tensors is None:
-                    teacher_tensors = allocate_teacher_tensors(
-                        args.micro_batch_size,
-                        max_positions,
-                        max_k,
-                        torch.cuda.current_device(),
-                    )
-                _broadcast(teacher_tensors['positions'])
-                _broadcast(teacher_tensors['counts'])
-                _broadcast(teacher_tensors['indices'])
-                _broadcast(teacher_tensors['values'])
-            else:
-                teacher_tensors = None
-
-            if args.pipeline_model_parallel_size != 1:
-                if mpu.is_pipeline_first_stage() or not mpu.is_pipeline_last_stage():
-                    teacher_tensors = None
-
-        batch['teacher_data'] = teacher_tensors
-
-        return batch
+    metadata = None
 
     dtype_encoding = {
         torch.float32: 0,
@@ -793,7 +633,8 @@ def get_batch_on_this_tp_rank(data_iterator):
                 teacher_header[1] = shape[1]
             teacher_tensors = packed
 
-        _exchange_batch_metadata(batch)
+        if use_variable_seq:
+            metadata = _exchange_batch_metadata(batch)
 
         if args.pipeline_model_parallel_size == 1:
             _broadcast(batch['tokens'])
@@ -808,6 +649,9 @@ def get_batch_on_this_tp_rank(data_iterator):
             _broadcast(batch['position_ids'])
 
         elif mpu.is_pipeline_last_stage():
+            # Multi-Token Prediction (MTP) layers need tokens and position_ids to calculate embedding.
+            # Currently the Multi-Token Prediction (MTP) layers is fixed on the last stage, so we need
+            # to broadcast tokens and position_ids to all of the tensor parallel ranks on the last stage.
             if args.mtp_num_layers is not None:
                 _broadcast(batch['tokens'])
                 _broadcast(batch['position_ids'])
@@ -817,7 +661,20 @@ def get_batch_on_this_tp_rank(data_iterator):
 
     else:
 
-        metadata = _exchange_batch_metadata(None)
+        if use_variable_seq:
+            metadata = _exchange_batch_metadata(None)
+        else:
+            metadata = {
+                'tokens': ((args.micro_batch_size, args.seq_length), torch.int64),
+                'labels': ((args.micro_batch_size, args.seq_length), torch.int64),
+                'loss_mask': ((args.micro_batch_size, args.seq_length), torch.float32),
+                'attention_mask': (
+                    ((args.micro_batch_size, 1, args.seq_length, args.seq_length), torch.bool)
+                    if args.create_attention_mask_in_dataloader
+                    else (None, None)
+                ),
+                'position_ids': ((args.micro_batch_size, args.seq_length), torch.int64),
+            }
 
         tokens_shape, tokens_dtype = metadata['tokens']
         tokens = (
@@ -837,21 +694,27 @@ def get_batch_on_this_tp_rank(data_iterator):
         loss_mask = (
             None
             if loss_mask_shape is None
-            else torch.empty(loss_mask_shape, dtype=loss_mask_dtype, device=torch.cuda.current_device())
+            else torch.empty(
+                loss_mask_shape, dtype=loss_mask_dtype, device=torch.cuda.current_device()
+            )
         )
 
         attention_shape, attention_dtype = metadata['attention_mask']
         attention_mask = (
             None
             if attention_shape is None
-            else torch.empty(attention_shape, dtype=attention_dtype, device=torch.cuda.current_device())
+            else torch.empty(
+                attention_shape, dtype=attention_dtype, device=torch.cuda.current_device()
+            )
         )
 
         position_shape, position_dtype = metadata['position_ids']
         position_ids = (
             None
             if position_shape is None
-            else torch.empty(position_shape, dtype=position_dtype, device=torch.cuda.current_device())
+            else torch.empty(
+                position_shape, dtype=position_dtype, device=torch.cuda.current_device()
+            )
         )
 
         if args.pipeline_model_parallel_size == 1:
@@ -870,6 +733,9 @@ def get_batch_on_this_tp_rank(data_iterator):
             _broadcast(position_ids)
 
         elif mpu.is_pipeline_last_stage():
+            # Multi-Token Prediction (MTP) layers need tokens and position_ids to calculate embedding.
+            # Currently the Multi-Token Prediction (MTP) layers is fixed on the last stage, so we need
+            # to broadcast tokens and position_ids to all of the tensor parallel ranks on the last stage.
             if args.mtp_num_layers is not None:
                 _broadcast(tokens)
                 _broadcast(position_ids)
@@ -888,6 +754,7 @@ def get_batch_on_this_tp_rank(data_iterator):
             'attention_mask': attention_mask,
             'position_ids': position_ids,
         }
+
 
     if args.distillation_loss:
 
