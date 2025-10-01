@@ -10,7 +10,7 @@
 # Environment variables for performance tuning
 export CUDA_DEVICE_MAX_CONNECTIONS=${CUDA_DEVICE_MAX_CONNECTIONS:-1}
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
-export NVTE_ALLOW_NONDETERMINISTIC_ALGO=1
+export NVTE_ALLOW_NONDETERMINISTIC_ALGO=0
 export NCCL_NVLS_ENABLE=0
 
 # CRITICAL - DOUBLE CHECK THIS VALUE
@@ -228,6 +228,9 @@ elif [[ "$TRAINING_MODE" == "sft" ]]; then
         "--sft"
         "--num-workers 1"
         "--no-create-attention-mask-in-dataloader"
+        # "--variable-seq-lengths"
+        # "--moe-token-dispatcher-type alltoall"
+
         # "--reset-position-ids"
         # "--reset-attention-mask"
         # "--eod-mask-loss"        
