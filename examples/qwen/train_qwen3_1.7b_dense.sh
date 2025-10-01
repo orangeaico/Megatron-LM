@@ -13,6 +13,9 @@ export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 export NVTE_ALLOW_NONDETERMINISTIC_ALGO=1
 export NCCL_NVLS_ENABLE=0
 
+# CRITICAL - DOUBLE CHECK THIS VALUE
+TRAINING_MODE="cpt" # set from mock, cpt, sft or distillation
+
 MODEL_NAME="qwen3_1.7b"
 
 BASE_DIR="/workspace/data/"
@@ -20,10 +23,27 @@ BASE_DIR="/workspace/data/"
 LOAD_CHECKPOINT_PATH="$BASE_DIR/mega-models/Qwen3-1.7B"
 TOKENIZER_ARG="$BASE_DIR/mega-models/Qwen3-1.7B" # Path to tokenizer model, or "MOCK"
 
-# TRAIN_DATA_PATH="$BASE_DIR/data/test_output.jsonl"     # Data prefix, or "MOCK"
-TRAIN_DATA_PATH="$BASE_DIR/data/cpt/memmap_xarray_8192_overlap5_combined/megatron_indexed/train_text_document"
-VALID_DATA_PATH="$BASE_DIR/data/cpt/memmap_xarray_8192_overlap5_combined/megatron_indexed/val_text_document"
-TEST_DATA_PATH="$BASE_DIR/data/cpt/memmap_xarray_8192_overlap5_combined/megatron_indexed/val_text_document"
+echo "Training mode: $TRAINING_MODE"
+
+if [[ "$TRAINING_MODE" == "cpt" ]]; then
+    TRAIN_DATA_PATH="$BASE_DIR/data/cpt/memmap_xarray_8192_overlap5_combined/megatron_indexed/train_text_document"
+    VALID_DATA_PATH="$BASE_DIR/data/cpt/memmap_xarray_8192_overlap5_combined/megatron_indexed/val_text_document"
+    TEST_DATA_PATH="$BASE_DIR/data/cpt/memmap_xarray_8192_overlap5_combined/megatron_indexed/val_text_document"
+
+elif [[ "$TRAINING_MODE" == "sft" ]]; then
+    TRAIN_DATA_PATH="$BASE_DIR/data/test_output.jsonl"    
+
+elif [[ "$TRAINING_MODE" == "distillation" ]]; then
+    TRAIN_DATA_PATH="$BASE_DIR/data/distillation_data"
+
+elif [[ "$TRAINING_MODE" == "mock" ]]; then
+    TRAIN_DATA_PATH="MOCK"
+else
+    echo "Training mode should be one of mock, cpt, sft or distillation. Invalid training mode: $TRAINING_MODE"
+    exit 1
+fi
+
+echo "TRAIN DATA PATH: $TRAIN_DATA_PATH"
 
 BASE_OUTPUT_DIR="$BASE_DIR/himanshu/output"
 SAVE_CHECKPOINT_PATH="$BASE_OUTPUT_DIR/$MODEL_NAME/checkpoints"
@@ -169,41 +189,65 @@ MODEL_PARALLEL_ARGS=(
 )
 
 # Data arguments (conditional for mock vs real data)
-DATA_ARGS_LIST=()
-if [[ "$TOKENIZER_ARG" == "MOCK" ]] || [[ "$TRAIN_DATA_PATH" == "MOCK" ]] || [[ -z "$TOKENIZER_ARG" ]]; then
+DATA_ARGS_LIST=(
+    "--vocab-size 151936"  # Qwen3-1.7B vocab size         
+    "--no-mmap-bin-files"
+    # "--data-cache-path ${DATA_CACHE_PATH}"
+    # "--no-check-for-nan-in-loss-and-grad"
+)
+if [[ "$TRAINING_MODE" == "mock" ]]; then
     DATA_ARGS_LIST+=(
         "--mock-data"
-        "--tokenizer-type NullTokenizer"
-        "--vocab-size 151936"  # Qwen3-1.7B vocab size
-        "--data-cache-path ${DATA_CACHE_PATH}"
+        "--tokenizer-type NullTokenizer"        
         "--tiktoken-pattern v2" 
         "--split '99,1,0'"
-        "--no-create-attention-mask-in-dataloader"
-        "--no-mmap-bin-files"
         "--num-workers 1"
+        "--no-create-attention-mask-in-dataloader"                      
     )
-else
+elif [[ "$TRAINING_MODE" == "cpt" ]]; then
     # Settings for real data
     DATA_ARGS_LIST+=(
-        # "--data-path $TRAIN_DATA_PATH"
-        # "--split '90,10,0'"
         "--train-data-path $TRAIN_DATA_PATH"
         "--valid-data-path $VALID_DATA_PATH"
         "--test-data-path $TEST_DATA_PATH"
         "--tokenizer-type HuggingFaceTokenizer" 
-        "--tokenizer-model $TOKENIZER_ARG"
-        # "--data-cache-path ${DATA_CACHE_PATH}"
-        "--no-create-attention-mask-in-dataloader"
-        "--no-mmap-bin-files"
+        "--tokenizer-model $TOKENIZER_ARG"               
         "--num-workers 1"
-        # Note: --vocab-size might be inferred by HuggingFaceTokenizer or might need to be explicit.
-        "--vocab-size 151936"  # Qwen3-1.7B vocab size
-        # "--sft"
+        "--no-create-attention-mask-in-dataloader"
         # "--reset-position-ids"
         # "--reset-attention-mask"
-        # "--eod-mask-loss"
-        # "--no-check-for-nan-in-loss-and-grad"
+        # "--eod-mask-loss"        
     )
+elif [[ "$TRAINING_MODE" == "sft" ]]; then
+    # Settings for real data
+    DATA_ARGS_LIST+=(
+        "--data-path $TRAIN_DATA_PATH"
+        "--split '90,10,0'"
+        "--tokenizer-type HuggingFaceTokenizer" 
+        "--tokenizer-model $TOKENIZER_ARG"               
+        "--sft"
+        "--num-workers 1"
+        "--no-create-attention-mask-in-dataloader"
+        # "--reset-position-ids"
+        # "--reset-attention-mask"
+        # "--eod-mask-loss"        
+    )
+elif [[ "$TRAINING_MODE" == "distillation" ]]; then
+    # Settings for real data
+    DATA_ARGS_LIST+=(
+        "--data-path $TRAIN_DATA_PATH"
+        "--split '95,5,0'"
+        "--tokenizer-type HuggingFaceTokenizer" 
+        "--tokenizer-model $TOKENIZER_ARG"                
+        "--sft"
+        "--num-workers 0"         
+        "--distillation-loss"
+        "--distillation-temperature 3.0"
+        "--distillation-loss-alpha 0.5"      
+    )
+else
+    echo "Training mode should be one of mock, cpt, sft or distillation. Invalid training mode: $TRAINING_MODE"
+    exit 1
 fi
 
 CHECKPOINT_ARGS=(
@@ -241,9 +285,8 @@ EVAL_AND_LOGGING_ARGS=(
     --record-memory-history
     --memory-snapshot-path "$MEMORY_SNAPSHOT_PATH"
     # --dump-model-params-to-pickle
-    --log-progress
     # --timing-log-level 2
-    --logging-level 10
+    # --logging-level 10
 )
 
 if [ -n "${WANDB_API_KEY}" ]; then
@@ -271,6 +314,6 @@ torchrun ${DISTRIBUTED_ARGS[@]} \
     ${MODEL_PARALLEL_ARGS[@]} \
     ${DATA_ARGS_LIST[@]} \
     ${EVAL_AND_LOGGING_ARGS[@]} \
-    ${CHECKPOINT_ARGS[@]}
+    ${CHECKPOINT_ARGS[@]}    
 
 set +x

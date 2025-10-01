@@ -1,0 +1,85 @@
+#!/usr/bin/env python3
+import argparse
+import json
+import os
+import random
+from pathlib import Path
+
+def split_jsonl_train_val(input_file, eval_ratio=5.0, seed=42):
+    """
+    Split a JSONL file into training and validation sets.
+    
+    Args:
+        input_file: Path to input JSONL file
+        eval_ratio: Percentage of data for validation (default: 5.0)
+        seed: Random seed for reproducibility (default: 42)
+    """
+    # Set random seed for reproducibility
+    random.seed(seed)
+    
+    # Read all lines from the input file
+    with open(input_file, 'r', encoding='utf-8') as f:
+        lines = f.readlines()
+    
+    # Calculate split sizes
+    total_samples = len(lines)
+    val_size = int(total_samples * (eval_ratio / 100))
+    train_size = total_samples - val_size
+    
+    print(f"Total samples: {total_samples}")
+    print(f"Training samples: {train_size}")
+    print(f"Validation samples: {val_size}")
+    print(f"Validation ratio: {eval_ratio}%")
+    
+    # Shuffle the lines
+    random.shuffle(lines)
+    
+    # Split into train and val
+    val_lines = lines[:val_size]
+    train_lines = lines[val_size:]
+    
+    # Create output filenames
+    input_path = Path(input_file)
+    base_name = input_path.stem
+    output_dir = input_path.parent
+    
+    train_file = output_dir / f"{base_name}_train.jsonl"
+    val_file = output_dir / f"{base_name}_val.jsonl"
+    
+    # Write training set
+    with open(train_file, 'w', encoding='utf-8') as f:
+        for line in train_lines:
+            f.write(line)
+    
+    # Write validation set
+    with open(val_file, 'w', encoding='utf-8') as f:
+        for line in val_lines:
+            f.write(line)
+    
+    print(f"\nTrain set saved to: {train_file}")
+    print(f"Validation set saved to: {val_file}")
+
+def main():
+    parser = argparse.ArgumentParser(description='Split JSONL file into training and validation sets')
+    parser.add_argument('input_file', type=str, help='Path to input JSONL file')
+    parser.add_argument('--eval_ratio', type=float, default=5.0,
+                        help='Percentage of data for validation (default: 5.0)')
+    parser.add_argument('--seed', type=int, default=42,
+                        help='Random seed for reproducibility (default: 42)')
+    
+    args = parser.parse_args()
+    
+    # Check if input file exists
+    if not os.path.exists(args.input_file):
+        print(f"Error: Input file '{args.input_file}' does not exist")
+        return
+    
+    # Validate eval_ratio
+    if args.eval_ratio <= 0 or args.eval_ratio >= 100:
+        print(f"Error: eval_ratio must be between 0 and 100 (got {args.eval_ratio})")
+        return
+    
+    split_jsonl_train_val(args.input_file, args.eval_ratio, args.seed)
+
+if __name__ == "__main__":
+    main()

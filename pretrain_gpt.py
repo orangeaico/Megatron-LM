@@ -20,7 +20,12 @@ from megatron.training.utils import (
     get_batch_on_this_tp_rank,
     get_blend_and_blend_per_split,
 )
+from megatron.training.teacher_data_utils import (
+    has_teacher_data,
+    unpack_teacher_batch,
+)
 from megatron.training.datasets.sft_dataset import SFTDataset
+from megatron.training.datasets.json_teacher_dataset import JsonTeacherDataset
 from model_provider import model_provider
 from gpt_builders import gpt_builder
 from mem_logging_utils import mem_phase, nvtx_range
@@ -43,7 +48,7 @@ def get_batch(data_iterator):
     if (not parallel_state.is_pipeline_first_stage(ignore_virtual=True)) and (
         not parallel_state.is_pipeline_last_stage(ignore_virtual=True)
     ):
-        return None, None, None, None, None
+        return None, None, None, None, None, None
 
     # get batches based on the TP rank you are on
     with mem_phase("LOAD_BATCH", do_barrier=True), nvtx_range("LOAD_BATCH"):
@@ -51,8 +56,22 @@ def get_batch(data_iterator):
 
         # slice batch along sequence dimension for context parallelism
         batch = get_batch_on_this_cp_rank(batch)
+    
+    teacher_data = None
+    args = get_args()
+    # if distillation is enabled, unpack teacher data
+    if args.distillation_loss:
+        teacher_packed = batch.pop('teacher_data', None)
+        if teacher_packed is not None and has_teacher_data(teacher_packed):
+            teacher_data = unpack_teacher_batch(teacher_packed)
 
-    return batch.values()
+    tokens = batch['tokens']
+    labels = batch['labels']
+    loss_mask = batch['loss_mask']
+    attention_mask = batch['attention_mask']
+    position_ids = batch['position_ids']
+
+    return tokens, labels, loss_mask, attention_mask, position_ids, teacher_data
 
 
 # define spiky loss as a loss that's 10x the max loss observed
@@ -136,7 +155,14 @@ def forward_step(data_iterator, model: GPTModel, return_schedule_plan: bool = Fa
     timers('batch-generator', log_level=2).start()
     global stimer
     with stimer(bdata=True):
-        tokens, labels, loss_mask, attention_mask, position_ids = get_batch(data_iterator)
+        (
+            tokens,
+            labels,
+            loss_mask,
+            attention_mask,
+            position_ids,
+            teacher_data,
+        ) = get_batch(data_iterator)
     timers('batch-generator').stop()
 
     with stimer, mem_phase("FORWARD", do_barrier=True), nvtx_range("FORWARD"):
@@ -152,7 +178,12 @@ def forward_step(data_iterator, model: GPTModel, return_schedule_plan: bool = Fa
                 return schedule_plan, partial(loss_func, loss_mask, model=model)
             else:
                 output_tensor = model(
-                    tokens, position_ids, attention_mask, labels=labels, loss_mask=loss_mask
+                    tokens,
+                    position_ids,
+                    attention_mask,
+                    labels=labels,
+                    loss_mask=loss_mask,
+                    teacher_data=teacher_data,
                 )
 
     # [ModelOpt]: model is needed to access ModelOpt distillation losses
@@ -206,7 +237,9 @@ def train_valid_test_datasets_provider(train_val_test_num_samples):
 
     config = core_gpt_dataset_config_from_args(args)
 
-    if args.sft:
+    if args.distillation_loss:
+        dataset_type = JsonTeacherDataset
+    elif args.sft:
         dataset_type = SFTDataset
     else:
         if args.mock_data:
@@ -219,7 +252,9 @@ def train_valid_test_datasets_provider(train_val_test_num_samples):
     train_ds, valid_ds, test_ds = BlendedMegatronDatasetBuilder(
         dataset_type, train_val_test_num_samples, is_dataset_built_on_rank, config
     ).build()
-
+    print_rank_0(f"> train dataset: {train_ds} samples")
+    print_rank_0(f"> validation dataset: {valid_ds} samples")
+    print_rank_0(f"> test dataset: {test_ds} samples")
     print_rank_0("> finished creating GPT datasets ...")
     print_rank_0(f"> Length of train_ds: {len(train_ds) if train_ds else 0}, valid_ds: {len(valid_ds) if valid_ds else 0}, test_ds: {len(test_ds) if test_ds else 0}")
 

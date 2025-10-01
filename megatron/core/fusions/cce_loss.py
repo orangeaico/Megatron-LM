@@ -48,6 +48,8 @@ def cce_per_token_loss(
     reduction: str = "none",
     shift: bool = True,
     ignore_index: int = -100,
+    return_lse: bool = False,
+    temperature: float = 1.0,
 ) -> torch.Tensor:
     """Compute (optionally shifted) per-token cross-entropy via CCE.
     Returns [B, T-1] if shift=True, else [B, T].
@@ -72,12 +74,14 @@ def cce_per_token_loss(
     losses = linear_cross_entropy(
         embeddings,                      # [B, T, H]
         classifier_weight,               # [V/TP_SIZE, H]
-        labels,                    # [B, T]
+        labels,                          # [B, T]
         impl=impl,
         reduction=reduction,
         shift=int(shift),
         ignore_index=ignore_index,
         vocab_parallel_options=vp_opts,
+        return_lse=return_lse,
+        softcap = temperature
     )
 
-    return losses
+    return losses # return losses or (losses, lse)

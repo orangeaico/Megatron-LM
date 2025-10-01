@@ -18,10 +18,10 @@ MODEL_NAME="Qwen3-Coder-30B-A3B-Instruct"
 BASE_DIR="/workspace/data/"
 LOAD_CHECKPOINT_PATH="$BASE_DIR/mega-models/Qwen3-Coder-30B-A3B-Instruct-torch_dist"
 
-TOKENIZER_ARG="$BASE_DIR/mega-models/Qwen3-Coder-30B-A3B-Instruct-torch_dist" # Path to tokenizer model, or "MOCK"
-DATA_ARG="$BASE_DIR/data/test_output.jsonl"
-# TOKENIZER_ARG="MOCK"
-# DATA_ARG="MOCK"
+# TOKENIZER_ARG="$BASE_DIR/mega-models/Qwen3-Coder-30B-A3B-Instruct-torch_dist" # Path to tokenizer model, or "MOCK"
+# DATA_ARG="$BASE_DIR/data/test_output.jsonl"
+TOKENIZER_ARG="MOCK"
+DATA_ARG="MOCK"
 
 BASE_OUTPUT_DIR="$BASE_DIR/himanshu/output"
 SAVE_CHECKPOINT_PATH="$BASE_OUTPUT_DIR/$MODEL_NAME/checkpoints"
@@ -104,12 +104,11 @@ MOE_ARGS=(
     --moe-router-topk 8  # num_experts_per_tok
     --moe-grouped-gemm
     --moe-aux-loss-coeff 0  # router_aux_loss_coef from config
-    # required even if the model is not moe as there is a assertion check for variable seq length
     --moe-token-dispatcher-type alltoall # flex for --moe-enable-deepep
     --moe-permute-fusion
     --moe-router-dtype fp32
     # --moe-router-fusion # This is only supported in TransformerEngine 2.7.0 and above. Current installed TE is 2.2
-    # --moe-router-force-load-balancing
+    --moe-router-force-load-balancing
     # --moe-enable-deepep
     # --overlap-moe-expert-parallel-comm
 )
@@ -218,7 +217,6 @@ else
         "--num-workers 1"
         # "--vocab-size 151936"
         "--sft"
-        # "--variable-seq-lengths"
         # "--reset-position-ids"
         # "--reset-attention-mask"
         # "--eod-mask-loss"
@@ -233,7 +231,7 @@ CHECKPOINT_ARGS=(
     # --ckpt-convert-save /workspace/checkpoints/qwen3_30b_a3b_torch_tp2
     --dist-ckpt-strictness log_all
     --distributed-timeout-minutes 60
-    --load "$LOAD_CHECKPOINT_PATH"
+    # --load "$LOAD_CHECKPOINT_PATH"
     --save "$SAVE_CHECKPOINT_PATH"
     --no-save-optim
     --no-save-rng

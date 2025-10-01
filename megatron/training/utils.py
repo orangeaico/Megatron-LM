@@ -42,7 +42,11 @@ from megatron.core.utils import (
     unwrap_model,
 )
 from megatron.legacy.model.module import param_is_not_shared
-
+from megatron.training.teacher_data_utils import (
+    allocate_teacher_tensors,
+    pack_teacher_batch,
+)
+from megatron.core.fusions.distillation import generate_fake_teacher_data
 
 def calc_params_l2_norm(model, force_create_fp32_copy=False):
     """Calculate l2 norm of parameters"""
@@ -494,7 +498,6 @@ def get_batch_on_this_tp_rank(data_iterator):
     tp_rank = mpu.get_tensor_model_parallel_rank()
     tp_group = mpu.get_tensor_model_parallel_group()
     tp_src_rank = mpu.get_tensor_model_parallel_src_rank()
-    cuda_device = torch.device('cuda', torch.cuda.current_device())
 
     use_variable_seq = getattr(args, 'variable_seq_lengths', False)
 
@@ -506,8 +509,17 @@ def get_batch_on_this_tp_rank(data_iterator):
                 group=tp_group,
             )
 
+    is_tp0 = tp_rank == 0
+
+    teacher_header = (
+        torch.empty(2, dtype=torch.int64, device=torch.cuda.current_device())
+        if args.distillation_loss
+        else None
+    )
+    teacher_tensors = None
+
     if not use_variable_seq:
-        if tp_rank == 0:
+        if is_tp0:
 
             if data_iterator is not None:
                 data = next(data_iterator)
@@ -520,11 +532,33 @@ def get_batch_on_this_tp_rank(data_iterator):
                 'loss_mask': data["loss_mask"].cuda(non_blocking=True),
                 'attention_mask': (
                     None
-                    if "attention_mask" not in data
+                    if "attention_mask" not in data or data["attention_mask"] is None
                     else data["attention_mask"].cuda(non_blocking=True)
                 ),
                 'position_ids': data["position_ids"].cuda(non_blocking=True),
             }
+
+            if args.distillation_loss:
+                teacher_raw = data.get("teacher_data") if data is not None else None
+                if teacher_raw is None and args.generate_fake_teacher_data:
+                    batch_size, seq_length = batch['tokens'].shape
+                    print_rank_0(
+                        "Generating fake teacher data. This should only be used for debugging."
+                    )
+                    teacher_raw = generate_fake_teacher_data(
+                        batch_size,
+                        seq_length,
+                        args.vocab_size,
+                        10,
+                        torch.cuda.current_device(),
+                    )
+                packed, shape = pack_teacher_batch(teacher_raw, args.seq_length, torch.cuda.current_device())
+                if shape[0] < 0 or shape[1] < 0:
+                    teacher_header.fill_(-1)
+                else:
+                    teacher_header[0] = shape[0]
+                    teacher_header[1] = shape[1]
+                teacher_tensors = packed
 
             if args.pipeline_model_parallel_size == 1:
                 _broadcast(batch['tokens'])
@@ -554,32 +588,32 @@ def get_batch_on_this_tp_rank(data_iterator):
             tokens = torch.empty(
                 (args.micro_batch_size, args.seq_length),
                 dtype=torch.int64,
-                device=cuda_device,
+                device=torch.cuda.current_device(),
             )
             labels = torch.empty(
                 (args.micro_batch_size, args.seq_length),
                 dtype=torch.int64,
-                device=cuda_device,
+                device=torch.cuda.current_device(),
             )
             loss_mask = torch.empty(
                 (args.micro_batch_size, args.seq_length),
                 dtype=torch.float32,
-                device=cuda_device,
+                device=torch.cuda.current_device(),
             )
             if args.create_attention_mask_in_dataloader:
                 attention_mask = torch.empty(
                     (args.micro_batch_size, 1, args.seq_length, args.seq_length),
                     dtype=torch.bool,
-                    device=cuda_device,
+                    device=torch.cuda.current_device(),
                 )
             else:
                 attention_mask = None
             position_ids = torch.empty(
                 (args.micro_batch_size, args.seq_length),
                 dtype=torch.int64,
-                device=cuda_device,
+                device=torch.cuda.current_device(),
             )
-            
+
             if args.pipeline_model_parallel_size == 1:
                 _broadcast(tokens)
                 _broadcast(labels)
@@ -618,6 +652,32 @@ def get_batch_on_this_tp_rank(data_iterator):
                 'position_ids': position_ids,
             }
 
+        if args.distillation_loss:
+            _broadcast(teacher_header)
+
+            max_positions = int(teacher_header[0].item())
+            max_k = int(teacher_header[1].item())
+            if max_positions >= 0 and max_k >= 0:
+                if teacher_tensors is None:
+                    teacher_tensors = allocate_teacher_tensors(
+                        args.micro_batch_size,
+                        max_positions,
+                        max_k,
+                        torch.cuda.current_device(),
+                    )
+                _broadcast(teacher_tensors['positions'])
+                _broadcast(teacher_tensors['counts'])
+                _broadcast(teacher_tensors['indices'])
+                _broadcast(teacher_tensors['values'])
+            else:
+                teacher_tensors = None
+
+            if args.pipeline_model_parallel_size != 1:
+                if mpu.is_pipeline_first_stage() or not mpu.is_pipeline_last_stage():
+                    teacher_tensors = None
+
+        batch['teacher_data'] = teacher_tensors
+
         return batch
 
     dtype_encoding = {
@@ -652,18 +712,18 @@ def get_batch_on_this_tp_rank(data_iterator):
         metadata = {}
         keys = ('tokens', 'labels', 'loss_mask', 'position_ids', 'attention_mask')
         for key in keys:
-            if tp_rank == 0:
+            if is_tp0:
                 tensor = batch[key]
                 if tensor is None:
-                    meta_tensor = torch.tensor([-1, -1], dtype=torch.int64, device=cuda_device)
+                    meta_tensor = torch.tensor([-1, -1], dtype=torch.int64, device=torch.cuda.current_device())
                 else:
                     meta_tensor = torch.tensor(
                         [tensor.dim(), _encode_dtype(tensor.dtype)],
                         dtype=torch.int64,
-                        device=cuda_device,
+                        device=torch.cuda.current_device(),
                     )
             else:
-                meta_tensor = torch.empty(2, dtype=torch.int64, device=cuda_device)
+                meta_tensor = torch.empty(2, dtype=torch.int64, device=torch.cuda.current_device())
 
             torch.distributed.broadcast(meta_tensor, tp_src_rank, group=tp_group)
 
@@ -675,14 +735,14 @@ def get_batch_on_this_tp_rank(data_iterator):
                 continue
 
             if ndims > 0:
-                if tp_rank == 0:
+                if is_tp0:
                     shape_tensor = torch.tensor(
                         batch[key].shape,
                         dtype=torch.int64,
-                        device=cuda_device,
+                        device=torch.cuda.current_device(),
                     )
                 else:
-                    shape_tensor = torch.empty(ndims, dtype=torch.int64, device=cuda_device)
+                    shape_tensor = torch.empty(ndims, dtype=torch.int64, device=torch.cuda.current_device())
 
                 torch.distributed.broadcast(shape_tensor, tp_src_rank, group=tp_group)
                 shape = tuple(int(dim) for dim in shape_tensor.tolist())
@@ -693,7 +753,7 @@ def get_batch_on_this_tp_rank(data_iterator):
 
         return metadata
 
-    if tp_rank == 0:
+    if is_tp0:
 
         if data_iterator is not None:
             data = next(data_iterator)
@@ -706,11 +766,32 @@ def get_batch_on_this_tp_rank(data_iterator):
             'loss_mask': data["loss_mask"].cuda(non_blocking=True),
             'attention_mask': (
                 None
-                if "attention_mask" not in data
+                if "attention_mask" not in data or data["attention_mask"] is None
                 else data["attention_mask"].cuda(non_blocking=True)
             ),
             'position_ids': data["position_ids"].cuda(non_blocking=True),
         }
+        if args.distillation_loss:
+            teacher_raw = data.get("teacher_data") if data is not None else None
+            if teacher_raw is None and args.generate_fake_teacher_data:
+                batch_size, seq_length = batch['tokens'].shape
+                print_rank_0(
+                    "Generating fake teacher data. This should only be used for debugging."
+                )
+                teacher_raw = generate_fake_teacher_data(
+                    batch_size,
+                    seq_length,
+                    args.vocab_size,
+                    10,
+                    torch.cuda.current_device(),
+                )
+            packed, shape = pack_teacher_batch(teacher_raw, args.seq_length, torch.cuda.current_device())
+            if shape[0] < 0 or shape[1] < 0:
+                teacher_header.fill_(-1)
+            else:
+                teacher_header[0] = shape[0]
+                teacher_header[1] = shape[1]
+            teacher_tensors = packed
 
         _exchange_batch_metadata(batch)
 
@@ -742,35 +823,35 @@ def get_batch_on_this_tp_rank(data_iterator):
         tokens = (
             None
             if tokens_shape is None
-            else torch.empty(tokens_shape, dtype=tokens_dtype, device=cuda_device)
+            else torch.empty(tokens_shape, dtype=tokens_dtype, device=torch.cuda.current_device())
         )
 
         labels_shape, labels_dtype = metadata['labels']
         labels = (
             None
             if labels_shape is None
-            else torch.empty(labels_shape, dtype=labels_dtype, device=cuda_device)
+            else torch.empty(labels_shape, dtype=labels_dtype, device=torch.cuda.current_device())
         )
 
         loss_mask_shape, loss_mask_dtype = metadata['loss_mask']
         loss_mask = (
             None
             if loss_mask_shape is None
-            else torch.empty(loss_mask_shape, dtype=loss_mask_dtype, device=cuda_device)
+            else torch.empty(loss_mask_shape, dtype=loss_mask_dtype, device=torch.cuda.current_device())
         )
 
         attention_shape, attention_dtype = metadata['attention_mask']
         attention_mask = (
             None
             if attention_shape is None
-            else torch.empty(attention_shape, dtype=attention_dtype, device=cuda_device)
+            else torch.empty(attention_shape, dtype=attention_dtype, device=torch.cuda.current_device())
         )
 
         position_shape, position_dtype = metadata['position_ids']
         position_ids = (
             None
             if position_shape is None
-            else torch.empty(position_shape, dtype=position_dtype, device=cuda_device)
+            else torch.empty(position_shape, dtype=position_dtype, device=torch.cuda.current_device())
         )
 
         if args.pipeline_model_parallel_size == 1:
@@ -807,6 +888,33 @@ def get_batch_on_this_tp_rank(data_iterator):
             'attention_mask': attention_mask,
             'position_ids': position_ids,
         }
+
+    if args.distillation_loss:
+
+        _broadcast(teacher_header)
+
+        max_positions = int(teacher_header[0].item())
+        max_k = int(teacher_header[1].item())
+        if max_positions >= 0 and max_k >= 0:
+            if teacher_tensors is None:
+                teacher_tensors = allocate_teacher_tensors(
+                    args.micro_batch_size,
+                    max_positions,
+                    max_k,
+                    torch.cuda.current_device(),
+                )
+            _broadcast(teacher_tensors['positions'])
+            _broadcast(teacher_tensors['counts'])
+            _broadcast(teacher_tensors['indices'])
+            _broadcast(teacher_tensors['values'])
+        else:
+            teacher_tensors = None
+
+        if args.pipeline_model_parallel_size != 1:
+            if mpu.is_pipeline_first_stage() or not mpu.is_pipeline_last_stage():
+                teacher_tensors = None
+
+    batch['teacher_data'] = teacher_tensors
 
     return batch
 

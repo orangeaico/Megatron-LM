@@ -19,7 +19,7 @@ from megatron.core.utils import log_single_rank
 
 logger = logging.getLogger(__name__)
 
-
+DEBUG = True
 _PAD_TOKEN_ID = -1
 
 
@@ -178,6 +178,14 @@ class GPTDataset(MegatronDataset):
             text, _ = self._query_document_sample_shuffle_indices(0)
         else:
             text, _ = self._query_document_sample_shuffle_indices(idx)
+        
+        # print (f"text: {text}")
+        # print (f"text: {text.shape}")        
+        # # Count occurrences of 151645 (<|im_end|>) and 151643 (<|endoftext|>)
+        # count_151645 = (text == 151645).sum()
+        # count_151643 = (text == 151643).sum()
+        # print(f"Occurrences of token 151645 (<|im_end|>): {count_151645}")
+        # print(f"Occurrences of token 151643 (<|endoftext|>): {count_151643}")
 
         text = torch.from_numpy(text).long()
         if self.config.add_extra_token_to_sequence:
@@ -221,6 +229,38 @@ class GPTDataset(MegatronDataset):
         if idx is None:
             loss_mask = torch.zeros_like(loss_mask)
 
+        if DEBUG:
+            curr_rank = torch.distributed.get_rank()
+            S = labels.shape[0]
+            trainable = int(loss_mask.sum().item())
+
+            # Prefer deriving padding from the attention mask (robust when pad token == eos, or packed data)
+            pad_tokens = 0
+            nonpad_lengths = [S]  # default: assume fully non-padded
+
+            if attention_mask is not None and attention_mask.dim() == 4:
+                # attention_mask: [B, 1, S, S]; a "valid" token row typically has any True in its row
+                vis = attention_mask.squeeze(1).any(dim=-1)  # [B, S] boolean
+                nonpad_lengths = vis.sum(dim=0).tolist()     # per-sample non-padded token counts
+                pad_tokens = int((S - vis.sum(dim=0)).sum().item())
+            else:
+                # Fallback: count pad tokens by id (only if pad_token_id is defined)
+                try:
+                    pad_id = self.config.tokenizer.pad
+                except NotImplementedError: # To handle _NullTokenizer has no attribute 'pad'
+                    pad_id = -50
+                pad_mask = (tokens == pad_id)
+                nonpad_lengths = (S - pad_mask.sum(dim=0)).tolist()
+                pad_tokens = int(pad_mask.sum().item())
+
+            pad_ratio = pad_tokens / S
+
+            print(
+                f"[Rank {curr_rank}][DATA_DEBUG] "
+                f"Original Seq len={len(tokens)} | Truncated S={S} | trainable_tokens={trainable} ({trainable/S:.2%}) "
+                f"| nonpad_len={nonpad_lengths} | pad_ratio={pad_ratio:.2%}"
+            )
+
         if self.config.create_attention_mask:
             return {
                 "tokens": tokens,
@@ -254,6 +294,8 @@ class GPTDataset(MegatronDataset):
         # Get the beginning and end documents and offsets
         doc_index_beg, doc_index_beg_offset = self.sample_index[idx]
         doc_index_end, doc_index_end_offset = self.sample_index[idx + 1]
+
+        # print (f"total: {len(self.shuffle_index)}, idx: {idx}, doc_index_beg: {doc_index_beg}, doc_index_beg_offset: {doc_index_beg_offset}, doc_index_end: {doc_index_end}, doc_index_end_offset: {doc_index_end_offset}")
 
         document_ids = []
         sample_parts = []
@@ -370,6 +412,12 @@ class GPTDataset(MegatronDataset):
             sequence_length = self.config.sequence_length
             num_tokens_per_epoch = self._get_num_tokens_per_epoch()
             num_epochs = self._get_num_epochs(num_tokens_per_epoch)
+
+            log_single_rank(
+                logger,
+                logging.INFO,
+                f"sequence_length: {sequence_length}, num_tokens_per_epoch: {num_tokens_per_epoch}, num_epochs: {num_epochs}"
+                )
 
             if num_epochs == 1:
                 separate_final_epoch = False
@@ -575,6 +623,7 @@ def _build_document_index(
         numpy.ndarray: The document index
     """
 
+    print (f"> num_epochs: {num_epochs}, num documents: {len(documents)}")
     if not separate_final_epoch or num_epochs == 1:
         document_index = numpy.mgrid[0:num_epochs, 0 : len(documents)][1]
         document_index[:] = documents
