@@ -12,7 +12,7 @@ from megatron.core.datasets.utils import Split
 from megatron.core import parallel_state
 
 IGNORE_INDEX = -100
-DEBUG = False
+DEBUG = True
 
 
 class SFTLowLevelDataset:
