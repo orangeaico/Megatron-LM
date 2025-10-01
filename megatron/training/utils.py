@@ -494,22 +494,104 @@ def get_blend_and_blend_per_split(args):
 def get_batch_on_this_tp_rank(data_iterator):
 
     args = get_args()
-    device = torch.device('cuda', torch.cuda.current_device())
+
+    tp_rank = mpu.get_tensor_model_parallel_rank()
+    tp_group = mpu.get_tensor_model_parallel_group()
+    tp_src_rank = mpu.get_tensor_model_parallel_src_rank()
+
+    use_variable_seq = getattr(args, 'variable_seq_lengths', False)
 
     def _broadcast(item):
         if item is not None:
             torch.distributed.broadcast(
                 item,
-                mpu.get_tensor_model_parallel_src_rank(),
-                group=mpu.get_tensor_model_parallel_group(),
+                tp_src_rank,
+                group=tp_group,
             )
 
-    is_tp0 = mpu.get_tensor_model_parallel_rank() == 0
+    is_tp0 = tp_rank == 0
 
-    if args.distillation_loss:
-        teacher_header = torch.empty(2, dtype=torch.int64, device=device)
-        
+    teacher_header = (
+        torch.empty(2, dtype=torch.int64, device=torch.cuda.current_device())
+        if args.distillation_loss
+        else None
+    )
     teacher_tensors = None
+
+    metadata = None
+
+    dtype_encoding = {
+        torch.float32: 0,
+        torch.float16: 1,
+        torch.bfloat16: 2,
+        torch.float64: 3,
+        torch.int64: 4,
+        torch.int32: 5,
+        torch.int16: 6,
+        torch.int8: 7,
+        torch.uint8: 8,
+        torch.bool: 9,
+    }
+    dtype_decoding = {v: k for k, v in dtype_encoding.items()}
+
+    def _encode_dtype(dtype: torch.dtype) -> int:
+        if dtype not in dtype_encoding:
+            raise RuntimeError(
+                f"Unsupported dtype {dtype} encountered while sharing batch metadata across tensor parallel ranks."
+            )
+        return dtype_encoding[dtype]
+
+    def _decode_dtype(idx: int) -> torch.dtype:
+        if idx not in dtype_decoding:
+            raise RuntimeError(
+                f"Received unknown dtype id {idx} while reconstructing batch tensors on tensor parallel ranks."
+            )
+        return dtype_decoding[idx]
+
+    def _exchange_batch_metadata(batch):
+        metadata = {}
+        keys = ('tokens', 'labels', 'loss_mask', 'position_ids', 'attention_mask')
+        for key in keys:
+            if is_tp0:
+                tensor = batch[key]
+                if tensor is None:
+                    meta_tensor = torch.tensor([-1, -1], dtype=torch.int64, device=torch.cuda.current_device())
+                else:
+                    meta_tensor = torch.tensor(
+                        [tensor.dim(), _encode_dtype(tensor.dtype)],
+                        dtype=torch.int64,
+                        device=torch.cuda.current_device(),
+                    )
+            else:
+                meta_tensor = torch.empty(2, dtype=torch.int64, device=torch.cuda.current_device())
+
+            torch.distributed.broadcast(meta_tensor, tp_src_rank, group=tp_group)
+
+            ndims = int(meta_tensor[0].item())
+            dtype_idx = int(meta_tensor[1].item())
+
+            if ndims < 0:
+                metadata[key] = (None, None)
+                continue
+
+            if ndims > 0:
+                if is_tp0:
+                    shape_tensor = torch.tensor(
+                        batch[key].shape,
+                        dtype=torch.int64,
+                        device=torch.cuda.current_device(),
+                    )
+                else:
+                    shape_tensor = torch.empty(ndims, dtype=torch.int64, device=torch.cuda.current_device())
+
+                torch.distributed.broadcast(shape_tensor, tp_src_rank, group=tp_group)
+                shape = tuple(int(dim) for dim in shape_tensor.tolist())
+            else:
+                shape = ()
+
+            metadata[key] = (shape, _decode_dtype(dtype_idx))
+
+        return metadata
 
     if is_tp0:
 
@@ -530,7 +612,6 @@ def get_batch_on_this_tp_rank(data_iterator):
             'position_ids': data["position_ids"].cuda(non_blocking=True),
         }
         if args.distillation_loss:
-            # Get teacher data.
             teacher_raw = data.get("teacher_data") if data is not None else None
             if teacher_raw is None and args.generate_fake_teacher_data:
                 batch_size, seq_length = batch['tokens'].shape
@@ -542,15 +623,18 @@ def get_batch_on_this_tp_rank(data_iterator):
                     seq_length,
                     args.vocab_size,
                     10,
-                    device,
+                    torch.cuda.current_device(),
                 )
-            packed, shape = pack_teacher_batch(teacher_raw, args.seq_length, device)
+            packed, shape = pack_teacher_batch(teacher_raw, args.seq_length, torch.cuda.current_device())
             if shape[0] < 0 or shape[1] < 0:
                 teacher_header.fill_(-1)
             else:
                 teacher_header[0] = shape[0]
                 teacher_header[1] = shape[1]
             teacher_tensors = packed
+
+        if use_variable_seq:
+            metadata = _exchange_batch_metadata(batch)
 
         if args.pipeline_model_parallel_size == 1:
             _broadcast(batch['tokens'])
@@ -577,33 +661,60 @@ def get_batch_on_this_tp_rank(data_iterator):
 
     else:
 
-        tokens = torch.empty(
-            (args.micro_batch_size, args.seq_length),
-            dtype=torch.int64,
-            device=torch.cuda.current_device(),
-        )
-        labels = torch.empty(
-            (args.micro_batch_size, args.seq_length),
-            dtype=torch.int64,
-            device=torch.cuda.current_device(),
-        )
-        loss_mask = torch.empty(
-            (args.micro_batch_size, args.seq_length),
-            dtype=torch.float32,
-            device=torch.cuda.current_device(),
-        )
-        if args.create_attention_mask_in_dataloader:
-            attention_mask = torch.empty(
-                (args.micro_batch_size, 1, args.seq_length, args.seq_length),
-                dtype=torch.bool,
-                device=torch.cuda.current_device(),
-            )
+        if use_variable_seq:
+            metadata = _exchange_batch_metadata(None)
         else:
-            attention_mask = None
-        position_ids = torch.empty(
-            (args.micro_batch_size, args.seq_length),
-            dtype=torch.int64,
-            device=torch.cuda.current_device(),
+            metadata = {
+                'tokens': ((args.micro_batch_size, args.seq_length), torch.int64),
+                'labels': ((args.micro_batch_size, args.seq_length), torch.int64),
+                'loss_mask': ((args.micro_batch_size, args.seq_length), torch.float32),
+                'attention_mask': (
+                    ((args.micro_batch_size, 1, args.seq_length, args.seq_length), torch.bool)
+                    if args.create_attention_mask_in_dataloader
+                    else (None, None)
+                ),
+                'position_ids': ((args.micro_batch_size, args.seq_length), torch.int64),
+            }
+
+        tokens_shape, tokens_dtype = metadata['tokens']
+        tokens = (
+            None
+            if tokens_shape is None
+            else torch.empty(tokens_shape, dtype=tokens_dtype, device=torch.cuda.current_device())
+        )
+
+        labels_shape, labels_dtype = metadata['labels']
+        labels = (
+            None
+            if labels_shape is None
+            else torch.empty(labels_shape, dtype=labels_dtype, device=torch.cuda.current_device())
+        )
+
+        loss_mask_shape, loss_mask_dtype = metadata['loss_mask']
+        loss_mask = (
+            None
+            if loss_mask_shape is None
+            else torch.empty(
+                loss_mask_shape, dtype=loss_mask_dtype, device=torch.cuda.current_device()
+            )
+        )
+
+        attention_shape, attention_dtype = metadata['attention_mask']
+        attention_mask = (
+            None
+            if attention_shape is None
+            else torch.empty(
+                attention_shape, dtype=attention_dtype, device=torch.cuda.current_device()
+            )
+        )
+
+        position_shape, position_dtype = metadata['position_ids']
+        position_ids = (
+            None
+            if position_shape is None
+            else torch.empty(
+                position_shape, dtype=position_dtype, device=torch.cuda.current_device()
+            )
         )
 
         if args.pipeline_model_parallel_size == 1:
@@ -644,6 +755,7 @@ def get_batch_on_this_tp_rank(data_iterator):
             'position_ids': position_ids,
         }
 
+
     if args.distillation_loss:
 
         _broadcast(teacher_header)
@@ -656,7 +768,7 @@ def get_batch_on_this_tp_rank(data_iterator):
                     args.micro_batch_size,
                     max_positions,
                     max_k,
-                    device,
+                    torch.cuda.current_device(),
                 )
             _broadcast(teacher_tensors['positions'])
             _broadcast(teacher_tensors['counts'])

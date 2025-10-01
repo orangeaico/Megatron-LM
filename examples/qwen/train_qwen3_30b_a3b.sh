@@ -104,6 +104,7 @@ MOE_ARGS=(
     --moe-router-topk 8  # num_experts_per_tok
     --moe-grouped-gemm
     --moe-aux-loss-coeff 0  # router_aux_loss_coef from config
+    # required even if the model is not moe as there is a assertion check for variable seq length
     --moe-token-dispatcher-type alltoall # flex for --moe-enable-deepep
     --moe-permute-fusion
     --moe-router-dtype fp32
@@ -217,6 +218,7 @@ else
         "--num-workers 1"
         # "--vocab-size 151936"
         "--sft"
+        # "--variable-seq-lengths"
         # "--reset-position-ids"
         # "--reset-attention-mask"
         # "--eod-mask-loss"

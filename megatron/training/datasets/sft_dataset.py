@@ -1,7 +1,7 @@
 # Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 
 from typing import Any, Dict, Optional
-
+from math import gcd
 import numpy as np
 import torch
 
@@ -9,8 +9,10 @@ from megatron.core.datasets.gpt_dataset import GPTDatasetConfig
 from megatron.core.datasets.megatron_dataset import LowLevelDataset, MegatronDataset
 from megatron.core.datasets.utils import Split
 
+from megatron.core import parallel_state
+
 IGNORE_INDEX = -100
-DEBUG = True
+DEBUG = False
 
 
 class SFTLowLevelDataset:
@@ -124,7 +126,6 @@ class SFTDataset(MegatronDataset):
         # tokens, target = tokenizer.tokenize_conversation(
         #     conversation_list, return_target=True, add_generation_prompt=False
         # )
-
         tokens, target = self._process_example(tokenizer, conversation_list)
 
         original_seq_len = len(tokens)
@@ -138,14 +139,61 @@ class SFTDataset(MegatronDataset):
                 tokens = tokens[-(max_seq_len - 1) :]
                 target = target[-(max_seq_len - 1) :]
 
-        # padding
-        num_tokens = len(tokens) + 1
-        padding_len = max_seq_len - num_tokens
-        assert padding_len >= 0
-        filler = [tokenizer.pad] * (padding_len + 1)
+        use_variable_seq_len = getattr(self.config, "variable_seq_lengths", False)
 
-        tokens = np.array(tokens + [tokenizer.eod] + filler, dtype=np.int64)
-        target = np.array(target + [tokenizer.eod] + filler, dtype=np.int64)
+        if use_variable_seq_len:
+            def _lcm(a: int, b: int) -> int:
+                if a == 0 or b == 0:
+                    return max(a, b)
+                return abs(a * b) // gcd(a, b)
+
+            base_seq_len = len(tokens) + 1  # account for EOS added before shifting
+            required_multiple = 1
+
+            cp_size = parallel_state.get_context_parallel_world_size()
+            if cp_size > 1:
+                required_multiple = _lcm(required_multiple, 2 * cp_size)
+
+            tp_size = 1
+            if torch.distributed.is_available() and torch.distributed.is_initialized():
+                try:
+                    tp_size = parallel_state.get_tensor_model_parallel_world_size()
+                except AssertionError:
+                    tp_size = 1
+            if tp_size > 1:
+                required_multiple = _lcm(required_multiple, tp_size)
+
+            padding_len = 0
+            if required_multiple > 1:
+                remainder = base_seq_len % required_multiple
+                if remainder != 0:
+                    padding_len = required_multiple - remainder
+
+            final_seq_len = base_seq_len + padding_len
+            if final_seq_len > max_seq_len:
+                # Trim tokens until both constraints fit within max_seq_len.
+                while final_seq_len > max_seq_len and tokens:
+                    tokens.pop()
+                    target.pop()
+                    base_seq_len = len(tokens) + 1
+                    padding_len = 0
+                    if required_multiple > 1:
+                        remainder = base_seq_len % required_multiple
+                        if remainder != 0:
+                            padding_len = required_multiple - remainder
+                    final_seq_len = base_seq_len + padding_len
+                if final_seq_len > max_seq_len:
+                    raise ValueError(
+                        "Unable to satisfy tensor/context parallel padding within max_seq_len"
+                    )
+        else:
+            num_tokens = len(tokens) + 1
+            padding_len = max_seq_len - num_tokens
+            if padding_len < 0:
+                raise ValueError("Sample longer than configured sequence length after truncation")
+
+        tokens = np.array(tokens + [tokenizer.eod] + [tokenizer.pad] * (padding_len + 1), dtype=np.int64)
+        target = np.array(target + [tokenizer.eod] + [IGNORE_INDEX] * (padding_len + 1), dtype=np.int64)
 
         tokens = torch.tensor(tokens)
         target = torch.tensor(target)
@@ -154,7 +202,7 @@ class SFTDataset(MegatronDataset):
         target = target[1:].contiguous()
 
         loss_mask, position_ids, attention_mask = self._get_ltor_masks_and_position_ids(
-            max_seq_len, target, tokenizer.pad
+            max_seq_len, target, tokenizer.pad, use_variable_seq_len
         )
 
         if DEBUG:
@@ -182,6 +230,7 @@ class SFTDataset(MegatronDataset):
 
             print(
                 f"[Rank {curr_rank}][DATA_DEBUG] "
+                f"Index {idx} | Sample Len={S} | Nonpad Lengths={nonpad_lengths} | "
                 f"Original Seq len={original_seq_len} | Truncated S={S} | trainable_tokens={trainable} ({trainable/S:.2%}) "
                 f"| nonpad_len={nonpad_lengths} | pad_ratio={pad_ratio:.2%}"
             )
@@ -204,22 +253,26 @@ class SFTDataset(MegatronDataset):
 
         return ret
 
-    def _get_ltor_masks_and_position_ids(self, max_seq_len, target, pad_token):
+    def _get_ltor_masks_and_position_ids(self, max_seq_len, target, pad_token, use_variable_seq_len):
         """Build masks and position id for left to right model for SFT"""
 
         assert not self.config.reset_position_ids and not self.config.reset_attention_mask
 
+        if use_variable_seq_len:
+            seq_length = target.size(0)
+        else:
+            seq_length = max_seq_len
         # Position ids.
-        position_ids = torch.arange(max_seq_len, dtype=torch.long)
+        position_ids = torch.arange(seq_length, dtype=torch.long)
 
         # Loss mask.
-        loss_mask = torch.ones(max_seq_len, dtype=torch.float)
+        loss_mask = torch.ones(seq_length, dtype=torch.float)
         loss_mask[target == pad_token] = 0.0  # mask paddings
         loss_mask[target == IGNORE_INDEX] = 0.0  # mask prompts
 
         if self.config.create_attention_mask:
             attention_mask = torch.tril(
-                torch.ones((seq_length, seq_length), device=data.device)
+                torch.ones((seq_length, seq_length), device=target.device)
             ).unsqueeze(0)
             # Convert attention mask to binary:
             attention_mask = attention_mask < 0.5

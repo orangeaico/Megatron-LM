@@ -41,6 +41,9 @@ class GPTDatasetConfig(BlendedMegatronDatasetConfig):
        generates masks by itself.
     """
 
+    variable_seq_lengths: bool = False
+    """When True, downstream datasets may emit packed samples shorter than sequence_length."""
+
     drop_last_partial_validation_sequence: bool = True
     """Option to drop the last partial validation sequence"""
 
