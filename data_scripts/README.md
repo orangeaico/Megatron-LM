@@ -4,7 +4,7 @@ python data_scripts/split_text_to_jsonl.py --input_file <input_text_file> --sepa
 
 2) Split the jsonl file into train and val subsets. The eval_ratio (between 0 to 100) with default value 5 specifies what percentage of data to be assigned to validation set. This will create 2 files in the same path with suffix _train and _val. 
 
-python data_scripts/split_train_val.py --input_file <input_jsonl_file> --eval-ratio <eval_ratio>
+python data_scripts/split_train_val.py <input_jsonl_file> --eval-ratio <eval_ratio>
 
 3) Use the Megatron-LM tools/preprocess_data.py script inside the Megatron container to convert the json files to .bin/.idx format. Specify the output path in the output-prefix argument. Run it separately for both train and val jsonl files.
 
