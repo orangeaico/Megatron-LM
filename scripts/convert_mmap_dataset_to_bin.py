@@ -4,7 +4,7 @@ import torch
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # --- CONFIG ---
-SRC_DIR = "../data/data/cpt/memmap_xarray_8192_overlap5_original"
+SRC_DIR = "/home/shared/qwen3-data-prep/extracted_data/"
 OUT_DIR = os.path.join(SRC_DIR, "megatron_indexed")  # output dir
 DEFAULT_SEQ_LEN = 8192
 # --------------
@@ -20,8 +20,9 @@ mjson = path(src_dir, "metadata.json")
 if os.path.exists(mjson):
     with open(mjson) as f: meta = json.load(f)
 dtype = np.dtype(meta.get("dtype", "int32"))
-seq_len = int(meta.get("seq_len", meta.get("sequence_length", DEFAULT_SEQ_LEN)))
-shape = tuple(meta.get("shape", []))
+seq_len = int(meta.get("seq_len", meta.get("block_size", DEFAULT_SEQ_LEN)))
+total_blocks = meta.get("total_blocks", None)
+shape = (total_blocks, seq_len) if total_blocks else tuple(meta.get("shape", []))
 
 mmap_path = path(src_dir, "corpus.mmap")
 if not os.path.exists(mmap_path):

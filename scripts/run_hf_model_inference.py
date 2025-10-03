@@ -8,6 +8,7 @@ import argparse
 import os
 import json
 from transformers import AutoModelForCausalLM, AutoTokenizer
+import time
 
 
 def load_model(model_path, rope_scaling_type=None, rope_scaling_factor=None, original_max_position_embeddings=None):
@@ -90,7 +91,9 @@ def generate_text(model, tokenizer, prompt, max_new_tokens=100, temperature=1.0,
         if top_k is not None:
             generation_kwargs["top_k"] = top_k
         
+        st = time.time()
         outputs = model.generate(**generation_kwargs)
+        print (f"Generation time: {time.time() - st} seconds")
         print ("Generation config:", model.generation_config)
     
     # Decode output
@@ -195,6 +198,7 @@ def run_chat_mode(args):
     conversations = chat_data.get('conversations', [])
     
     # Apply chat template
+    # prompt = tokenizer.apply_chat_template(conversations, tokenize=False, add_generation_prompt=True, enable_thinking=False)
     prompt = tokenizer.apply_chat_template(conversations, tokenize=False, add_generation_prompt=True)
 
     with open('scripts/prompt.txt', 'w') as f:
