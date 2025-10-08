@@ -35,7 +35,7 @@ cat > "$CONFIG_PATH" <<'EOF'
 type = drive
 scope = drive
 client_id = 983615320622-9vfjc78upb9igrcf54i6dvb4cvecfpm3.apps.googleusercontent.com
-client_secret = 
+client_secret = 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
 token = {}
 EOF
 
