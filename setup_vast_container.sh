@@ -14,14 +14,14 @@ fi
 
 cd Megatron-LM/
 git checkout moe_experiments
-# SETUP_FA3=1 bash /workspace/Megatron-LM/setup_megatron_container.sh
+SETUP_FA3=1 bash /workspace/Megatron-LM/setup_megatron_container.sh
 mkdir -p /workspace/data/
 
 echo "Megatron-LM setup complete without data setup!"
 
 if [ "$SETUP_DATA" -eq 1 ]; then
 echo "Installing rclone.."
-apt-get update -y
+# apt-get update -y
 apt-get install -y rclone
 
 REMOTE_NAME="gdrive"
