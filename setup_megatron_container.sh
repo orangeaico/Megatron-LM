@@ -97,6 +97,7 @@ unset PIP_CONSTRAINT
 pip install --upgrade --no-cache-dir   "dill<0.3.9,>=0.3.0"   "datasets>=2.20.0"   "fsspec>=2024.6.1"   "huggingface_hub>=0.24.0"   "pyarrow>=12"
 pip install jsonlines
 pip install simpy
+pip install --no-deps accelerate
 
 if [ -n "${SETUP_FA3-}" ]; then
   # Install flash_attn_3
