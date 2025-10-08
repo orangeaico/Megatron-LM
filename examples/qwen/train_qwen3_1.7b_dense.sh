@@ -10,8 +10,12 @@
 # Environment variables for performance tuning
 export CUDA_DEVICE_MAX_CONNECTIONS=${CUDA_DEVICE_MAX_CONNECTIONS:-1}
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
-export NVTE_ALLOW_NONDETERMINISTIC_ALGO=0
+export NVTE_ALLOW_NONDETERMINISTIC_ALGO=1
 export NCCL_NVLS_ENABLE=0
+
+# Set these to 1 to enable torch profiling and nvidia nsys profiling
+ENABLE_PROFILING=0
+ENABLE_NSYS_PROFILING=0
 
 # CRITICAL - DOUBLE CHECK THIS VALUE
 TRAINING_MODE="cpt" # set from mock, cpt, sft or distillation
@@ -281,23 +285,29 @@ EVAL_AND_LOGGING_ARGS=(
     # --full-validation
     --log-interval 1
     --log-throughput
-    --profile
-    --profile-step-start 2
-    --profile-step-end 3
-    --profile-ranks 0
-    --use-pytorch-profiler
-    --tensorboard-dir "$TENSORBOARD_LOGS_PATH"
-    --log-timers-to-tensorboard
     --log-num-zeros-in-grad
     --log-params-norm
-    --log-validation-ppl-to-tensorboard
-    --log-memory-to-tensorboard
-    --record-memory-history
-    # --memory-snapshot-path "$MEMORY_SNAPSHOT_PATH"
-    # --dump-model-params-to-pickle
-    # --timing-log-level 2
-    # --logging-level 10
 )
+
+if [[ "$ENABLE_PROFILING" == 1 ]]; then
+    EVAL_AND_LOGGING_ARGS+=(
+        --profile
+        --profile-step-start 2
+        --profile-step-end 3
+        --profile-ranks 0
+        --use-pytorch-profiler
+        --log-timers-to-tensorboard
+        --log-validation-ppl-to-tensorboard
+        --log-memory-to-tensorboard
+        --record-memory-history
+        --memory-snapshot-path "$MEMORY_SNAPSHOT_PATH"
+        --timing-log-level 2
+        --logging-level 10
+        --timing-log-option all
+        --tensorboard-dir "$TENSORBOARD_LOGS_PATH"
+        # --dump-model-params-to-pickle
+    )
+fi
 
 if [ -n "${WANDB_API_KEY}" ]; then
     LOGGING_ARGS+=(
@@ -306,7 +316,11 @@ if [ -n "${WANDB_API_KEY}" ]; then
     )
 fi
 
-
+if [[ "$ENABLE_NSYS_PROFILING" == 1 ]]; then
+    NSYS_PROFILE_COMMAND="nsys profile -o $LOG_DIR_PATH/nsys_run -t cuda,nvtx,osrt --sample=none --cpuctxsw=none"
+else
+    NSYS_PROFILE_COMMAND=""
+fi
 
 # Ensure pretrain_gpt.py is found
 if [ ! -f "$PRETRAIN_SCRIPT_PATH" ]; then
@@ -316,7 +330,7 @@ if [ ! -f "$PRETRAIN_SCRIPT_PATH" ]; then
 fi
 
 # Run the training command
-torchrun ${DISTRIBUTED_ARGS[@]} \
+$NSYS_PROFILE_COMMAND torchrun ${DISTRIBUTED_ARGS[@]} \
     "$PRETRAIN_SCRIPT_PATH" \
     ${MODEL_ARGS[@]} \
     ${TRAINING_ARGS[@]} \
