@@ -217,6 +217,7 @@ class JsonTeacherDataset(MegatronDataset):
             self.label_pad_id,
             dtype=torch.long,
         )
+        labels = torch.cat([labels[1:], torch.tensor([self.eod_token_id])])
 
         if "loss_mask" in record:
             loss_mask = _pad_or_trim_tensor(
