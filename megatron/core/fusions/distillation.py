@@ -39,7 +39,10 @@ Example:
     ... )
 """
 
+from dataclasses import dataclass
 from typing import Optional, Tuple, List, Dict, Any
+from contextlib import contextmanager
+import time
 import torch
 import torch.nn.functional as F
 
@@ -55,9 +58,68 @@ from megatron.core.fusions.cce_loss import cce_per_token_loss
 
 # Constants
 DEFAULT_TEMPERATURE = 1.0
-DEFAULT_CHUNK_SIZE = 1024
+DEFAULT_CHUNK_SIZE = 8192
 DEFAULT_IGNORE_INDEX = -100
 DEFAULT_NUM_TEACHER_TOKENS = 50
+
+
+def _get_rank_for_logging() -> int:
+    """Best-effort retrieval of the distributed rank for gated logging."""
+    if not torch.distributed.is_available():
+        return 0
+    if not torch.distributed.is_initialized():
+        return 0
+    return torch.distributed.get_rank()
+
+
+def _debug_print(message: str, enabled: bool) -> None:
+    """Print from rank0 only when debug logging is enabled."""
+    if not enabled or not message:
+        return
+    if _get_rank_for_logging() == 0:
+        print(message)
+
+
+@contextmanager
+def _timed_section(name: str, enabled: bool, sync_cuda: bool = False):
+    """Context manager that prints elapsed time when debug mode is active."""
+    if not enabled:
+        yield
+        return
+
+    use_cuda = torch.cuda.is_available()
+    if use_cuda:
+        stream = torch.cuda.current_stream()
+        start_event = torch.cuda.Event(enable_timing=True)
+        end_event = torch.cuda.Event(enable_timing=True)
+        if sync_cuda:
+            torch.cuda.synchronize()
+        start_event.record(stream)
+        try:
+            yield
+        finally:
+            end_event.record(stream)
+            end_event.synchronize()
+            elapsed_ms = start_event.elapsed_time(end_event)
+            if sync_cuda:
+                torch.cuda.synchronize()
+            _debug_print(f"[distill-timer] {name}: {elapsed_ms:.3f} ms", enabled)
+    else:
+        start = time.perf_counter()
+        try:
+            yield
+        finally:
+            elapsed_ms = (time.perf_counter() - start) * 1000.0
+            _debug_print(f"[distill-timer] {name}: {elapsed_ms:.3f} ms", enabled)
+
+
+@dataclass(frozen=True)
+class TeacherBatchTensors:
+    """Preprocessed teacher payload for fast lookups."""
+    positions: torch.Tensor           # [N] global token positions (sorted)
+    row_ptr: torch.Tensor             # [N + 1] prefix sums into flattened indices/values
+    indices: torch.Tensor             # [nnz] teacher vocab indices (global or local depending on caller)
+    values: torch.Tensor              # [nnz] teacher logits
 
 
 def distillation_loss(
@@ -92,7 +154,8 @@ def distillation_loss(
         shift: Whether to shift labels for next-token prediction (default: True)
         ignore_index: Index to ignore in loss computation (default: -100)
         teacher_data: List of teacher data dictionaries, one per batch element.
-                     Each dict contains 'positions', 'indices', 'values' keys.
+                     Each dict contains 'positions', 'indices', 'values' keys and may
+                     optionally include a precomputed 'row_ptr' tensor for fast lookup.
         temperature: Temperature parameter for softmax (default: 1.0)
         chunk_size: Sequence chunk size for memory-efficient processing (default: 1024)
         debug: Enable debug output (default: False)
@@ -104,18 +167,29 @@ def distillation_loss(
         ValueError: If teacher_data is None and cannot be generated
     """
     # Compute standard cross-entropy loss with log-sum-exp values
-    cross_entropy_loss, log_sum_exp_values = cce_per_token_loss(
-        embeddings=embeddings,
-        classifier_weight=classifier_weight,
-        labels=labels,
-        vocab_size=vocab_size,
-        impl=impl,
-        reduction=reduction,
-        shift=int(shift),
-        ignore_index=ignore_index,
-        return_lse=True,
-        temperature=temperature,
-    )
+    # start_event = torch.cuda.Event(enable_timing=True)
+    # end_event = torch.cuda.Event(enable_timing=True)
+    # start_event.record()
+    with _timed_section("cce_per_token_loss", debug, sync_cuda=True):
+        cross_entropy_loss, log_sum_exp_values = cce_per_token_loss(
+            embeddings=embeddings,
+            classifier_weight=classifier_weight,
+            labels=labels,
+            vocab_size=vocab_size,
+            impl=impl,
+            reduction=reduction,
+            shift=int(shift),
+            ignore_index=ignore_index,
+            return_lse=True,
+            temperature=temperature,
+        )
+    # torch.cuda.synchronize()
+    # end_event.record()
+
+    # torch.cuda.synchronize()
+    # elapsed_time = start_event.elapsed_time(end_event)
+    # curr_rank = torch.distributed.get_rank()
+    # print(f"Rank {curr_rank} Inner CCE operation took {elapsed_time:.4f} ms")
     # Transpose embeddings to batch-first format: [B, S, H]
     batch_first_embeddings = embeddings.transpose(0, 1).contiguous()
     
@@ -141,22 +215,28 @@ def distillation_loss(
     
     # Process each batch element separately
     for batch_idx in range(batch_size):
-        _process_batch_element_kl_loss(
-            batch_idx=batch_idx,
-            batch_embeddings=batch_first_embeddings[batch_idx],
-            batch_labels=labels[batch_idx],
-            batch_log_sum_exp=log_sum_exp_values[batch_idx].view(-1),
-            batch_teacher_data=teacher_data[batch_idx],
-            classifier_weight=classifier_weight,
-            kl_loss_tensor=kl_loss_tensor,
-            vocab_start_idx=vocab_start_idx,
-            vocab_end_idx=vocab_end_idx,
-            is_tensor_parallel=is_tensor_parallel,
-            temperature=temperature,
-            chunk_size=chunk_size,
-            debug=debug,
-            ignore_index=ignore_index,
-        )
+        with _timed_section(f"prepare_teacher_batch[{batch_idx}]", debug):
+            teacher_batch = _prepare_teacher_batch_tensors(
+                teacher_entry=teacher_data[batch_idx],
+                device=device,
+            )
+        with _timed_section(f"process_batch[{batch_idx}]", debug, sync_cuda=True):
+            _process_batch_element_kl_loss(
+                batch_idx=batch_idx,
+                batch_embeddings=batch_first_embeddings[batch_idx],
+                batch_labels=labels[batch_idx],
+                batch_log_sum_exp=log_sum_exp_values[batch_idx].view(-1),
+                batch_teacher_data=teacher_batch,
+                classifier_weight=classifier_weight,
+                kl_loss_tensor=kl_loss_tensor,
+                vocab_start_idx=vocab_start_idx,
+                vocab_end_idx=vocab_end_idx,
+                is_tensor_parallel=is_tensor_parallel,
+                temperature=temperature,
+                chunk_size=chunk_size,
+                debug=debug,
+                ignore_index=ignore_index,
+            )
     
     # Reduce KL losses across tensor parallel ranks
     if is_tensor_parallel:
@@ -168,12 +248,59 @@ def distillation_loss(
     return kl_loss_tensor
 
 
+def _prepare_teacher_batch_tensors(
+    *,
+    teacher_entry: Dict[str, Any],
+    device: torch.device,
+) -> TeacherBatchTensors:
+    """Convert teacher payload into ragged tensors on the target device."""
+    empty_tensor_long = torch.empty(0, dtype=torch.long, device=device)
+    empty_tensor_float = torch.empty(0, dtype=torch.float32, device=device)
+
+    if teacher_entry is None:
+        return TeacherBatchTensors(
+            positions=empty_tensor_long,
+            row_ptr=torch.zeros(1, dtype=torch.long, device=device),
+            indices=empty_tensor_long,
+            values=empty_tensor_float,
+        )
+
+    positions = teacher_entry.get('positions', [])
+    indices_list = teacher_entry.get('indices', [])
+    values_list = teacher_entry.get('values', [])
+    row_ptr_tensor = teacher_entry.get('row_ptr')
+
+    if row_ptr_tensor is not None:
+        pos_tensor = positions.flatten()
+        if pos_tensor.numel() == 0:
+            return TeacherBatchTensors(
+                positions=empty_tensor_long,
+                row_ptr=torch.zeros(1, dtype=torch.long, device=device),
+                indices=empty_tensor_long,
+                values=empty_tensor_float,
+            )
+        return TeacherBatchTensors(
+            positions=pos_tensor,
+            row_ptr=row_ptr_tensor,
+            indices=indices_list,
+            values=values_list,
+        )
+
+    if not positions or not indices_list or not values_list:
+        return TeacherBatchTensors(
+            positions=empty_tensor_long,
+            row_ptr=torch.zeros(1, dtype=torch.long, device=device),
+            indices=empty_tensor_long,
+            values=empty_tensor_float,
+        )
+
+
 def _process_batch_element_kl_loss(
     batch_idx: int,
     batch_embeddings: torch.Tensor,
     batch_labels: torch.Tensor,
     batch_log_sum_exp: torch.Tensor,
-    batch_teacher_data: Dict[str, Any],
+    batch_teacher_data: TeacherBatchTensors,
     classifier_weight: torch.Tensor,
     kl_loss_tensor: torch.Tensor,
     vocab_start_idx: int,
@@ -203,18 +330,33 @@ def _process_batch_element_kl_loss(
         ignore_index: Index to ignore
         debug: Enable debug output
     """
-    # Build teacher data lookup by position
-    teacher_lookup_by_position = _build_teacher_lookup(
-        batch_teacher_data, batch_embeddings.device
-    )
+    # Nothing to do if no teacher payload for this batch.
+    if batch_teacher_data.positions.numel() == 0:
+        return
+
     sequence_length = batch_embeddings.size(0)
     
     # Process sequence in chunks for memory efficiency
+    total_chunks = 0
+    processed_chunks = 0
+    extract_elapsed_ms = 0.0
+    compute_elapsed_ms = 0.0
+
     for chunk_start in range(0, sequence_length, chunk_size):
         chunk_end = min(chunk_start + chunk_size, sequence_length)
+        total_chunks += 1
+
+        cuda_timing_enabled = debug and torch.cuda.is_available()
+        if cuda_timing_enabled:
+            stream = torch.cuda.current_stream()
+            extract_start_event = torch.cuda.Event(enable_timing=True)
+            extract_end_event = torch.cuda.Event(enable_timing=True)
+            extract_start_event.record(stream)
+        elif debug:
+            extract_wall_start = time.perf_counter()
 
         chunk_data = _extract_chunk_teacher_data(
-            teacher_lookup_by_position=teacher_lookup_by_position,
+            teacher_batch=batch_teacher_data,
             batch_labels=batch_labels,
             chunk_start=chunk_start,
             chunk_end=chunk_end,
@@ -225,10 +367,24 @@ def _process_batch_element_kl_loss(
             debug=debug,
             ignore_index=ignore_index
         )
+        if cuda_timing_enabled:
+            extract_end_event.record(stream)
+            extract_end_event.synchronize()
+            extract_elapsed_ms += extract_start_event.elapsed_time(extract_end_event)
+        elif debug:
+            extract_elapsed_ms += (time.perf_counter() - extract_wall_start) * 1000.0
 
-        if not chunk_data['positions']:
+        if chunk_data is None:
             continue
+        processed_chunks += 1
             
+        if cuda_timing_enabled:
+            compute_start_event = torch.cuda.Event(enable_timing=True)
+            compute_end_event = torch.cuda.Event(enable_timing=True)
+            compute_start_event.record(stream)
+        elif debug:
+            compute_wall_start = time.perf_counter()
+
         _compute_chunk_kl_losses(
             batch_idx=batch_idx,
             chunk_data=chunk_data,
@@ -241,45 +397,24 @@ def _process_batch_element_kl_loss(
             temperature=temperature,
             debug=debug,
         )
-        
+        if cuda_timing_enabled:
+            compute_end_event.record(stream)
+            compute_end_event.synchronize()
+            compute_elapsed_ms += compute_start_event.elapsed_time(compute_end_event)
+        elif debug:
+            compute_elapsed_ms += (time.perf_counter() - compute_wall_start) * 1000.0
 
-def _build_teacher_lookup(
-    batch_teacher_data: Dict[str, Any], 
-    device: torch.device
-) -> Dict[int, Tuple[torch.Tensor, torch.Tensor]]:
-    """
-    Build a lookup dictionary mapping positions to teacher data.
-    
-    Args:
-        batch_teacher_data: Teacher data for a batch element
-        device: Target device for tensors
-        
-    Returns:
-        Dictionary mapping position indices to (teacher_indices, teacher_values) tuples
-    """
-    teacher_lookup = {}
-    
-    positions = batch_teacher_data.get('positions', [])
-    indices_list = batch_teacher_data.get('indices', [])
-    values_list = batch_teacher_data.get('values', [])
-    
-    for position, teacher_indices, teacher_values in zip(positions, indices_list, values_list):
-        position_idx = int(position.item() if isinstance(position, torch.Tensor) else position)
-        
-        teacher_indices_tensor = torch.as_tensor(
-            teacher_indices, device=device, dtype=torch.long
-        ).flatten()
-        teacher_values_tensor = torch.as_tensor(
-            teacher_values, device=device
-        ).flatten()
-        
-        teacher_lookup[position_idx] = (teacher_indices_tensor, teacher_values_tensor)
-    
-    return teacher_lookup
+    if debug:
+        _debug_print(
+            "[distill-timer] batch "
+            f"{batch_idx} chunk_loop: total={total_chunks}, processed={processed_chunks}, "
+            f"extract={extract_elapsed_ms:.3f} ms, compute={compute_elapsed_ms:.3f} ms",
+            debug,
+        )
 
 
 def _extract_chunk_teacher_data(
-    teacher_lookup_by_position: Dict[int, Tuple[torch.Tensor, torch.Tensor]],
+    teacher_batch: TeacherBatchTensors,
     batch_labels: torch.Tensor,
     chunk_start: int,
     chunk_end: int,
@@ -289,39 +424,22 @@ def _extract_chunk_teacher_data(
     temperature: float,
     debug: bool,
     ignore_index: int = DEFAULT_IGNORE_INDEX,
-) -> Dict[str, List]:
+) -> Optional[Dict[str, torch.Tensor]]:
     """
-    Extract and filter teacher data for a specific chunk.
-    
-    Args:
-        teacher_lookup_by_position: Teacher data lookup by position
-        batch_labels: Labels for the batch element
-        chunk_start: Start index of chunk
-        chunk_end: End index of chunk
-        vocab_start_idx: Start of vocabulary partition
-        vocab_end_idx: End of vocabulary partition
-        is_tensor_parallel: Whether tensor parallelism is enabled
-        temperature: Temperature parameter
-        ignore_index: Index to ignore
-        
-    Returns:
-        Dictionary containing filtered chunk data
+    Extract teacher tokens intersecting a given chunk using tensor layouts.
     """
-    chunk_data = {
-        'positions': [],
-        'teacher_indices': [],
-        'teacher_values': [],
-        'positions_in_chunk': []
-    }
+    if teacher_batch.positions.numel() == 0:
+        return None
 
+    device = batch_labels.device
+    local_positions = torch.arange(
+        chunk_start, chunk_end, device=device, dtype=torch.long
+    )
+    if local_positions.numel() == 0:
+        return None
+
+    # Map local positions to global indices when context parallelism is active.
     cp_world_size = get_context_parallel_world_size()
-    cp_rank = 0
-    first_span_length = batch_labels.size(0)
-    second_span_length = 0
-    first_span_start = 0
-    second_span_start = 0
-    chunk_valid_positions = 0
-
     if cp_world_size > 1:
         cp_rank = get_context_parallel_rank()
         local_sequence_length = batch_labels.size(0)
@@ -329,71 +447,215 @@ def _extract_chunk_teacher_data(
         second_span_length = local_sequence_length - first_span_length
 
         if first_span_length == 0:
-            # Nothing was sliced for this rank; fall back to global indexing.
-            cp_world_size = 1
+            global_positions = local_positions
         else:
             first_span_start = cp_rank * first_span_length
-            second_span_start = (
-                (2 * cp_world_size - cp_rank - 1) * first_span_length
+            second_span_start = (2 * cp_world_size - cp_rank - 1) * first_span_length
+
+            in_first = local_positions < first_span_length
+            in_second = (~in_first) & (
+                (local_positions - first_span_length) < second_span_length
             )
 
-    for position in range(chunk_start, chunk_end):
+            global_positions = torch.full_like(local_positions, -1)
+            global_positions[in_first] = first_span_start + local_positions[in_first]
 
-        if batch_labels[position] == ignore_index:
-            continue
+            second_offsets = local_positions[in_second] - first_span_length
+            global_positions[in_second] = second_span_start + second_offsets
+    else:
+        global_positions = local_positions
 
-        teacher_entry = None
-        if cp_world_size > 1:
-            if position < first_span_length:
-                global_position = first_span_start + position
-            else:
-                local_offset = position - first_span_length
-                if local_offset < second_span_length:
-                    global_position = second_span_start + local_offset
-                else:
-                    global_position = None
-        else:
-            global_position = position
+    # Filter out ignored labels and positions without global mapping.
+    valid_mask = (batch_labels[local_positions] != ignore_index) & (global_positions >= 0)
+    if not torch.any(valid_mask):
+        return None
+    local_positions = local_positions[valid_mask]
+    global_positions = global_positions[valid_mask]
 
-        teacher_entry = teacher_lookup_by_position.get(global_position) if global_position is not None else None
+    if global_positions.numel() == 0:
+        return None
 
-        if teacher_entry is None:
-            continue
-
-        teacher_indices, teacher_values = teacher_entry
-
-        # Apply temperature and compute log probabilities
-        teacher_log_probs = F.log_softmax(
-            teacher_values / temperature, dim=0, dtype=torch.float32
+    # Locate teacher payload by searching into sorted positions tensor.
+    search_idx = torch.searchsorted(teacher_batch.positions, global_positions)
+    total_teacher_positions = teacher_batch.positions.size(0)
+    valid_search = search_idx < total_teacher_positions
+    matched_positions = torch.empty_like(search_idx, device=device)
+    if torch.any(valid_search):
+        matched_positions[valid_search] = teacher_batch.positions.index_select(
+            0, search_idx[valid_search]
         )
-        
-        # Filter for local vocabulary partition if using tensor parallelism
-        if is_tensor_parallel:
-            vocab_mask = (teacher_indices >= vocab_start_idx) & (teacher_indices < vocab_end_idx)
-            if not vocab_mask.any():
-                continue
-            local_teacher_indices = teacher_indices[vocab_mask] - vocab_start_idx
-            local_teacher_log_probs = teacher_log_probs[vocab_mask]
-        else:
-            local_teacher_indices = teacher_indices
-            local_teacher_log_probs = teacher_log_probs
+    if torch.any(~valid_search):
+        matched_positions[~valid_search] = -1
+    has_match = valid_search & (matched_positions == global_positions)
+    if not torch.any(has_match):
+        return None
 
-        chunk_valid_positions += 1
-        
-        chunk_data['positions'].append(position)
-        chunk_data['teacher_indices'].append(local_teacher_indices)
-        chunk_data['teacher_values'].append(local_teacher_log_probs)
-        chunk_data['positions_in_chunk'].append(position - chunk_start)
-    
+    local_positions = local_positions[has_match]
+    matched_indices = search_idx[has_match]
+
+    starts = teacher_batch.row_ptr[matched_indices]
+    ends = teacher_batch.row_ptr[matched_indices + 1]
+    lengths = ends - starts
+
+    positive_length_mask = lengths > 0
+    if not torch.any(positive_length_mask):
+        return None
+
+    local_positions = local_positions[positive_length_mask]
+    matched_indices = matched_indices[positive_length_mask]
+    starts = starts[positive_length_mask]
+    lengths = lengths[positive_length_mask]
+    global_positions = global_positions[has_match][positive_length_mask]
+
+    num_positions = matched_indices.numel()
+    total_tokens = int(lengths.sum().item())
+    if total_tokens == 0:
+        return None
+
+    position_ids = torch.repeat_interleave(
+        torch.arange(num_positions, device=device, dtype=torch.long),
+        lengths,
+    )
+    lengths_cumsum = lengths.cumsum(0)
+    relative_offsets = torch.arange(total_tokens, device=device, dtype=torch.long)
+    relative_offsets = relative_offsets - torch.repeat_interleave(
+        lengths_cumsum - lengths, lengths
+    )
+    flat_indices = torch.repeat_interleave(starts, lengths) + relative_offsets
+
+    teacher_vocab_indices = teacher_batch.indices[flat_indices]
+    teacher_logits = teacher_batch.values[flat_indices]
+
+    total_tokens = int(teacher_vocab_indices.numel())
+    if total_tokens == 0 or num_positions == 0:
+        return None
+
+    lengths_cumsum = lengths.cumsum(0)
+    relative_offsets = torch.arange(total_tokens, device=device, dtype=torch.long)
+    relative_offsets = relative_offsets - torch.repeat_interleave(
+        lengths_cumsum - lengths, lengths
+    )
+
+    max_length = int(lengths.max().item())
+    teacher_mask = torch.zeros(
+        (num_positions, max_length),
+        dtype=torch.bool,
+        device=device,
+    )
+    teacher_mask[position_ids, relative_offsets] = True
+
+    padded_indices = torch.full(
+        (num_positions, max_length),
+        -1,
+        dtype=torch.long,
+        device=device,
+    )
+    padded_indices[position_ids, relative_offsets] = teacher_vocab_indices
+
+    scaled_teacher_logits = torch.full(
+        (num_positions, max_length),
+        float('-inf'),
+        dtype=teacher_logits.dtype,
+        device=device,
+    )
+    scaled_teacher_logits[position_ids, relative_offsets] = teacher_logits / temperature
+    teacher_log_probs = F.log_softmax(scaled_teacher_logits, dim=-1)
+
+    if is_tensor_parallel:
+        local_vocab_mask = (padded_indices >= vocab_start_idx) & (
+            padded_indices < vocab_end_idx
+        )
+        teacher_mask = teacher_mask & local_vocab_mask
+
+        valid_rows, valid_cols = torch.nonzero(teacher_mask, as_tuple=True)
+        if valid_rows.numel() == 0:
+            return None
+
+        num_positions = local_positions.size(0)
+        lengths = torch.bincount(valid_rows, minlength=num_positions)
+        valid_positions_mask = lengths > 0
+        keep = None
+        if not torch.all(valid_positions_mask):
+            keep = torch.nonzero(valid_positions_mask, as_tuple=False).flatten()
+            if keep.numel() == 0:
+                return None
+            lengths = lengths[keep]
+            # Remap row indices to compact space
+            remap = torch.full(
+                (num_positions,), -1, dtype=torch.long, device=device
+            )
+            remap[keep] = torch.arange(keep.numel(), device=device, dtype=torch.long)
+            valid_rows = remap[valid_rows]
+            num_positions = keep.numel()
+        else:
+            num_positions = lengths.size(0)
+            keep = torch.arange(num_positions, device=device, dtype=torch.long)
+
+        total_local_tokens = int(lengths.sum().item())
+        if total_local_tokens == 0:
+            return None
+
+        max_local_length = int(lengths.max().item())
+        compact_mask = torch.zeros(
+            (num_positions, max_local_length),
+            dtype=torch.bool,
+            device=device,
+        )
+        compact_indices = torch.full(
+            (num_positions, max_local_length),
+            -1,
+            dtype=torch.long,
+            device=device,
+        )
+        compact_log_probs = torch.zeros(
+            (num_positions, max_local_length),
+            dtype=teacher_log_probs.dtype,
+            device=device,
+        )
+
+        lengths_cumsum = lengths.cumsum(0)
+        start_offsets = lengths_cumsum - lengths
+        within_row_idx = torch.arange(
+            total_local_tokens, device=device, dtype=torch.long
+        ) - start_offsets[valid_rows]
+
+        gathered_indices = padded_indices[teacher_mask]
+        gathered_log_probs = teacher_log_probs[teacher_mask]
+
+        compact_mask[valid_rows, within_row_idx] = True
+        compact_indices[valid_rows, within_row_idx] = gathered_indices - vocab_start_idx
+        compact_log_probs[valid_rows, within_row_idx] = gathered_log_probs
+
+        teacher_mask = compact_mask
+        padded_indices = compact_indices
+        teacher_log_probs = compact_log_probs
+
+        local_positions = local_positions[keep]
+        global_positions = global_positions[keep]
+    else:
+        teacher_log_probs = torch.where(
+            teacher_mask, teacher_log_probs, torch.zeros_like(teacher_log_probs)
+        )
+
     if debug:
-        print(f"  Chunk [{chunk_start}:{chunk_end}] valid positions: {chunk_valid_positions}")
-    
-    return chunk_data
+        curr_rank = torch.distributed.get_rank()
+        print(
+            f"Rank {curr_rank} Chunk [{chunk_start}:{chunk_end}] "
+            f"valid positions: {num_positions}"
+        )
+
+    return {
+        'positions': local_positions,
+        'teacher_indices': padded_indices,
+        'teacher_log_probs': teacher_log_probs,
+        'teacher_mask': teacher_mask,
+        'global_positions': global_positions,
+    }
 
 
 def _compute_chunk_kl_losses(
     batch_idx: int,
-    chunk_data: Dict[str, List],
+    chunk_data: Dict[str, torch.Tensor],
     batch_embeddings: torch.Tensor,
     batch_log_sum_exp: torch.Tensor,
     classifier_weight: torch.Tensor,
@@ -418,84 +680,82 @@ def _compute_chunk_kl_losses(
         temperature: Temperature parameter
         debug: Enable debug output
     """
-    device = batch_embeddings.device
-    num_positions = len(chunk_data['positions'])
-    
-    # Convert positions in chunk to tensor
-    positions_in_chunk_tensor = torch.tensor(
-        chunk_data['positions_in_chunk'], device=device, dtype=torch.long
-    )
-    
-    # Pad teacher data to uniform length for vectorized operations
-    max_teacher_tokens = max(len(indices) for indices in chunk_data['teacher_indices'])
-    
-    # Create padded tensors for batch processing
-    padded_teacher_indices = torch.full(
-        (num_positions, max_teacher_tokens), -1, device=device, dtype=torch.long
-    )
-    padded_teacher_values = torch.zeros(
-        (num_positions, max_teacher_tokens), device=device
-    )
-    teacher_mask = torch.zeros(
-        (num_positions, max_teacher_tokens), device=device, dtype=torch.bool
-    )
-    
-    # Fill padded tensors
-    for i, (teacher_indices, teacher_log_probs) in enumerate(
-        zip(chunk_data['teacher_indices'], chunk_data['teacher_values'])
-    ):
-        num_tokens = len(teacher_indices)
-        padded_teacher_indices[i, :num_tokens] = teacher_indices
-        padded_teacher_values[i, :num_tokens] = teacher_log_probs
-        teacher_mask[i, :num_tokens] = True
-    
-    # Get unique teacher indices for efficient computation
+    positions = chunk_data['positions']
+    num_positions = positions.numel()
+    if num_positions == 0:
+        return
+
+    padded_teacher_indices = chunk_data['teacher_indices']
+    teacher_log_probs = chunk_data['teacher_log_probs']
+    teacher_mask = chunk_data['teacher_mask']
+
     valid_teacher_indices = padded_teacher_indices[teacher_mask]
-    if len(valid_teacher_indices) == 0:
+    if valid_teacher_indices.numel() == 0:
         return
     
-    unique_teacher_indices = torch.unique(valid_teacher_indices, sorted=True)
-    
-    # Compute student logits for union of teacher indices
-    union_classifier_weights = classifier_weight.index_select(0, unique_teacher_indices)
+    unique_teacher_indices, inverse = torch.unique(
+        valid_teacher_indices, sorted=True, return_inverse=True
+    )
+    teacher_columns = torch.full_like(padded_teacher_indices, -1)
+    teacher_columns[teacher_mask] = inverse
+
     chunk_embeddings = batch_embeddings[chunk_start:chunk_end]
+    union_classifier_weights = classifier_weight.index_select(0, unique_teacher_indices)
     chunk_logits = chunk_embeddings @ union_classifier_weights.t().contiguous()
-    
-    # Map teacher indices to positions in unique indices
-    teacher_columns = torch.searchsorted(unique_teacher_indices, padded_teacher_indices)
-    
-    # Get student logits for positions with teacher data
+
+    positions_in_chunk_tensor = positions - chunk_start
     position_logits = chunk_logits[positions_in_chunk_tensor]
-    gathered_student_logits = torch.gather(position_logits, 1, teacher_columns)
-    
-    # Apply temperature and compute student log probabilities
-    scaled_student_logits = gathered_student_logits / temperature
-    position_log_sum_exp = batch_log_sum_exp[chunk_data['positions']].unsqueeze(1)
-    student_log_probs = scaled_student_logits - position_log_sum_exp
-    
-    # Compute KL divergence: KL(teacher || student)
-    # KL = sum(p_teacher * (log p_teacher - log p_student))
-    kl_per_token = padded_teacher_values.exp() * (padded_teacher_values - student_log_probs)
-    kl_per_token = kl_per_token * teacher_mask.float()  # Mask invalid positions
+
+    teacher_columns_safe = torch.where(
+        teacher_mask, teacher_columns, torch.zeros_like(teacher_columns)
+    )
+    gathered_student_logits = torch.take_along_dim(
+        position_logits, teacher_columns_safe, dim=1
+    )
+    gathered_student_logits = torch.where(
+        teacher_mask, gathered_student_logits, torch.zeros_like(gathered_student_logits)
+    )
+
+    position_log_sum_exp = batch_log_sum_exp[positions].unsqueeze(1)
+    student_log_probs = torch.where(
+        teacher_mask,
+        gathered_student_logits / temperature - position_log_sum_exp,
+        torch.zeros_like(gathered_student_logits),
+    )
+
+    teacher_probs = torch.where(
+        teacher_mask,
+        torch.exp(teacher_log_probs),
+        torch.zeros_like(teacher_log_probs),
+    )
+
+    kl_per_token = teacher_probs * (teacher_log_probs - student_log_probs)
     kl_per_position = kl_per_token.sum(dim=1)
     
     # Apply temperature scaling
     kl_per_position_scaled = kl_per_position * (temperature ** 2)
     
     # Store results in output tensor
-    kl_loss_tensor[batch_idx, chunk_data['positions']] = kl_per_position_scaled
+    kl_loss_tensor[batch_idx, positions] = kl_per_position_scaled
     
     if debug:
         _print_chunk_debug_info(
-            batch_idx, chunk_data['positions'], padded_teacher_values, 
-            student_log_probs, teacher_mask, position_log_sum_exp, kl_loss_tensor
+            batch_idx,
+            positions,
+            chunk_data.get('global_positions'),
+            teacher_log_probs,
+            student_log_probs,
+            teacher_mask,
+            position_log_sum_exp,
+            kl_loss_tensor,
         )
 
 
 def _print_chunk_debug_info(
     batch_idx: int,
-    positions: List[int],
-    teacher_values: torch.Tensor,
+    positions: torch.Tensor,
+    global_positions: Optional[torch.Tensor],
+    teacher_log_probs: torch.Tensor,
     student_log_probs: torch.Tensor,
     teacher_mask: torch.Tensor,
     log_sum_exp_values: torch.Tensor,
@@ -503,15 +763,29 @@ def _print_chunk_debug_info(
 ) -> None:
     """Print debug information for chunk processing."""
     debug_position = 7365
-    if debug_position in positions:
-        position_index = positions.index(debug_position)
-        print(f"batch {batch_idx} efficient pos {debug_position} "
-              f"teacher_values_batch: {teacher_values[position_index].exp()}")
-        print(f"batch {batch_idx} efficient pos {debug_position} "
-              f"s_logpK: {student_log_probs[position_index] * teacher_mask[position_index].float()} "
-              f"with logZ {log_sum_exp_values[position_index]}")
-        print(f"batch {batch_idx} efficient pos {debug_position} "
-              f"kl_per_pos: {kl_losses[batch_idx, debug_position]}")
+    search_positions = global_positions if global_positions is not None else positions
+    matches = torch.nonzero(search_positions == debug_position, as_tuple=False)
+    if matches.numel() == 0:
+        return
+
+    position_index = int(matches[0].item())
+    local_pos = int(positions[position_index].item())
+    global_pos = int(search_positions[position_index].item())
+    valid_mask = teacher_mask[position_index]
+    teacher_probs = torch.exp(teacher_log_probs[position_index][valid_mask])
+    student_logp = student_log_probs[position_index][valid_mask]
+    print(
+        f"batch {batch_idx} efficient pos local {local_pos} global {global_pos} "
+        f"teacher_values_batch: {teacher_probs}"
+    )
+    print(
+        f"batch {batch_idx} efficient pos {debug_position} "
+        f"s_logpK: {student_logp} with logZ {log_sum_exp_values[position_index]}"
+    )
+    print(
+        f"batch {batch_idx} efficient pos {debug_position} "
+        f"kl_per_pos: {kl_losses[batch_idx, debug_position]}"
+    )
 
 
 def _print_debug_summary(
@@ -652,6 +926,29 @@ def traditional_distillation_loss(
         teacher_positions = batch_teacher_data.get('positions', [])
         teacher_indices_list = batch_teacher_data.get('indices', [])
         teacher_values_list = batch_teacher_data.get('values', [])
+
+        if (
+            torch.is_tensor(teacher_positions)
+            and torch.is_tensor(teacher_indices_list)
+            and torch.is_tensor(teacher_values_list)
+            and 'row_ptr' in batch_teacher_data
+        ):
+            row_ptr_tensor = batch_teacher_data['row_ptr']
+            teacher_positions_tensor = teacher_positions.detach().cpu().view(-1)
+            teacher_indices_tensor = teacher_indices_list.detach().cpu().view(-1)
+            teacher_values_tensor = teacher_values_list.detach().cpu().view(-1)
+            row_ptr_tensor = row_ptr_tensor.detach().cpu().view(-1)
+
+            teacher_positions = teacher_positions_tensor.tolist()
+
+            teacher_indices_list = []
+            teacher_values_list = []
+            for idx_pos in range(len(teacher_positions)):
+                start = int(row_ptr_tensor[idx_pos].item())
+                end = int(row_ptr_tensor[idx_pos + 1].item())
+                teacher_indices_list.append(teacher_indices_tensor[start:end].tolist())
+                teacher_values_list.append(teacher_values_tensor[start:end].tolist())
+
         if not teacher_positions or not teacher_indices_list or not teacher_values_list:
             continue  # Skip batch elements without teacher data
         

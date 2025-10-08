@@ -14,7 +14,7 @@ from megatron.core.datasets.utils import Split
 
 
 _LABEL_PAD_ID = -100
-DEBUG = True
+DEBUG = False
 
 
 def _to_sequence(value: Any) -> List[Any]:
@@ -82,7 +82,7 @@ def _normalize_teacher_payload(
         normalized_indices.append(idxs)
         normalized_values.append(vals)
     
-    if dropped:
+    if dropped and DEBUG:
         print(f"Dropped {dropped} teacher logits positions outside valid range [0, {seq_length})")
 
     if not normalized_positions:
@@ -92,6 +92,42 @@ def _normalize_teacher_payload(
         "positions": normalized_positions,
         "indices": normalized_indices,
         "values": normalized_values,
+    }
+
+
+def _convert_teacher_payload_to_tensors(
+    payload: Dict[str, Any]
+) -> Dict[str, Any]:
+    """Convert normalized teacher payload lists into torch tensors on CPU."""
+    positions = torch.as_tensor(payload["positions"], dtype=torch.long).contiguous()
+
+    indices_tensors = [
+        torch.as_tensor(entry, dtype=torch.long).view(-1).contiguous()
+        for entry in payload["indices"]
+    ]
+    values_tensors = [
+        torch.as_tensor(entry, dtype=torch.float32).view(-1).contiguous()
+        for entry in payload["values"]
+    ]
+
+    if not indices_tensors:
+        row_ptr = torch.zeros(1, dtype=torch.long)
+        flat_indices = torch.empty(0, dtype=torch.long)
+        flat_values = torch.empty(0, dtype=torch.float32)
+    else:
+        lengths = torch.as_tensor(
+            [tensor.numel() for tensor in indices_tensors], dtype=torch.long
+        )
+        row_ptr = torch.zeros(len(indices_tensors) + 1, dtype=torch.long)
+        row_ptr[1:] = torch.cumsum(lengths, dim=0)
+        flat_indices = torch.cat(indices_tensors, dim=0)
+        flat_values = torch.cat(values_tensors, dim=0)
+
+    return {
+        "positions": positions,
+        "row_ptr": row_ptr,
+        "indices": flat_indices,
+        "values": flat_values,
     }
 
 class JsonTeacherLowLevelDataset:
@@ -238,6 +274,8 @@ class JsonTeacherDataset(MegatronDataset):
 
         teacher_raw = record.get("teacher_logits") or record.get("teacher_data")
         teacher_data = _normalize_teacher_payload(teacher_raw, self.seq_length)
+        if teacher_data is not None:
+            teacher_data = _convert_teacher_payload_to_tensors(teacher_data)
 
         if DEBUG:
             print(f"Loaded record from {file_path if file_path else 'in-memory'}")

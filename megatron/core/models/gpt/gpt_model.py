@@ -740,6 +740,7 @@ class GPTModel(LanguageModule):
                     tp_rank = parallel_state.get_tensor_model_parallel_rank()
                     cp_rank = parallel_state.get_context_parallel_rank()
                     world_rank = torch.distributed.get_rank()
+                    print(f"CCE Loss: {token_losses.sum().item()}, KL Loss: {kl_loss.sum().item()}, Distill Loss: {distill_loss.sum().item()}")
                     print(
                         f"[Distillation debug] rank={world_rank} tp_rank={tp_rank} cp_rank={cp_rank} distill_loss stats - Min: {distill_loss.min().item()}, Max: {distill_loss.max().item()}, Mean: {distill_loss.mean().item()} Sum: {distill_loss.sum().item()}"
                     )
