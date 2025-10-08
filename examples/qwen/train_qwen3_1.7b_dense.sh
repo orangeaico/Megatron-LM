@@ -256,8 +256,8 @@ elif [[ "$TRAINING_MODE" == "distillation" ]]; then
         "--sft"
         "--num-workers 0"         
         "--distillation-loss"
-        "--distillation-temperature 1"
-        "--distillation-loss-alpha 1"      
+        "--distillation-temperature 3.0"
+        "--distillation-loss-alpha 0.5"      
     )
 else
     echo "Training mode should be one of mock, cpt, sft or distillation. Invalid training mode: $TRAINING_MODE"
