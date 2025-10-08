@@ -36,7 +36,7 @@ type = drive
 scope = drive
 client_id = 983615320622-9vfjc78upb9igrcf54i6dvb4cvecfpm3.apps.googleusercontent.com
 client_secret = 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
-token = {"access_token":"ya29.a0AQQ_BDS1Lp45dltHhflXU5L-CdoyRPl9Wq354M5BrKpzMWSDbWfm_fbuXMXbw-ec15emuRSjDmbcq2cWWGq-Pt9AWWrgG3Eiyd-iEfi4JW4IIqiYWU4WapZYRrk4LrdG4OkdZ5Y-xwzwZfTPhnbgUdyNOU-POpk3qd5T_0Jaot-qBF5T5IIVqBYbDWRwohFJM7WEw1UaCgYKASwSARcSFQHGX2MikdRGYxo0ZjhQDDZAqjfGsw0206","token_type":"Bearer","refresh_token":"1//0gPkbZqTctSIhCgYIARAAGBASNwF-L9IrarxV3inSr8UC3Q5K9DL6b0fwN7Xf2yHEIYuRURj-dxOg-TzbIiMyygyR-F_Xd8cn5ks","expiry":"2025-10-08T15:14:08.731401+05:30","expires_in":3599}
+token = {}
 EOF
 
 chmod 600 "$CONFIG_PATH"
