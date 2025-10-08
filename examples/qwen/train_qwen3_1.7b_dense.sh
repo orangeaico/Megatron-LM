@@ -18,6 +18,7 @@ TRAINING_MODE="cpt" # set from mock, cpt, sft or distillation
 
 MODEL_NAME="qwen3_1.7b"
 
+TIMESTAMP=$(date +"%Y_%m_%d_%H_%M_%S")
 BASE_DIR="/workspace/data/"
 
 LOAD_CHECKPOINT_PATH="$BASE_DIR/mega-models/Qwen3-1.7B"
@@ -43,14 +44,19 @@ else
     exit 1
 fi
 
-echo "TRAIN DATA PATH: $TRAIN_DATA_PATH"
-
-BASE_OUTPUT_DIR="$BASE_DIR/himanshu/output"
+BASE_OUTPUT_DIR="$BASE_DIR/himanshu/output/$TIMESTAMP"
 SAVE_CHECKPOINT_PATH="$BASE_OUTPUT_DIR/$MODEL_NAME/checkpoints"
 # Data cache path (useful for both mock and real data)
 DATA_CACHE_PATH="$BASE_OUTPUT_DIR/$MODEL_NAME/benchmark_cache"
 TENSORBOARD_LOGS_PATH="$BASE_OUTPUT_DIR/$MODEL_NAME/tensorboard_logs"
 MEMORY_SNAPSHOT_PATH="$BASE_OUTPUT_DIR/$MODEL_NAME/memory_snapshots/memory_snapshot.pickle"
+LOG_DIR_PATH="$BASE_OUTPUT_DIR/$MODEL_NAME/logs"
+
+echo "Timestamp: $TIMESTAMP"
+echo "Load checkpoint path: $LOAD_CHECKPOINT_PATH"
+echo "Tokenizer path: $TOKENIZER_ARG"
+echo "TRAIN DATA PATH: $TRAIN_DATA_PATH"
+echo "BASE OUTPUT DIR: $BASE_OUTPUT_DIR"
 
 WANDB_API_KEY=''
 
@@ -59,6 +65,7 @@ mkdir -p "$(dirname "$SAVE_CHECKPOINT_PATH")"
 mkdir -p "$(dirname "$TENSORBOARD_LOGS_PATH")"
 mkdir -p "$(dirname "$MEMORY_SNAPSHOT_PATH")"
 mkdir -p "$DATA_CACHE_PATH"
+mkdir -p "$LOG_DIR_PATH"
 
 # Distributed training setup
 GPUS_PER_NODE=2
@@ -73,13 +80,13 @@ PRETRAIN_SCRIPT_PATH="pretrain_gpt.py"
 
 # Fixed model and training parameters for Qwen3-1.7B
 TP_SIZE=1 
-CP_SIZE=1     
+CP_SIZE=2     
 PP_SIZE=1     
-MICRO_BATCH_SIZE=4
+MICRO_BATCH_SIZE=1
 GLOBAL_BATCH_SIZE=8  
 NUM_LAYERS=28  
 DTYPE="bf16"
-SEQ_LENGTH=8192 # 65000
+SEQ_LENGTH=32768 # 65000
 MAX_POSITION_EMBEDDINGS=40960 # 65000
 
 DISTRIBUTED_ARGS=(
@@ -119,8 +126,8 @@ MODEL_ARGS=(
 TRAINING_ARGS=(
     --micro-batch-size $MICRO_BATCH_SIZE
     --global-batch-size $GLOBAL_BATCH_SIZE
-    --train-samples 6000
-    --lr-decay-samples 6000
+    --train-samples 440
+    --lr-decay-samples 440
     --exit-duration-in-mins 235
 
     # Learning rate args
@@ -245,8 +252,8 @@ elif [[ "$TRAINING_MODE" == "distillation" ]]; then
         "--sft"
         "--num-workers 0"         
         "--distillation-loss"
-        "--distillation-temperature 3.0"
-        "--distillation-loss-alpha 0.5"      
+        "--distillation-temperature 1"
+        "--distillation-loss-alpha 1"      
     )
 else
     echo "Training mode should be one of mock, cpt, sft or distillation. Invalid training mode: $TRAINING_MODE"
@@ -264,13 +271,13 @@ CHECKPOINT_ARGS=(
     --no-save-rng
     --no-load-rng
     --no-load-optim
-    --save-interval 150
+    --save-interval 110
     --exit-on-missing-checkpoint
 )
 
 EVAL_AND_LOGGING_ARGS=(
-    --eval-iters 3
-    --eval-interval 20
+    --eval-iters 11
+    --eval-interval 28
     # --full-validation
     --log-interval 1
     --log-throughput
@@ -286,7 +293,7 @@ EVAL_AND_LOGGING_ARGS=(
     --log-validation-ppl-to-tensorboard
     --log-memory-to-tensorboard
     --record-memory-history
-    --memory-snapshot-path "$MEMORY_SNAPSHOT_PATH"
+    # --memory-snapshot-path "$MEMORY_SNAPSHOT_PATH"
     # --dump-model-params-to-pickle
     # --timing-log-level 2
     # --logging-level 10
