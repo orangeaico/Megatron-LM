@@ -13,14 +13,18 @@ export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 export NVTE_ALLOW_NONDETERMINISTIC_ALGO=1
 export NCCL_NVLS_ENABLE=0
 
+# Set these to 1 to enable torch profiling and nvidia nsys profiling
+ENABLE_PROFILING=0
+ENABLE_NSYS_PROFILING=0
+
 # CRITICAL - DOUBLE CHECK THIS VALUE
 TRAINING_MODE="cpt" # set from mock, cpt, sft or distillation
 
 MODEL_NAME="Qwen3-Coder-30B-A3B-Instruct"
 
+TIMESTAMP=$(date +"%Y_%m_%d_%H_%M_%S")
 BASE_DIR="/workspace/data/"
 LOAD_CHECKPOINT_PATH="$BASE_DIR/mega-models/Qwen3-Coder-30B-A3B-Instruct-torch_dist"
-
 TOKENIZER_ARG="$BASE_DIR/mega-models/Qwen3-Coder-30B-A3B-Instruct-torch_dist" # Path to tokenizer model, or "MOCK"
 
 echo "Training mode: $TRAINING_MODE"
@@ -43,14 +47,19 @@ else
     exit 1
 fi
 
-echo "TRAIN DATA PATH: $TRAIN_DATA_PATH"
-
-BASE_OUTPUT_DIR="$BASE_DIR/himanshu/output"
+BASE_OUTPUT_DIR="$BASE_DIR/himanshu/output/$TIMESTAMP"
 SAVE_CHECKPOINT_PATH="$BASE_OUTPUT_DIR/$MODEL_NAME/checkpoints"
 # Data cache path (useful for both mock and real data)
 DATA_CACHE_PATH="$BASE_OUTPUT_DIR/$MODEL_NAME/benchmark_cache"
 TENSORBOARD_LOGS_PATH="$BASE_OUTPUT_DIR/$MODEL_NAME/tensorboard_logs"
 MEMORY_SNAPSHOT_PATH="$BASE_OUTPUT_DIR/$MODEL_NAME/memory_snapshots/memory_snapshot.pickle"
+LOG_DIR_PATH="$BASE_OUTPUT_DIR/$MODEL_NAME/logs"
+
+echo "Timestamp: $TIMESTAMP"
+echo "Load checkpoint path: $LOAD_CHECKPOINT_PATH"
+echo "Tokenizer path: $TOKENIZER_ARG"
+echo "TRAIN DATA PATH: $TRAIN_DATA_PATH"
+echo "BASE OUTPUT DIR: $BASE_OUTPUT_DIR"
 
 WANDB_API_KEY=''
 
@@ -59,6 +68,7 @@ mkdir -p "$(dirname "$SAVE_CHECKPOINT_PATH")"
 mkdir -p "$(dirname "$TENSORBOARD_LOGS_PATH")"
 mkdir -p "$(dirname "$MEMORY_SNAPSHOT_PATH")"
 mkdir -p "$DATA_CACHE_PATH"
+mkdir -p "$LOG_DIR_PATH"
 
 # Distributed training setup
 GPUS_PER_NODE=8
@@ -298,26 +308,32 @@ CHECKPOINT_ARGS=(
 EVAL_AND_LOGGING_ARGS=(
     --eval-iters 1
     --eval-interval 15
-    # "--full-validation"
+    # --full-validation
     --log-interval 1
     --log-throughput
-    --profile
-    --profile-step-start 2
-    --profile-step-end 3
-    --profile-ranks 0
-    --use-pytorch-profiler
-    --tensorboard-dir "$TENSORBOARD_LOGS_PATH"
-    --log-timers-to-tensorboard
     --log-num-zeros-in-grad
     --log-params-norm
-    --log-validation-ppl-to-tensorboard
-    --log-memory-to-tensorboard
-    --record-memory-history
-    --memory-snapshot-path "$MEMORY_SNAPSHOT_PATH"
-    # --dump-model-params-to-pickle
-    # --timing-log-level 2
-    # --logging-level 10
 )
+
+if [[ "$ENABLE_PROFILING" == 1 ]]; then
+    EVAL_AND_LOGGING_ARGS+=(
+        --profile
+        --profile-step-start 2
+        --profile-step-end 3
+        --profile-ranks 0
+        --use-pytorch-profiler
+        --log-timers-to-tensorboard
+        --log-validation-ppl-to-tensorboard
+        --log-memory-to-tensorboard
+        --record-memory-history
+        --memory-snapshot-path "$MEMORY_SNAPSHOT_PATH"
+        --timing-log-level 2
+        --logging-level 10
+        --timing-log-option all
+        --tensorboard-dir "$TENSORBOARD_LOGS_PATH"
+        # --dump-model-params-to-pickle
+    )
+fi
 
 if [ -n "${WANDB_API_KEY}" ]; then
     LOGGING_ARGS+=(
@@ -326,7 +342,11 @@ if [ -n "${WANDB_API_KEY}" ]; then
     )
 fi
 
-
+if [[ "$ENABLE_NSYS_PROFILING" == 1 ]]; then
+    NSYS_PROFILE_COMMAND="nsys profile -o $LOG_DIR_PATH/nsys_run -t cuda,nvtx,osrt --sample=none --cpuctxsw=none"
+else
+    NSYS_PROFILE_COMMAND=""
+fi
 
 # Ensure pretrain_gpt.py is found
 if [ ! -f "$PRETRAIN_SCRIPT_PATH" ]; then
@@ -336,7 +356,7 @@ if [ ! -f "$PRETRAIN_SCRIPT_PATH" ]; then
 fi
 
 # Run the training command
-torchrun ${DISTRIBUTED_ARGS[@]} \
+$NSYS_PROFILE_COMMAND torchrun ${DISTRIBUTED_ARGS[@]} \
     "$PRETRAIN_SCRIPT_PATH" \
     ${MODEL_ARGS[@]} \
     ${MOE_ARGS[@]} \
