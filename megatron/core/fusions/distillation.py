@@ -167,9 +167,6 @@ def distillation_loss(
         ValueError: If teacher_data is None and cannot be generated
     """
     # Compute standard cross-entropy loss with log-sum-exp values
-    # start_event = torch.cuda.Event(enable_timing=True)
-    # end_event = torch.cuda.Event(enable_timing=True)
-    # start_event.record()
     with _timed_section("cce_per_token_loss", debug, sync_cuda=True):
         cross_entropy_loss, log_sum_exp_values = cce_per_token_loss(
             embeddings=embeddings,
@@ -183,13 +180,7 @@ def distillation_loss(
             return_lse=True,
             temperature=temperature,
         )
-    # torch.cuda.synchronize()
-    # end_event.record()
 
-    # torch.cuda.synchronize()
-    # elapsed_time = start_event.elapsed_time(end_event)
-    # curr_rank = torch.distributed.get_rank()
-    # print(f"Rank {curr_rank} Inner CCE operation took {elapsed_time:.4f} ms")
     # Transpose embeddings to batch-first format: [B, S, H]
     batch_first_embeddings = embeddings.transpose(0, 1).contiguous()
     

@@ -301,12 +301,12 @@ class JsonTeacherDataset(MegatronDataset):
         if max_seq_len <= 0:
             raise ValueError("sequence_length must be a positive integer")
 
-        # Trim to the configured maximum length before padding.
-        if len(tokens_list) > max_seq_len:
-            tokens_list = tokens_list[:max_seq_len]
-            labels_list = labels_list[:max_seq_len]
+        # Trim to the configured maximum length before padding and adding EOS.
+        if len(tokens_list) > max_seq_len - 1:
+            tokens_list = tokens_list[:max_seq_len-1]
+            labels_list = labels_list[:max_seq_len-1]
 
-        active_len = len(tokens_list)
+        active_len = len(tokens_list) + 1 # account for EOS added before shifting
         if active_len == 0:
             raise ValueError("Encountered empty record after trimming tokens to sequence length")
 
@@ -345,24 +345,13 @@ class JsonTeacherDataset(MegatronDataset):
             if padding_len < 0:
                 raise ValueError("Sample longer than configured sequence length after truncation")
 
-        tokens_padded = tokens_list + [self.pad_token_id] * padding_len
+        tokens_padded = tokens_list + [self.eod_token_id] + [self.pad_token_id] * (padding_len + 1)
         tokens = torch.tensor(tokens_padded, dtype=torch.long)
+        tokens = tokens[:-1]
 
-        labels_base = labels_list + [self.label_pad_id] * padding_len
-        labels_tensor = torch.tensor(labels_base, dtype=torch.long)
-        labels = torch.cat(
-            [
-                labels_tensor[1:],
-                torch.tensor([self.eod_token_id], dtype=torch.long),
-            ]
-        )
-
-        if labels.numel() != final_len:
-            # When active_len == 1, labels_tensor[1:] is empty; append eod ensures length 1.
-            labels = torch.nn.functional.pad(
-                labels, (0, final_len - labels.numel()), value=self.label_pad_id
-            )
-            labels[-1] = self.eod_token_id
+        labels_base = labels_list + [self.eod_token_id] + [self.label_pad_id] * (padding_len + 1)
+        labels = torch.tensor(labels_base, dtype=torch.long)
+        labels = labels[1:]
 
         if "loss_mask" in record:
             loss_mask = _pad_or_trim_tensor(
