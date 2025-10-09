@@ -24,8 +24,8 @@ MODEL_NAME="Qwen3-Coder-30B-A3B-Instruct"
 
 TIMESTAMP=$(date +"%Y_%m_%d_%H_%M_%S")
 BASE_DIR="/workspace/data/"
-LOAD_CHECKPOINT_PATH="$BASE_DIR/mega-models/Qwen3-Coder-30B-A3B-Instruct-torch_dist"
-TOKENIZER_ARG="$BASE_DIR/mega-models/Qwen3-Coder-30B-A3B-Instruct-torch_dist" # Path to tokenizer model, or "MOCK"
+LOAD_CHECKPOINT_PATH="$BASE_DIR/mega-models/Qwen3-Coder-30B-A3B-Instruct_torch_tp4_ep4"
+TOKENIZER_ARG="$BASE_DIR/mega-models/Qwen3-Coder-30B-A3B-Instruct_torch_tp4_ep4" # Path to tokenizer model, or "MOCK"
 
 echo "Training mode: $TRAINING_MODE"
 
@@ -299,9 +299,7 @@ fi
 
 CHECKPOINT_ARGS=(
     --finetune
-    --auto-detect-ckpt-format
-    # --ckpt-convert-format torch
-    # --ckpt-convert-save /workspace/data/himanshu/output/Qwen3-Coder-30B-A3B-Instruct/conversion/qwen3_30b_a3b_torch/
+    --ckpt-format torch
     --dist-ckpt-strictness log_all
     --distributed-timeout-minutes 60
     --load "$LOAD_CHECKPOINT_PATH"
@@ -312,6 +310,8 @@ CHECKPOINT_ARGS=(
     --no-load-optim
     --save-interval 60
     --exit-on-missing-checkpoint
+    # --ckpt-convert-format torch_dist
+    # --ckpt-convert-save /workspace/data/himanshu/output/Qwen3-Coder-30B-A3B-Instruct/conversion/qwen3_30b_a3b_torch_dist/
 )
 
 EVAL_AND_LOGGING_ARGS=(

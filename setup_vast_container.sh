@@ -52,7 +52,7 @@ echo "Copying data to /workspace/data/"
 rclone copy -P gdrive:"megatron_dir/data/" data/
 
 echo "Copying model to /workspace/data/mega-models/"
-rclone copy -P gdrive:"megatron_dir/mega-models/Qwen3-Coder-30B-A3B-Instruct-torch_dist" mega-models/Qwen3-Coder-30B-A3B-Instruct-torch_dist
+rclone copy -P gdrive:"megatron_dir/mega-models/Qwen3-Coder-30B-A3B-Instruct_torch_tp4_ep4" mega-models/Qwen3-Coder-30B-A3B-Instruct_torch_tp4_ep4
 
 cd /workspace/Megatron-LM/
 echo "Data copying complete!"
