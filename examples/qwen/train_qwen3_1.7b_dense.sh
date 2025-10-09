@@ -18,7 +18,7 @@ ENABLE_PROFILING=0
 ENABLE_NSYS_PROFILING=0
 
 # CRITICAL - DOUBLE CHECK THIS VALUE
-TRAINING_MODE="cpt" # set from mock, cpt, sft or distillation
+TRAINING_MODE="sft" # set from mock, cpt, sft or distillation
 
 MODEL_NAME="qwen3_1.7b"
 
@@ -59,6 +59,7 @@ DATA_CACHE_PATH="$BASE_OUTPUT_DIR/$MODEL_NAME/benchmark_cache"
 TENSORBOARD_LOGS_PATH="$BASE_OUTPUT_DIR/$MODEL_NAME/tensorboard_logs"
 MEMORY_SNAPSHOT_PATH="$BASE_OUTPUT_DIR/$MODEL_NAME/memory_snapshots/memory_snapshot.pickle"
 LOG_DIR_PATH="$BASE_OUTPUT_DIR/$MODEL_NAME/logs"
+CONVERSION_DIR_PATH="$BASE_OUTPUT_DIR/$MODEL_NAME/conversion"
 
 echo "Timestamp: $TIMESTAMP"
 echo "Load checkpoint path: $LOAD_CHECKPOINT_PATH"
@@ -74,6 +75,7 @@ mkdir -p "$(dirname "$TENSORBOARD_LOGS_PATH")"
 mkdir -p "$(dirname "$MEMORY_SNAPSHOT_PATH")"
 mkdir -p "$DATA_CACHE_PATH"
 mkdir -p "$LOG_DIR_PATH"
+mkdir -p "$CONVERSION_DIR_PATH"
 
 # Distributed training setup
 GPUS_PER_NODE=2
@@ -88,13 +90,13 @@ PRETRAIN_SCRIPT_PATH="pretrain_gpt.py"
 
 # Fixed model and training parameters for Qwen3-1.7B
 TP_SIZE=1 
-CP_SIZE=2     
+CP_SIZE=1     
 PP_SIZE=1     
 MICRO_BATCH_SIZE=1
 GLOBAL_BATCH_SIZE=8
 NUM_LAYERS=28  
 DTYPE="bf16"
-SEQ_LENGTH=32768 # 65000
+SEQ_LENGTH=16384 # 65000
 MAX_POSITION_EMBEDDINGS=40960 # 65000
 
 DISTRIBUTED_ARGS=(
@@ -140,7 +142,7 @@ TRAINING_ARGS=(
     # Learning rate args
     --lr-warmup-samples 0
     --lr 5.0e-5
-    --min-lr 5.0e-6 # 5.0e-6
+    --min-lr 5.0e-6 # 1.0e-7
     # --decoupled-lr 8.0e-4  # Adjusted for smaller model
     # --decoupled-min-lr 8.0e-5  # Adjusted for smaller model
     --lr-decay-style cosine

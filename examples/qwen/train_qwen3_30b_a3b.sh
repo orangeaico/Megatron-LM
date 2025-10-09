@@ -32,13 +32,17 @@ echo "Training mode: $TRAINING_MODE"
 if [[ "$TRAINING_MODE" == "cpt" ]]; then
     TRAIN_DATA_PATH="$BASE_DIR/data/cpt/memmap_xarray_8192_overlap5_combined/megatron_indexed/train_text_document"
     VALID_DATA_PATH="$BASE_DIR/data/cpt/memmap_xarray_8192_overlap5_combined/megatron_indexed/val_text_document"
-    TEST_DATA_PATH="$BASE_DIR/data/cpt/memmap_xarray_8192_overlap5_combined/megatron_indexed/val_text_document"
+    TEST_DATA_PATH=$VALID_DATA_PATH
 
 elif [[ "$TRAINING_MODE" == "sft" ]]; then
-    TRAIN_DATA_PATH="$BASE_DIR/data/test_output.jsonl"    
+    TRAIN_DATA_PATH="$BASE_DIR/data/sft/train_loc_xarray_264_samples/LocFileFuncLine_train.jsonl"
+    VALID_DATA_PATH="$BASE_DIR/data/sft/train_loc_xarray_264_samples/LocFileFuncLine_val.jsonl"
+    TEST_DATA_PATH=$VALID_DATA_PATH 
 
 elif [[ "$TRAINING_MODE" == "distillation" ]]; then
     TRAIN_DATA_PATH="$BASE_DIR/data/distillation_data"
+    VALID_DATA_PATH="$BASE_DIR/data/distillation_data"
+    TEST_DATA_PATH=$VALID_DATA_PATH
 
 elif [[ "$TRAINING_MODE" == "mock" ]]; then
     TRAIN_DATA_PATH="MOCK"
@@ -54,6 +58,7 @@ DATA_CACHE_PATH="$BASE_OUTPUT_DIR/$MODEL_NAME/benchmark_cache"
 TENSORBOARD_LOGS_PATH="$BASE_OUTPUT_DIR/$MODEL_NAME/tensorboard_logs"
 MEMORY_SNAPSHOT_PATH="$BASE_OUTPUT_DIR/$MODEL_NAME/memory_snapshots/memory_snapshot.pickle"
 LOG_DIR_PATH="$BASE_OUTPUT_DIR/$MODEL_NAME/logs"
+CONVERSION_DIR_PATH="$BASE_OUTPUT_DIR/$MODEL_NAME/conversion"
 
 echo "Timestamp: $TIMESTAMP"
 echo "Load checkpoint path: $LOAD_CHECKPOINT_PATH"
@@ -69,6 +74,7 @@ mkdir -p "$(dirname "$TENSORBOARD_LOGS_PATH")"
 mkdir -p "$(dirname "$MEMORY_SNAPSHOT_PATH")"
 mkdir -p "$DATA_CACHE_PATH"
 mkdir -p "$LOG_DIR_PATH"
+mkdir -p "$CONVERSION_DIR_PATH"
 
 # Distributed training setup
 GPUS_PER_NODE=8
@@ -151,12 +157,11 @@ TRAINING_ARGS=(
     --global-batch-size $GLOBAL_BATCH_SIZE
     --train-samples 896
     --lr-decay-samples 896
-    --exit-duration-in-mins 235
 
     # Learning rate args
     --lr-warmup-samples 0
     --lr 5.0e-5
-    --min-lr 1.0e-7
+    --min-lr 5.0e-6 # 1.0e-7
     # --decoupled-lr 8.0e-4  # Adjusted for smaller model
     # --decoupled-min-lr 8.0e-5  # Adjusted for smaller model
     --lr-decay-style cosine
@@ -256,15 +261,18 @@ elif [[ "$TRAINING_MODE" == "cpt" ]]; then
 elif [[ "$TRAINING_MODE" == "sft" ]]; then
     # Settings for real data
     DATA_ARGS_LIST+=(
-        "--data-path $TRAIN_DATA_PATH"
-        "--split '90,10,0'"
+        "--train-data-path $TRAIN_DATA_PATH"
+        "--valid-data-path $VALID_DATA_PATH"
+        "--test-data-path $TEST_DATA_PATH"
+        # "--data-path $TRAIN_DATA_PATH"
+        # "--split '95,5,0'"  
         "--tokenizer-type HuggingFaceTokenizer" 
         "--tokenizer-model $TOKENIZER_ARG"               
         "--sft"
         "--num-workers 1"
         "--no-create-attention-mask-in-dataloader"
         # "--variable-seq-lengths"
-        # "--moe-token-dispatcher-type alltoall"
+        # "--moe-token-dispatcher-type alltoall" # This needs to be set for variable seq lengths
 
         # "--reset-position-ids"
         # "--reset-attention-mask"
@@ -273,12 +281,13 @@ elif [[ "$TRAINING_MODE" == "sft" ]]; then
 elif [[ "$TRAINING_MODE" == "distillation" ]]; then
     # Settings for real data
     DATA_ARGS_LIST+=(
-        "--data-path $TRAIN_DATA_PATH"
-        "--split '95,5,0'"
+        "--train-data-path $TRAIN_DATA_PATH"
+        "--valid-data-path $VALID_DATA_PATH"
+        "--test-data-path $TEST_DATA_PATH"        
         "--tokenizer-type HuggingFaceTokenizer" 
         "--tokenizer-model $TOKENIZER_ARG"                
         "--sft"
-        "--num-workers 0"         
+        "--num-workers 1"         
         "--distillation-loss"
         "--distillation-temperature 3.0"
         "--distillation-loss-alpha 0.5"      
@@ -292,7 +301,7 @@ CHECKPOINT_ARGS=(
     --finetune
     --auto-detect-ckpt-format
     # --ckpt-convert-format torch
-    # --ckpt-convert-save /workspace/checkpoints/qwen3_30b_a3b_torch_tp2
+    # --ckpt-convert-save /workspace/data/himanshu/output/Qwen3-Coder-30B-A3B-Instruct/conversion/qwen3_30b_a3b_torch/
     --dist-ckpt-strictness log_all
     --distributed-timeout-minutes 60
     --load "$LOAD_CHECKPOINT_PATH"
