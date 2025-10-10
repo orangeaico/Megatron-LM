@@ -1359,7 +1359,7 @@ def train_step(forward_step_func, data_iterator, model, optimizer, opt_param_sch
                 if args.sft:
                     # in mcore the normalization happens on micro batch instead of global
                     val = torch.vstack(val)
-                    val = val[:, 0] / val[:, 1]
+                    val = torch.where(val[:, 1] != 0, val[:, 0] / val[:, 1], val[:, 0])
                     val = val.mean()
                     torch.distributed.all_reduce(
                         val,
@@ -1377,7 +1377,10 @@ def train_step(forward_step_func, data_iterator, model, optimizer, opt_param_sch
                         val,
                         group=mpu.get_data_parallel_group(with_context_parallel=True)
                     )
-                    loss_reduced[key] = val[0] / val[1]
+                    if val[1] == 0:
+                        loss_reduced[key] = val[0]
+                    else:
+                        loss_reduced[key] = val[0] / val[1]
             elif val[0].numel() == 1:
                 # legacy behavior, we average over the number of microbatches
                 val = torch.cat(val).mean()
@@ -2521,7 +2524,7 @@ def evaluate(
                         if args.sft:
                             # normalize over micro batch instead of global
                             val = torch.vstack(val)
-                            val = val[:, 0] / val[:, 1]
+                            val = torch.where(val[:, 1] != 0, val[:, 0] / val[:, 1], val[:, 0])
                             val = val.mean()
                             torch.distributed.all_reduce(
                                 val,
