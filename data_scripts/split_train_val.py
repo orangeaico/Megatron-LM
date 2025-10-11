@@ -8,6 +8,7 @@ from pathlib import Path
 def split_jsonl_train_val(input_file, eval_ratio=5.0, seed=42):
     """
     Split a JSONL file into training and validation sets.
+    Randomly samples validation set but preserves original order.
     
     Args:
         input_file: Path to input JSONL file
@@ -31,12 +32,19 @@ def split_jsonl_train_val(input_file, eval_ratio=5.0, seed=42):
     print(f"Validation samples: {val_size}")
     print(f"Validation ratio: {eval_ratio}%")
     
-    # Shuffle the lines
-    random.shuffle(lines)
+    # Create indices for all samples
+    indices = list(range(total_samples))
     
-    # Split into train and val
-    val_lines = lines[:val_size]
-    train_lines = lines[val_size:]
+    # Randomly sample validation indices
+    val_indices = sorted(random.sample(indices, val_size))
+    val_indices_set = set(val_indices)
+    
+    # Get train indices (all indices not in validation)
+    train_indices = [i for i in indices if i not in val_indices_set]
+    
+    # Extract lines maintaining order
+    train_lines = [lines[i] for i in train_indices]
+    val_lines = [lines[i] for i in val_indices]
     
     # Create output filenames
     input_path = Path(input_file)
