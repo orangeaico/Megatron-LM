@@ -127,14 +127,14 @@ class SFTDataset(MegatronDataset):
         #     conversation_list, return_target=True, add_generation_prompt=False
         # )
         tokens, target = self._process_example(tokenizer, conversation_list)
+        target = target[1:] + [IGNORE_INDEX]
 
         original_seq_len = len(tokens)
 
-        # minus one to insert eos token
-        if len(tokens) > max_seq_len - 1:
+        if original_seq_len > max_seq_len:
             if True:  # TODO: when too long to fit in context, truncate left to right
-                tokens = tokens[: max_seq_len - 1]
-                target = target[: max_seq_len - 1]
+                tokens = tokens[: max_seq_len]
+                target = target[: max_seq_len]
             else:  # right to left
                 tokens = tokens[-(max_seq_len - 1) :]
                 target = target[-(max_seq_len - 1) :]
@@ -147,7 +147,7 @@ class SFTDataset(MegatronDataset):
                     return max(a, b)
                 return abs(a * b) // gcd(a, b)
 
-            base_seq_len = len(tokens) + 1  # account for EOS added before shifting
+            base_seq_len = len(tokens) 
             required_multiple = 1
 
             cp_size = parallel_state.get_context_parallel_world_size()
@@ -175,7 +175,7 @@ class SFTDataset(MegatronDataset):
                 while final_seq_len > max_seq_len and tokens:
                     tokens.pop()
                     target.pop()
-                    base_seq_len = len(tokens) + 1
+                    base_seq_len = len(tokens)
                     padding_len = 0
                     if required_multiple > 1:
                         remainder = base_seq_len % required_multiple
@@ -187,19 +187,22 @@ class SFTDataset(MegatronDataset):
                         "Unable to satisfy tensor/context parallel padding within max_seq_len"
                     )
         else:
-            num_tokens = len(tokens) + 1
+            num_tokens = len(tokens)
             padding_len = max_seq_len - num_tokens
             if padding_len < 0:
                 raise ValueError("Sample longer than configured sequence length after truncation")
 
-        tokens = np.array(tokens + [tokenizer.eod] + [tokenizer.pad] * (padding_len + 1), dtype=np.int64)
-        target = np.array(target + [tokenizer.eod] + [IGNORE_INDEX] * (padding_len + 1), dtype=np.int64)
+        tokens = np.array(
+            tokens + [tokenizer.pad] * padding_len,
+            dtype=np.int64,
+        )
+        target = np.array(
+            target + [IGNORE_INDEX] * padding_len,
+            dtype=np.int64,
+        )
 
-        tokens = torch.tensor(tokens)
-        target = torch.tensor(target)
-
-        tokens = tokens[:-1].contiguous()
-        target = target[1:].contiguous()
+        tokens = torch.tensor(tokens).contiguous()
+        target = torch.tensor(target).contiguous()
 
         loss_mask, position_ids, attention_mask = self._get_ltor_masks_and_position_ids(
             max_seq_len, target, tokenizer.pad, use_variable_seq_len
