@@ -40,7 +40,7 @@ for dir in "$TORCH_CHECKPOINTS_DIR_PATH"/iter_*; do
         else
             dirname=$(basename "$dir")
             RELEVANT_ITERATION="${dirname#iter_}"   # Remove 'iter_' prefix
-            echo "$RELEVANT_ITERATION" >> $CHECKPOINT_ITERATIONS_FILE
+            echo "$RELEVANT_ITERATION" > $CHECKPOINT_ITERATIONS_FILE
         fi
 
         MODEL_DIR="$TORCH_CHECKPOINTS_DIR_PATH/iter_$RELEVANT_ITERATION"
@@ -60,7 +60,7 @@ for dir in "$TORCH_CHECKPOINTS_DIR_PATH"/iter_*; do
             mv mp_rank_03_003 mp_rank_03_000_003
         fi
 
-        cd Pai-Megatron-Patch
+        cd /workspace/Pai-Megatron-Patch
         git switch cpu_conversion
         cd toolkits/model_checkpoints_convertor/qwen
 
@@ -89,6 +89,7 @@ for dir in "$TORCH_CHECKPOINTS_DIR_PATH"/iter_*; do
             mv mp_rank_03_000_003 mp_rank_03_003
         fi
 
+        cd /workspace/repo_eval
         # Convert BF16 model to FP8
         if [ -d $FP8_HF_MODEL_PATH ]; then
             echo "FP8 HF model already exists"
