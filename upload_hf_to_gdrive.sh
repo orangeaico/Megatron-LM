@@ -9,18 +9,18 @@ echo "Searching for *_fp8 directories inside: $BASE_CONVERSION_DIR"
 echo "Upload timestamp: $TIMESTAMP"
 
 # Loop through all *_fp8 directories
-find "$BASE_CONVERSION_DIR" -type d -name "*_fp8" | while read -r FP8_HF_MODEL_PATH; do
-    FP8_HF_MODEL_NAME=$(basename "$FP8_HF_MODEL_PATH")
-    DESTINATION="gdrive:megatron_dir/himanshu/output/${TIMESTAMP}/${MODEL_NAME}/conversion/${FP8_HF_MODEL_NAME}/"
+find "$BASE_CONVERSION_DIR" -type d -name "*_hf" | while read -r HF_MODEL_PATH; do
+    HF_MODEL_NAME=$(basename "$HF_MODEL_PATH")
+    DESTINATION="gdrive:megatron_dir/himanshu/output/${TIMESTAMP}/${MODEL_NAME}/conversion/${HF_MODEL_NAME}/"
 
-    echo "Uploading: $FP8_HF_MODEL_PATH"
+    echo "Uploading: $HF_MODEL_PATH"
     echo "Destination: $DESTINATION"
     echo "---------------------------------------------"
 
     # Perform the upload
-    rclone copy "$FP8_HF_MODEL_PATH" "$DESTINATION" --progress
+    rclone copy "$HF_MODEL_PATH" "$DESTINATION" --progress
 
-    echo "✅ Upload complete for $FP8_HF_MODEL_NAME"
+    echo "✅ Upload complete for $HF_MODEL_NAME"
     echo
 done
 
