@@ -89,16 +89,16 @@ for dir in "$TORCH_CHECKPOINTS_DIR_PATH"/iter_*; do
             mv mp_rank_03_000_003 mp_rank_03_003
         fi
 
-        cd /workspace/repo_eval
-        # Convert BF16 model to FP8
-        if [ -d $FP8_HF_MODEL_PATH ]; then
-            echo "FP8 HF model already exists"
-        else
-            echo "Converting BF16 HF model to FP8"
-            python quantization/quantize_qwen_moe.py --src $HF_MODEL_PATH --dst $FP8_HF_MODEL_PATH
-        fi
+        # cd /workspace/repo_eval
+        # # Convert BF16 model to FP8
+        # if [ -d $FP8_HF_MODEL_PATH ]; then
+        #     echo "FP8 HF model already exists"
+        # else
+        #     echo "Converting BF16 HF model to FP8"
+        #     python quantization/quantize_qwen_moe.py --src $HF_MODEL_PATH --dst $FP8_HF_MODEL_PATH
+        # fi
 
-        echo "Model conversion complete at: $FP8_HF_MODEL_PATH"
+        # echo "Model conversion complete at: $FP8_HF_MODEL_PATH"
 
         if [ $SAVE_ONLY_LAST_CHECKPOINT -eq 1 ]; then
             # Copy the HF model to gdrive

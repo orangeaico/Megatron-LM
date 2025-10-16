@@ -18,7 +18,7 @@ ENABLE_PROFILING=0
 ENABLE_NSYS_PROFILING=0
 
 # CRITICAL - DOUBLE CHECK THIS VALUE
-TRAINING_MODE="sft" # set from mock, cpt, sft or distillation
+TRAINING_MODE="distillation" # set from mock, cpt, sft or distillation
 
 MODEL_NAME="Qwen3-Coder-30B-A3B-Instruct"
 
@@ -40,8 +40,8 @@ elif [[ "$TRAINING_MODE" == "sft" ]]; then
     TEST_DATA_PATH=$VALID_DATA_PATH 
 
 elif [[ "$TRAINING_MODE" == "distillation" ]]; then
-    TRAIN_DATA_PATH="$BASE_DIR/data/distillation_data"
-    VALID_DATA_PATH="$BASE_DIR/data/distillation_data"
+    TRAIN_DATA_PATH="$BASE_DIR/data/distillation/qwen_480b_swe_bench/"
+    VALID_DATA_PATH="$BASE_DIR/data/distillation/qwen_480b_swe_bench_excluded/"
     TEST_DATA_PATH=$VALID_DATA_PATH
 
 elif [[ "$TRAINING_MODE" == "mock" ]]; then
@@ -289,8 +289,8 @@ elif [[ "$TRAINING_MODE" == "distillation" ]]; then
         "--sft"
         "--num-workers 1"         
         "--distillation-loss"
-        "--distillation-temperature 3.0"
-        "--distillation-loss-alpha 0.5"      
+        "--distillation-temperature 2.0"
+        "--distillation-loss-alpha 0"      
     )
 else
     echo "Training mode should be one of mock, cpt, sft or distillation. Invalid training mode: $TRAINING_MODE"
@@ -315,7 +315,7 @@ CHECKPOINT_ARGS=(
 )
 
 EVAL_AND_LOGGING_ARGS=(
-    --eval-iters 1
+    --eval-iters 3
     --eval-interval 47
     # --full-validation
     --log-interval 1
