@@ -1,63 +1,34 @@
 #!/usr/bin/env bash
 set -euo pipefail
-
 SETUP_DATA=1
 
-env >> /etc/environment
-mkdir -p ${DATA_DIRECTORY:-/workspace/}
-mkdir -p /workspace/data/
-
+mkdir -p "${DATA_DIRECTORY:-/workspace/}" /workspace/data "$HOME/.config/rclone"
 cd /workspace
 
 if [ "$SETUP_DATA" -eq 1 ]; then
-echo "Installing rclone.."
-# apt-get update -y
-apt-get install -y rclone
-
-REMOTE_NAME="gdrive"
-CONFIG_PATH="$HOME/.config/rclone/rclone.conf"
-mkdir -p "$(dirname "$CONFIG_PATH")"
-
-cat > "$CONFIG_PATH" <<'EOF'
+  apt-get install -y rclone
+  cat >"$HOME/.config/rclone/rclone.conf"<<'EOF'
 [gdrive]
 type = drive
 scope = drive
 client_id = 983615320622-9vfjc78upb9igrcf54i6dvb4cvecfpm3.apps.googleusercontent.com
 client_secret = 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
-token = {"access_token":"ya29.a0AQQ_BDQc3eRiMLbMhOhLx20QyfOwSeY1iBlCTY2sG7ox-7Drn3F_H_JGBOqw7__z_5KebyxKo6KHb1k16J4KfWNXZmFiwGmyzTtUYb-OT61lmeF6lG2mmx_o9wbEDf0jBDO7NjeLW2-WrvIQsZOD06nCz6v5ez4SCoq0chJcZTpNSrV0AGLq0KHc94uF4OCEOJARSQoaCgYKAQMSARcSFQHGX2MilmEFQecTGlDBnGElN5lOCA0206","token_type":"Bearer","refresh_token":"1//0gt3EUPKSqbWrCgYIARAAGBASNwF-L9Irwi-Axig2zM4UoNRQ5ZprohdBfFO8R3EIK6Nq-trkZxvCMFHiFLR7Od4BuqzzwFsiDG4","expiry":"2025-10-08T16:40:04.545814+05:30","expires_in":3599}
+token = {}
 EOF
+  chmod 600 "$HOME/.config/rclone/rclone.conf"
 
-chmod 600 "$CONFIG_PATH"
+  ( cd /workspace/data && rclone copy -P --transfers 4 --checkers 16 --drive-chunk-size 128M --buffer-size 128M \
+      gdrive:"megatron_dir/mega-models/Qwen3-Coder-30B-A3B-Instruct_torch_tp4_ep4" \
+      mega-models/Qwen3-Coder-30B-A3B-Instruct_torch_tp4_ep4 ) &
 
-echo "✅ rclone.conf written to $CONFIG_PATH"
-
-# Force a token refresh immediately and verify access
-rclone about gdrive: -vv
-
-echo "🎉 Google Drive remote [gdrive] is ready!"
+  ( cd /workspace/data && rclone copy -P --transfers 32 --checkers 64 --fast-list --buffer-size 128M \
+      gdrive:"megatron_dir/data/" data/ ) &
 fi
 
-if [ ! -d Megatron-LM ]; then
-  git clone https://github.com/orangeaico/Megatron-LM.git
-fi
+( cd /workspace && { [ -d Megatron-LM ] || git clone https://github.com/orangeaico/Megatron-LM.git; } && \
+  cd Megatron-LM && git checkout moe_experiments && \
+  SETUP_FA3=1 bash /workspace/Megatron-LM/setup_megatron_container.sh ) &
 
-cd Megatron-LM/
-git checkout moe_experiments
-SETUP_FA3=1 bash /workspace/Megatron-LM/setup_megatron_container.sh
+for pid in $(jobs -p); do wait "$pid" || exit 1; done
 
-echo "Megatron-LM setup complete without data setup!"
-
-if [ "$SETUP_DATA" -eq 1 ]; then
-cd /workspace/data/
-
-echo "Copying model to /workspace/data/mega-models/"
-rclone copy -P --transfers 4 --checkers 16 --drive-chunk-size 128M --buffer-size 128M gdrive:"megatron_dir/mega-models/Qwen3-Coder-30B-A3B-Instruct_torch_tp4_ep4" mega-models/Qwen3-Coder-30B-A3B-Instruct_torch_tp4_ep4
-
-echo "Copying data to /workspace/data/"
-rclone copy -P --transfers 32 --checkers 64 --fast-list --buffer-size 128M gdrive:"megatron_dir/data/" data/
-
-cd /workspace/Megatron-LM/
-echo "Data copying complete!"
-fi
-
-echo "All Done!"
+cd /workspace/Megatron-LM && echo "All Done!"
