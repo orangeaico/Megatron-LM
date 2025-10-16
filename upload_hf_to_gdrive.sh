@@ -18,7 +18,7 @@ find "$BASE_CONVERSION_DIR" -type d -name "*_hf" | while read -r HF_MODEL_PATH; 
     echo "---------------------------------------------"
 
     # Perform the upload
-    rclone copy "$HF_MODEL_PATH" "$DESTINATION" --progress
+    rclone copy -P --transfers 13 --checkers 32 --drive-chunk-size 128M --buffer-size 128M "$HF_MODEL_PATH" "$DESTINATION"
 
     echo "✅ Upload complete for $HF_MODEL_NAME"
     echo

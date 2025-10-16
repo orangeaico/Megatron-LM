@@ -5,19 +5,9 @@ SETUP_DATA=1
 
 env >> /etc/environment
 mkdir -p ${DATA_DIRECTORY:-/workspace/}
-
-cd /workspace
-
-if [ ! -d Megatron-LM ]; then
-  git clone https://github.com/orangeaico/Megatron-LM.git
-fi
-
-cd Megatron-LM/
-git checkout moe_experiments
-SETUP_FA3=1 bash /workspace/Megatron-LM/setup_megatron_container.sh
 mkdir -p /workspace/data/
 
-echo "Megatron-LM setup complete without data setup!"
+cd /workspace
 
 if [ "$SETUP_DATA" -eq 1 ]; then
 echo "Installing rclone.."
@@ -45,14 +35,26 @@ echo "✅ rclone.conf written to $CONFIG_PATH"
 rclone about gdrive: -vv
 
 echo "🎉 Google Drive remote [gdrive] is ready!"
+fi
 
+if [ ! -d Megatron-LM ]; then
+  git clone https://github.com/orangeaico/Megatron-LM.git
+fi
+
+cd Megatron-LM/
+git checkout moe_experiments
+SETUP_FA3=1 bash /workspace/Megatron-LM/setup_megatron_container.sh
+
+echo "Megatron-LM setup complete without data setup!"
+
+if [ "$SETUP_DATA" -eq 1 ]; then
 cd /workspace/data/
 
-echo "Copying data to /workspace/data/"
-rclone copy -P gdrive:"megatron_dir/data/" data/
-
 echo "Copying model to /workspace/data/mega-models/"
-rclone copy -P gdrive:"megatron_dir/mega-models/Qwen3-Coder-30B-A3B-Instruct_torch_tp4_ep4" mega-models/Qwen3-Coder-30B-A3B-Instruct_torch_tp4_ep4
+rclone copy -P --transfers 4 --checkers 16 --drive-chunk-size 128M --buffer-size 128M gdrive:"megatron_dir/mega-models/Qwen3-Coder-30B-A3B-Instruct_torch_tp4_ep4" mega-models/Qwen3-Coder-30B-A3B-Instruct_torch_tp4_ep4
+
+echo "Copying data to /workspace/data/"
+rclone copy -P --transfers 32 --checkers 64 --fast-list --buffer-size 128M gdrive:"megatron_dir/data/" data/
 
 cd /workspace/Megatron-LM/
 echo "Data copying complete!"

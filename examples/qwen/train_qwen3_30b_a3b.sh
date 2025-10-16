@@ -18,7 +18,7 @@ ENABLE_PROFILING=0
 ENABLE_NSYS_PROFILING=0
 
 # CRITICAL - DOUBLE CHECK THIS VALUE
-TRAINING_MODE="distilation" # set from mock, cpt, sft or distillation
+TRAINING_MODE="distillation" # set from mock, cpt, sft or distillation
 
 MODEL_NAME="Qwen3-Coder-30B-A3B-Instruct"
 
