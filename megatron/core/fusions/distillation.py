@@ -180,7 +180,6 @@ def distillation_loss(
             return_lse=True,
             temperature=temperature,
         )
-
     # Transpose embeddings to batch-first format: [B, S, H]
     batch_first_embeddings = embeddings.transpose(0, 1).contiguous()
     
@@ -551,6 +550,11 @@ def _extract_chunk_teacher_data(
     )
     scaled_teacher_logits[position_ids, relative_offsets] = teacher_logits / temperature
     teacher_log_probs = F.log_softmax(scaled_teacher_logits, dim=-1)
+
+    # Exclude non-finite teacher tokens (e.g., -inf) from any downstream KL terms.
+    # This avoids 0 * (-inf) -> NaN when computing KL with masked zeros.
+    finite_token_mask = torch.isfinite(teacher_log_probs)
+    teacher_mask = teacher_mask & finite_token_mask
 
     if is_tensor_parallel:
         local_vocab_mask = (padded_indices >= vocab_start_idx) & (
@@ -981,7 +985,16 @@ def traditional_distillation_loss(
             teacher_log_probs = F.log_softmax(
                 teacher_values_tensor / T, dim=-1, dtype=torch.float32
             )  # Shape: (K,)
-            
+
+            # Mask out any non-finite teacher entries to avoid NaNs in KL
+            finite_mask = torch.isfinite(teacher_log_probs)
+            if not torch.all(finite_mask):
+                # If all entries are non-finite, skip this position
+                if not torch.any(finite_mask):
+                    continue
+                teacher_log_probs = teacher_log_probs[finite_mask]
+                student_log_probs_teacher_tokens = student_log_probs_teacher_tokens[finite_mask]
+
             # Compute KL divergence: KL(P_teacher || Q_student)
             # KL = sum(p_teacher * (log p_teacher - log p_student))
             teacher_probs = teacher_log_probs.exp()
