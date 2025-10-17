@@ -5,6 +5,7 @@ python /home/himanshu/megatron_dir/Megatron-LM/examples/lora/train_qwen3coder_un
   --output_dir /home/shared/megatron_dir/output/himanshu/qwen3coder30b-unsloth \
   --max_seq_len 32768 \
   --per_device_train_bs 1 \
+  --per_device_eval_bs 1 \
   --grad_accum 8 \
   --epochs 2 \
   --logging_steps 1 \

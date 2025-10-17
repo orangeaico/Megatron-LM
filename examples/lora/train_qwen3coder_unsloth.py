@@ -53,9 +53,12 @@ model = FastLanguageModel.get_peft_model(
 )
 
 train_file_list = [args.train_file]
-print(f"[User dataset] Loading {len(train_file_list)} file(s). Train file list: {train_file_list}")
+eval_file_list = [args.eval_file]
+print(f"[Train dataset] : {train_file_list}")
+print(f"[Eval dataset] : {eval_file_list}")
 
-user_ds = load_dataset("json", data_files={"train": train_file_list})["train"]
+train_data_ds = load_dataset("json", data_files={"train": train_file_list})["train"]
+eval_data_ds = load_dataset("json", data_files={"eval": eval_file_list})["eval"]
 
 def to_text_from_messages(examples):
     texts = []
@@ -80,28 +83,42 @@ def to_text_from_messages(examples):
             texts.append(tokenizer.apply_chat_template(conv, tokenize=False))
     return {"text": texts}
 
-user_text = user_ds.map(
+train_text = train_data_ds.map(
     to_text_from_messages,
     batched=True,
-    remove_columns=user_ds.column_names,
-    desc="Rendering user dataset with chat template",
+    remove_columns=train_data_ds.column_names,
+    desc="Rendering train dataset with chat template",
+)["text"]
+
+eval_text = eval_data_ds.map(
+    to_text_from_messages,
+    batched=True,
+    remove_columns=eval_data_ds.column_names,
+    desc="Rendering eval dataset with chat template",
 )["text"]
 
 # Build HF dataset with a single "text" column (UNCHANGED trainer expectations)
-data = pd.Series(user_text, dtype=str)
-data.name = "text"
-combined_dataset = Dataset.from_pandas(pd.DataFrame(data))
-combined_dataset = combined_dataset.shuffle(seed=3407)
+train_data = pd.Series(train_text, dtype=str)
+train_data.name = "text"
+train_combined_dataset = Dataset.from_pandas(pd.DataFrame(train_data))
+train_combined_dataset = train_combined_dataset.shuffle(seed=3407)
+
+eval_data = pd.Series(eval_text, dtype=str)
+eval_data.name = "text"
+eval_combined_dataset = Dataset.from_pandas(pd.DataFrame(eval_data))
+eval_combined_dataset = eval_combined_dataset.shuffle(seed=3407)
 
 # ---------------- Train (UNCHANGED) ----------------
 trainer = SFTTrainer(
     model=model,
     tokenizer=tokenizer,
-    train_dataset=combined_dataset,
-    eval_dataset=None,
+    train_dataset=train_combined_dataset,
+    eval_dataset=eval_combined_dataset,
     args=SFTConfig(
         dataset_text_field="text",
+        output_dir=args.output_dir,
         per_device_train_batch_size=args.per_device_train_bs,
+        per_device_eval_batch_size=args.per_device_eval_bs,
         gradient_accumulation_steps=args.grad_accum,
         # warmup_steps=5,
         num_train_epochs=args.epochs,   # or use steps
@@ -122,3 +139,16 @@ print(f"GPU = {gpu_stats.name}. Max memory = {max_memory} GB.")
 print(f"{start_gpu_memory} GB of memory reserved.")
 
 trainer_stats = trainer.train()
+
+used_memory = round(torch.cuda.max_memory_reserved() / 1024 / 1024 / 1024, 3)
+used_memory_for_lora = round(used_memory - start_gpu_memory, 3)
+used_percentage = round(used_memory / max_memory * 100, 3)
+lora_percentage = round(used_memory_for_lora / max_memory * 100, 3)
+print(f"{trainer_stats.metrics['train_runtime']} seconds used for training.")
+print(
+    f"{round(trainer_stats.metrics['train_runtime']/60, 2)} minutes used for training."
+)
+print(f"Peak reserved memory = {used_memory} GB.")
+print(f"Peak reserved memory for training = {used_memory_for_lora} GB.")
+print(f"Peak reserved memory % of max memory = {used_percentage} %.")
+print(f"Peak reserved memory for training % of max memory = {lora_percentage} %.")
