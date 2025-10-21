@@ -19,7 +19,6 @@ def get_args():
     p.add_argument("--grad_accum", type=int, default=8)
     p.add_argument("--lr", type=float, default=1e-4)
     p.add_argument("--epochs", type=int, default=2)
-    p.add_argument("--warmup_ratio", type=float, default=0.03)
     p.add_argument("--logging_steps", type=int, default=1)
     p.add_argument("--save_steps", type=int, default=500)
     p.add_argument("--eval_steps", type=int, default=500)
