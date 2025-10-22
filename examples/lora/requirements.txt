@@ -1,4 +1,4 @@
-examples/lora/requirements.txtabsl-py==2.3.1
+absl-py==2.3.1
 accelerate==1.10.1
 aiohappyeyeballs==2.6.1
 aiohttp==3.13.0
