@@ -15,3 +15,4 @@ accelerate launch --config_file /workspace/Megatron-LM/examples/lora/accelerate_
   --use_qlora \
   --bf16 \
   --gradient_checkpointing \
+  --use_flash_attn \

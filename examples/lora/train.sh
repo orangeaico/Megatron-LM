@@ -16,3 +16,4 @@ accelerate launch --config_file /home/himanshu/megatron_dir/Megatron-LM/examples
   --bf16 \
   --gradient_checkpointing \
   --local-files-only \
+  --use_flash_attn \

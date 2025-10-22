@@ -19,10 +19,6 @@ from peft import LoraConfig
 os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
 
 from transformers.utils import is_flash_attn_2_available
-if not is_flash_attn_2_available():
-    raise RuntimeError(
-        "flash-attn not available. Install a matching wheel for your CUDA/PyTorch."
-    )
 
 
 def get_args():
@@ -46,6 +42,7 @@ def get_args():
     p.add_argument("--bf16", action="store_true", default=True)
     p.add_argument("--gradient_checkpointing", action="store_true", default=True)
     p.add_argument("--local_files_only", action="store_true", default=False)
+    p.add_argument("--use_flash_attn", action="store_true", default=False)
     return p.parse_args()
 
 
@@ -158,6 +155,11 @@ def main():
             bnb_4bit_compute_dtype=dtype,
         )
 
+    if args.use_flash_attn and not is_flash_attn_2_available():
+        raise RuntimeError(
+            "flash-attn not available. Install a matching wheel for your CUDA/PyTorch."
+        )
+
     model = AutoModelForCausalLM.from_pretrained(
         args.model_name,
         trust_remote_code=True,
@@ -165,7 +167,7 @@ def main():
         quantization_config=quant_cfg,
         torch_dtype=dtype if quant_cfg is None else None,
         device_map=None,
-        attn_implementation="flash_attention_2"
+        attn_implementation="flash_attention_2" if args.use_flash_attn else "sdpa"
     )
 
     # After model load, you can also sanity-print:
