@@ -15,3 +15,4 @@ accelerate launch --config_file /home/himanshu/megatron_dir/Megatron-LM/examples
   --use_qlora \
   --bf16 \
   --gradient_checkpointing \
+  --local-files-only \

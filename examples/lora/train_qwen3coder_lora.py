@@ -45,7 +45,7 @@ def get_args():
     p.add_argument("--no-use_qlora", dest="use_qlora", action="store_false")
     p.add_argument("--bf16", action="store_true", default=True)
     p.add_argument("--gradient_checkpointing", action="store_true", default=True)
-    p.add_argument("--local_files_only", action="store_true", default=True)
+    p.add_argument("--local_files_only", action="store_true", default=False)
     return p.parse_args()
 
 
