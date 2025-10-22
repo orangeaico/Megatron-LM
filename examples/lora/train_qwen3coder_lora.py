@@ -284,20 +284,23 @@ def main():
         logging_first_step=True,
 
         save_steps=args.save_steps,
-        eval_strategy=("steps" if eval_pc is not None else "no"),
+        eval_strategy=("epoch" if eval_pc is not None else "no"),
         eval_steps=(args.eval_steps if eval_pc is not None else None),
         bf16=args.bf16,
         fp16=not args.bf16,
         dataloader_num_workers=4,
         max_grad_norm=1.0,
         report_to=["tensorboard"],
-        save_total_limit=3,
+        save_total_limit=10,
 
         # TRL-specific
         max_length=args.max_seq_len,
         packing=False,
         completion_only_loss=True,
         dataset_text_field=None,
+
+        # save a checkpoint at the end of every epoch
+        save_strategy="epoch"
     )
 
     trainer = LoggingSFTTrainer(
