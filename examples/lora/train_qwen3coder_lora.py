@@ -183,8 +183,14 @@ def main():
         model.gradient_checkpointing_enable()
 
     lora_cfg = LoraConfig(
-        r=16, lora_alpha=32, lora_dropout=0.05, bias="none", task_type="CAUSAL_LM",
-        target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "up_proj", "down_proj", "gate_proj"],
+        r=32, 
+        lora_alpha=32, 
+        lora_dropout=0,
+        target_modules=["q_proj","k_proj","v_proj","o_proj","gate_proj","up_proj","down_proj"],
+        bias="none", 
+        task_type="CAUSAL_LM",
+        use_rslora=False,
+        loftq_config=None,
     )
 
     # ------------------------------------------------------------------
@@ -197,8 +203,9 @@ def main():
         max_len = args.max_seq_len
         reserve_eos = 1  # TRL appends an EOS at the end of the sample
         out_prompts, out_completions = [], []
+        msgs_batches = batch.get("messages", []) or batch.get("conversations", [])
 
-        for msgs in batch["messages"]:
+        for msgs in msgs_batches:
             for i, m in enumerate(msgs):
                 if m.get("role") != "assistant":
                     continue
@@ -269,8 +276,8 @@ def main():
         per_device_eval_batch_size=args.per_device_eval_bs,
         gradient_accumulation_steps=args.grad_accum,
         learning_rate=args.lr,
-        lr_scheduler_type="cosine",
-        warmup_ratio=args.warmup_ratio,
+        lr_scheduler_type="linear",
+        # warmup_ratio=args.warmup_ratio,
 
         logging_strategy="steps",        
         logging_steps=1,

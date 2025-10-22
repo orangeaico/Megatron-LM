@@ -22,6 +22,17 @@ except Exception:
     _PEFT_AVAILABLE = False
 
 
+def _sanitize_adapter_config(adapter_dir: str):
+    cfg_path = os.path.join(adapter_dir, "adapter_config.json")
+    if os.path.exists(cfg_path):
+        with open(cfg_path, "r") as f:
+            cfg = json.load(f)
+        # Fix legacy/null loftq_config that older peft can’t handle
+        if "loftq_config" in cfg and cfg["loftq_config"] is None:
+            cfg["loftq_config"] = {}
+            with open(cfg_path, "w") as f:
+                json.dump(cfg, f)
+
 # ------------------------------
 # Model / Tokenizer Loading
 # ------------------------------
@@ -101,6 +112,10 @@ def load_model_and_tokenizer(
                 raise ValueError("AutoPeft failed and no --model-path was provided to load a base model.")
             print(f"Loading base model from: {model_path}")
             model = AutoModelForCausalLM.from_pretrained(model_path, **model_kwargs)
+
+            # Sanitize adapter config to avoid loftq None crash
+            _sanitize_adapter_config(lora_path)
+
             print(f"Attaching LoRA adapter from: {lora_path}")
             model = PeftModel.from_pretrained(
                 model,
