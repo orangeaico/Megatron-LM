@@ -61,7 +61,7 @@ eval_data_ds = load_dataset("json", data_files={"eval": eval_file_list})["eval"]
 
 def to_text_from_messages(examples):
     texts = []
-    msgs_batches = examples.get("messages", [])
+    msgs_batches = examples.get("messages", []) or examples.get("conversations", [])
     for msgs in msgs_batches:
         conv = []
         for m in msgs:
@@ -128,6 +128,16 @@ trainer = SFTTrainer(
         lr_scheduler_type="linear",
         seed=3407,
         report_to="none",
+
+        # run eval at the end of every epoch (logs eval_loss)
+        eval_strategy="epoch",
+        # save a checkpoint at the end of every epoch
+        save_strategy="epoch",
+        # Logging based on training steps
+        logging_strategy="steps",
+        # keep only the most recent N checkpoints
+        save_total_limit=10,
+        logging_first_step=True
     ),
 )
 
