@@ -2,7 +2,7 @@ export TOKENIZERS_PARALLELISM=false
 mkdir -p /workspace/data/himanshu/output/
 
 accelerate launch --config_file /workspace/Megatron-LM/examples/lora/accelerate_config_vast.yaml \
-/workspace/Megatron-LM/examples/lora/train_qwen3coder_lora.py \
+/workspace/Megatron-LM/examples/lora/masked_lora_hf.py \
   --model_name Qwen/Qwen3-Coder-30B-A3B-Instruct \
   --train_file /workspace/data/data/sft/train_data_sft_480b_375_swe_bench_shuf.jsonl \
   --eval_file /workspace/data/data/sft/train_data_sft_480b_375_swe_bench_shuf_eval.jsonl \
