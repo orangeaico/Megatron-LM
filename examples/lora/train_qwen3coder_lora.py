@@ -232,7 +232,8 @@ def main():
                 if total_len <= max_len:            # <-- keep only if it fits
                     out_prompts.append(prompt)
                     out_completions.append(completion)
-                # else: discard example
+                else: 
+                    break
 
         return {"prompt": out_prompts, "completion": out_completions}
 
@@ -290,7 +291,7 @@ def main():
         eval_steps=(args.eval_steps if eval_pc is not None else None),
         bf16=args.bf16,
         fp16=not args.bf16,
-        dataloader_num_workers=4,
+        dataloader_num_workers=16,
         max_grad_norm=1.0,
         report_to=["tensorboard"],
         save_total_limit=10,
