@@ -54,14 +54,14 @@ def main():
     # We can set a smaller rank for MoE layers; rslora handles scaling
     patch_lora_config(
         rank_pattern={
-            "q_proj": 32,
-            "k_proj": 32,
-            "v_proj": 32,
-            "o_proj": 32,
+            "q_proj": 16,
+            "k_proj": 16,
+            "v_proj": 16,
+            "o_proj": 16,
             # "gate": 16,  # LoRA on routing gate is possible but unstable
-            "gate_proj": 32,
-            "up_proj": 32,
-            "down_proj": 32,
+            "gate_proj": 4,
+            "up_proj": 4,
+            "down_proj": 4,
         }
     )
     patch_Qwen3MoeFusedSparseMoeBlock_forward()
