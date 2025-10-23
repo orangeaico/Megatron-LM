@@ -8,19 +8,25 @@ import argparse
 import torch
 import torch.distributed as dist
 from datasets import load_dataset, Features, Value
-from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig, TrainerCallback
+from transformers import (
+    AutoModelForCausalLM,
+    AutoTokenizer,
+    BitsAndBytesConfig,
+    TrainerCallback,
+)
 from trl import SFTTrainer, SFTConfig
 from peft import LoraConfig
 
-# import transformers, logging as pylog
-# transformers.logging.set_verbosity_info()
-# pylog.getLogger("transformers.trainer").setLevel(pylog.INFO)
-
+# ------------------------------------------------------------
+# Env & safety
+# ------------------------------------------------------------
 os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
 
 from transformers.utils import is_flash_attn_2_available
 
-
+# ------------------------------------------------------------
+# Args
+# ------------------------------------------------------------
 def get_args():
     p = argparse.ArgumentParser()
     p.add_argument("--model_name", type=str, default="Qwen/Qwen3-Coder-30B-A3B-Instruct")
@@ -34,7 +40,7 @@ def get_args():
     p.add_argument("--lr", type=float, default=1e-4)
     p.add_argument("--epochs", type=int, default=2)
     p.add_argument("--warmup_ratio", type=float, default=0.03)
-    p.add_argument("--logging_steps", type=int, default=1)              # log every step
+    p.add_argument("--logging_steps", type=int, default=1)
     p.add_argument("--save_steps", type=int, default=500)
     p.add_argument("--eval_steps", type=int, default=500)
     p.add_argument("--use_qlora", action="store_true", default=True)
@@ -170,10 +176,9 @@ def main():
         attn_implementation="flash_attention_2" if args.use_flash_attn else "sdpa"
     )
 
-    # After model load, you can also sanity-print:
     print(f"[ATTN] implementation: {getattr(model.config, '_attn_implementation', 'unknown')}")
 
-    # align PAD/BOS/EOS explicitly (silences warnings)
+    # Align PAD/BOS/EOS
     model.config.pad_token_id = tok.pad_token_id
     model.generation_config.pad_token_id = tok.pad_token_id
     model.config.bos_token_id = tok.bos_token_id
@@ -283,7 +288,7 @@ def main():
         # warmup_ratio=args.warmup_ratio,
 
         logging_strategy="steps",        
-        logging_steps=1,
+        logging_steps=args.logging_steps,
         logging_first_step=True,
 
         save_steps=args.save_steps,
@@ -296,11 +301,10 @@ def main():
         report_to=["tensorboard"],
         save_total_limit=10,
 
-        # TRL-specific
-        max_length=args.max_seq_len,
         packing=False,
         completion_only_loss=True,
         dataset_text_field=None,
+        max_length=args.max_seq_len,  # not used by TRL here; harmless
 
         # save a checkpoint at the end of every epoch
         save_strategy="epoch"
