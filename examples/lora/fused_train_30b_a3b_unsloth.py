@@ -70,6 +70,7 @@ def main():
     model, tokenizer = FastModel.from_pretrained(
         args.model_name,
         auto_model=Qwen3MoeFusedForCausalLM,
+        device_map="cuda:0",
     )
 
     # Apply LoRA
@@ -90,8 +91,9 @@ def main():
         use_rslora=True,
         use_gradient_checkpointing="unsloth",
         random_state=3407,
+        device_map="cuda:0",
     )
-
+    
     # Ensure PAD token is set for padding
     tokenizer.padding_side = "right"
     if tokenizer.pad_token is None:
