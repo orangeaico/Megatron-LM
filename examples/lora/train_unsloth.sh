@@ -7,7 +7,7 @@ python /home/himanshu/megatron_dir/Megatron-LM/examples/lora/train_qwen3coder_un
   --per_device_train_bs 1 \
   --per_device_eval_bs 1 \
   --grad_accum 8 \
-  --epochs 2 \
+  --epochs 4 \
   --logging_steps 1 \
   --lr 2e-4 \
   --weight_decay 0.01 \
