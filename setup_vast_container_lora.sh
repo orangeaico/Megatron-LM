@@ -28,4 +28,14 @@ fi
 
 for pid in $(jobs -p); do wait "$pid" || exit 1; done
 
+cd /workspace && git clone https://github.com/woct0rdho/transformers-qwen3-moe-fused.git
+cp /workspace/Megatron-LM/examples/lora/fused_train_30b_a3b_unsloth.py /workspace/transformers-qwen3-moe-fused/
+cp /workspace/Megatron-LM/examples/lora/conversion.py /workspace/transformers-qwen3-moe-fused/
+
+echo "Downloading model from Huggingface..."
+hf download Qwen/Qwen3-Coder-30B-A3B-Instruct --local-dir /workspace/data/Qwen3-Coder-30B-A3B-Instruct/
+
+echo "Converting model to fused format..."
+cd /workspace/transformers-qwen3-moe-fused && python conversion.py
+
 cd /workspace/Megatron-LM && echo "All Done!"

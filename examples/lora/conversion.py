@@ -1,7 +1,7 @@
 from transformers import AutoTokenizer
 
 # Input model directory (unfused) and output directory (fused)
-model_id = "Qwen/Qwen3-Coder-30B-A3B-Instruct"
+model_id = "/workspace/data/Qwen3-Coder-30B-A3B-Instruct"
 save_dir = "/workspace/data/Qwen3-Coder-30B-A3B-Instruct-fused"
 
 # Use file-level conversion to avoid loading the full model into memory
