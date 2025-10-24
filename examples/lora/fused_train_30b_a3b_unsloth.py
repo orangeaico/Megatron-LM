@@ -20,6 +20,7 @@ from qwen3_moe_fused.lora import patch_lora_config
 from qwen3_moe_fused.modular_qwen3_moe_fused import Qwen3MoeFusedForCausalLM
 from qwen3_moe_fused.quantize.quantizer import patch_bnb_quantizer
 
+os.environ["TRITON_PRINT_AUTOTUNING"] = "1"
 
 def get_args():
     p = argparse.ArgumentParser()
@@ -54,14 +55,14 @@ def main():
     # We can set a smaller rank for MoE layers; rslora handles scaling
     patch_lora_config(
         rank_pattern={
-            "q_proj": 16,
-            "k_proj": 16,
-            "v_proj": 16,
-            "o_proj": 16,
-            # "gate": 16,  # LoRA on routing gate is possible but unstable
-            "gate_proj": 4,
-            "up_proj": 4,
-            "down_proj": 4,
+            "q_proj": 32,
+            "k_proj": 32,
+            "v_proj": 32,
+            "o_proj": 32,
+            # "gate": 32,  # LoRA on routing gate is possible but unstable
+            "gate_proj": 32,
+            "up_proj": 32,
+            "down_proj": 32,
         }
     )
     patch_Qwen3MoeFusedSparseMoeBlock_forward()
