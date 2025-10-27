@@ -2,7 +2,7 @@ mkdir -p /workspace/data/himanshu/output/
 
 export TOKENIZERS_PARALLELISM=false
 python /workspace/transformers-qwen3-moe-fused/fused_train_30b_a3b_unsloth.py \
-  --model_name bash99/Qwen3-30B-A3B-Instruct-2507-fused-bnb-4bit \
+  --model_name /workspace/data/Qwen3-Coder-30B-A3B-Instruct-fused \
   --train_file /workspace/data/data/sft/train_data_sft_480b_375_swe_bench_shuf.jsonl \
   --eval_file /workspace/data/data/sft/train_data_sft_480b_375_swe_bench_shuf_eval.jsonl \
   --output_dir /workspace/data/himanshu/output/qwen3coder30b-unsloth \

@@ -17,9 +17,9 @@ if [ ! -d Pai-Megatron-Patch ]; then
 fi
 
 # Clone the Pai Megatron Patch repo if it doesn't exist
-if [ ! -d repo_eval ]; then
-    git clone https://github.com/orangeaico/repo_eval.git
-fi
+# if [ ! -d repo_eval ]; then
+#     git clone https://github.com/orangeaico/repo_eval.git
+# fi
 
 TORCH_CHECKPOINTS_DIR_PATH="/workspace/data/himanshu/output/$TIMESTAMP/$MODEL_NAME/checkpoints/"
 CHECKPOINT_ITERATIONS_FILE="$TORCH_CHECKPOINTS_DIR_PATH/latest_checkpointed_iteration.txt"

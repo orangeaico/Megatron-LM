@@ -1,8 +1,8 @@
 from transformers import AutoTokenizer
 
 # Input model directory (unfused) and output directory (fused)
-model_id = "/home/shared/megatron_dir/hf_models/Qwen3-Coder-30B-A3B-Instruct"
-save_dir = "Qwen3-Coder-30B-A3B-Instruct-fused"
+model_id = "/workspace/data/Qwen3-Coder-30B-A3B-Instruct"
+save_dir = "/workspace/data/Qwen3-Coder-30B-A3B-Instruct-fused"
 
 # Use file-level conversion to avoid loading the full model into memory
 from qwen3_moe_fused.convert import convert_model_to_fused
