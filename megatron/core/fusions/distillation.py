@@ -48,12 +48,10 @@ import torch.nn.functional as F
 
 from megatron.core.parallel_state import (
     get_tensor_model_parallel_world_size,
-    get_tensor_model_parallel_rank,
     get_context_parallel_world_size,
     get_context_parallel_rank,
 )
-from megatron.core.tensor_parallel import reduce_from_tensor_model_parallel_region
-from megatron.core.tensor_parallel.utils import VocabUtility
+from megatron.core.tensor_parallel import gather_from_tensor_model_parallel_region
 from megatron.core.fusions.cce_loss import cce_per_token_loss
 
 # Constants
@@ -185,13 +183,7 @@ def distillation_loss(
     
     # Get tensor parallelism configuration
     tensor_parallel_world_size = get_tensor_model_parallel_world_size()
-    tensor_parallel_rank = get_tensor_model_parallel_rank()
     is_tensor_parallel = tensor_parallel_world_size > 1
-    
-    # Get vocabulary partition range for this rank
-    vocab_start_idx, vocab_end_idx = VocabUtility.vocab_range_from_global_vocab_size(
-        vocab_size, tensor_parallel_rank, tensor_parallel_world_size
-    )
     
     device = batch_first_embeddings.device
     batch_size, sequence_length, hidden_size = batch_first_embeddings.shape
@@ -202,7 +194,10 @@ def distillation_loss(
         device=device, 
         dtype=torch.float32
     )
-    
+    if is_tensor_parallel:
+        classifier_weight = classifier_weight.t()
+        classifier_weight = gather_from_tensor_model_parallel_region(classifier_weight)
+        classifier_weight = classifier_weight.t().contiguous()
     # Process each batch element separately
     for batch_idx in range(batch_size):
         with _timed_section(f"prepare_teacher_batch[{batch_idx}]", debug):
@@ -219,18 +214,11 @@ def distillation_loss(
                 batch_teacher_data=teacher_batch,
                 classifier_weight=classifier_weight,
                 kl_loss_tensor=kl_loss_tensor,
-                vocab_start_idx=vocab_start_idx,
-                vocab_end_idx=vocab_end_idx,
-                is_tensor_parallel=is_tensor_parallel,
                 temperature=temperature,
                 chunk_size=chunk_size,
                 debug=debug,
                 ignore_index=ignore_index,
             )
-    
-    # Reduce KL losses across tensor parallel ranks
-    if is_tensor_parallel:
-        kl_loss_tensor = reduce_from_tensor_model_parallel_region(kl_loss_tensor)
 
     if debug:
         _print_debug_summary(kl_loss_tensor)
@@ -293,9 +281,6 @@ def _process_batch_element_kl_loss(
     batch_teacher_data: TeacherBatchTensors,
     classifier_weight: torch.Tensor,
     kl_loss_tensor: torch.Tensor,
-    vocab_start_idx: int,
-    vocab_end_idx: int,
-    is_tensor_parallel: bool,
     temperature: float,
     chunk_size: int,
     debug: bool,
@@ -312,9 +297,6 @@ def _process_batch_element_kl_loss(
         batch_teacher_data: Teacher data for this batch element
         classifier_weight: Classifier weight matrix
         kl_loss_tensor: Output tensor for KL losses
-        vocab_start_idx: Start index of vocabulary partition
-        vocab_end_idx: End index of vocabulary partition
-        is_tensor_parallel: Whether tensor parallelism is enabled
         temperature: Temperature parameter
         chunk_size: Processing chunk size
         ignore_index: Index to ignore
@@ -350,9 +332,6 @@ def _process_batch_element_kl_loss(
             batch_labels=batch_labels,
             chunk_start=chunk_start,
             chunk_end=chunk_end,
-            vocab_start_idx=vocab_start_idx,
-            vocab_end_idx=vocab_end_idx,
-            is_tensor_parallel=is_tensor_parallel,
             temperature=temperature,
             debug=debug,
             ignore_index=ignore_index
@@ -408,9 +387,6 @@ def _extract_chunk_teacher_data(
     batch_labels: torch.Tensor,
     chunk_start: int,
     chunk_end: int,
-    vocab_start_idx: int,
-    vocab_end_idx: int,
-    is_tensor_parallel: bool,
     temperature: float,
     debug: bool,
     ignore_index: int = DEFAULT_IGNORE_INDEX,
@@ -556,81 +532,9 @@ def _extract_chunk_teacher_data(
     finite_token_mask = torch.isfinite(teacher_log_probs)
     teacher_mask = teacher_mask & finite_token_mask
 
-    if is_tensor_parallel:
-        local_vocab_mask = (padded_indices >= vocab_start_idx) & (
-            padded_indices < vocab_end_idx
-        )
-        teacher_mask = teacher_mask & local_vocab_mask
-
-        valid_rows, valid_cols = torch.nonzero(teacher_mask, as_tuple=True)
-        if valid_rows.numel() == 0:
-            return None
-
-        num_positions = local_positions.size(0)
-        lengths = torch.bincount(valid_rows, minlength=num_positions)
-        valid_positions_mask = lengths > 0
-        keep = None
-        if not torch.all(valid_positions_mask):
-            keep = torch.nonzero(valid_positions_mask, as_tuple=False).flatten()
-            if keep.numel() == 0:
-                return None
-            lengths = lengths[keep]
-            # Remap row indices to compact space
-            remap = torch.full(
-                (num_positions,), -1, dtype=torch.long, device=device
-            )
-            remap[keep] = torch.arange(keep.numel(), device=device, dtype=torch.long)
-            valid_rows = remap[valid_rows]
-            num_positions = keep.numel()
-        else:
-            num_positions = lengths.size(0)
-            keep = torch.arange(num_positions, device=device, dtype=torch.long)
-
-        total_local_tokens = int(lengths.sum().item())
-        if total_local_tokens == 0:
-            return None
-
-        max_local_length = int(lengths.max().item())
-        compact_mask = torch.zeros(
-            (num_positions, max_local_length),
-            dtype=torch.bool,
-            device=device,
-        )
-        compact_indices = torch.full(
-            (num_positions, max_local_length),
-            -1,
-            dtype=torch.long,
-            device=device,
-        )
-        compact_log_probs = torch.zeros(
-            (num_positions, max_local_length),
-            dtype=teacher_log_probs.dtype,
-            device=device,
-        )
-
-        lengths_cumsum = lengths.cumsum(0)
-        start_offsets = lengths_cumsum - lengths
-        within_row_idx = torch.arange(
-            total_local_tokens, device=device, dtype=torch.long
-        ) - start_offsets[valid_rows]
-
-        gathered_indices = padded_indices[teacher_mask]
-        gathered_log_probs = teacher_log_probs[teacher_mask]
-
-        compact_mask[valid_rows, within_row_idx] = True
-        compact_indices[valid_rows, within_row_idx] = gathered_indices - vocab_start_idx
-        compact_log_probs[valid_rows, within_row_idx] = gathered_log_probs
-
-        teacher_mask = compact_mask
-        padded_indices = compact_indices
-        teacher_log_probs = compact_log_probs
-
-        local_positions = local_positions[keep]
-        global_positions = global_positions[keep]
-    else:
-        teacher_log_probs = torch.where(
-            teacher_mask, teacher_log_probs, torch.zeros_like(teacher_log_probs)
-        )
+    teacher_log_probs = torch.where(
+        teacher_mask, teacher_log_probs, torch.zeros_like(teacher_log_probs)
+    )
 
     if debug:
         curr_rank = torch.distributed.get_rank()
@@ -779,7 +683,7 @@ def _print_chunk_debug_info(
     )
     print(
         f"batch {batch_idx} efficient pos {debug_position} "
-        f"kl_per_pos: {kl_losses[batch_idx, debug_position]}"
+        f"kl_per_pos: {kl_losses[batch_idx, local_pos]}"
     )
 
 
