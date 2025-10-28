@@ -8,8 +8,6 @@ mkdir -p ${DATA_DIRECTORY:-/workspace/}
 
 cd /workspace
 
-pip install vllm==0.10.1.1
-
 mkdir -p /workspace/data/
 
 if [ "$SETUP_DATA" -eq 1 ]; then
@@ -38,13 +36,10 @@ echo "✅ rclone.conf written to $CONFIG_PATH"
 rclone about gdrive: -vv
 
 echo "🎉 Google Drive remote [gdrive] is ready!"
+fi
+
+pip install vllm==0.10.1.1
 
 cd /workspace/data/
-
-echo "Copying model to /workspace/data/mega-models/"
-rclone copy -P gdrive:"megatron_dir/himanshu/output/2025_10_10_09_32_24/Qwen3-Coder-30B-A3B-Instruct/conversion/qwen3_30b_a3b_hf/" mega-models/qwen3_30b_a3b_hf
-
-echo "Data copying complete!"
-fi
 
 echo "All Done!"

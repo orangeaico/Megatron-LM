@@ -49,6 +49,13 @@ def process_single_item(item_with_index: Tuple[int, Dict], tokenizer_path: str) 
             tokenize=False,
             add_generation_prompt=False
         )
+    elif 'conversations' in item:
+        # Apply chat template
+        text = tokenizer.apply_chat_template(
+            item['conversations'], 
+            tokenize=False,
+            add_generation_prompt=False
+        )
     elif 'text' in item:
         # If no messages field, use text field directly
         text = item['text']
