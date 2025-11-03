@@ -3177,6 +3177,7 @@ def _add_sft_args(parser):
         action='store_true',
         help='Enable variable sequence length packing for SFT datasets.'
     )
+    group.add_argument('--weighted-loss', action="store_true", help='Support weighted loss per position for SFT training using pre generated loss mask')
     return parser
 
 

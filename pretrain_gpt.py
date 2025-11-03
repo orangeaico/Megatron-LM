@@ -25,6 +25,7 @@ from megatron.training.teacher_data_utils import (
     unpack_teacher_batch,
 )
 from megatron.training.datasets.sft_dataset import SFTDataset
+from megatron.training.datasets.sft_dataset_weighted import SFTDatasetWeightedMask
 from megatron.training.datasets.json_teacher_dataset import JsonTeacherDataset
 from model_provider import model_provider
 from gpt_builders import gpt_builder
@@ -134,7 +135,10 @@ def loss_func(
             fatal=False,
         )
 
-    num_tokens = loss_mask.sum().clone().detach().to(torch.int)
+    if args.sft and args.weighted_loss:
+        num_tokens = ((loss_mask > 0).sum()).clone().detach().to(torch.int)
+    else:
+        num_tokens = loss_mask.sum().clone().detach().to(torch.int)
     reporting_loss = torch.cat([loss.clone().detach().view(1), num_tokens.view(1)])
 
     return (loss, num_tokens, {'lm loss': reporting_loss})
@@ -239,6 +243,8 @@ def train_valid_test_datasets_provider(train_val_test_num_samples):
 
     if args.distillation_loss:
         dataset_type = JsonTeacherDataset
+    elif args.sft and args.weighted_loss:
+        dataset_type = SFTDatasetWeightedMask
     elif args.sft:
         dataset_type = SFTDataset
     else:
