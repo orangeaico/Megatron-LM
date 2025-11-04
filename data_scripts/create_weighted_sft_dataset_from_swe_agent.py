@@ -9,8 +9,21 @@ import glob
 
 IGNORE_INDEX = -100
 
+ACTION_DEFAULT_WEIGHT = 2
+action_weight_dict = {
+    "think": 1,
+    "str_replace_editor str_replace": 4,
+    "finish": 4
+}
 
-def process_example(tokenizer, conversation_list: List[Dict[str, Any]]):
+def get_action_weight(action: str) -> int:
+    """Get weight for a given action."""
+    for act, weight in action_weight_dict.items():
+        if action.startswith(act):
+            return weight
+    return ACTION_DEFAULT_WEIGHT  # Default weight for other actions
+
+def process_example(tokenizer, conversation_list: List[Dict[str, Any]], stats: Dict[str, int]):
     """Process conversation and create input_ids, labels, and custom loss_mask."""
     if not isinstance(conversation_list, list):
         raise ValueError(f"The sample must be a list but got {type(conversation_list)}")
@@ -46,10 +59,9 @@ def process_example(tokenizer, conversation_list: List[Dict[str, Any]]):
             # Assistant messages
             labels.extend(seg_ids)
             
-            # Check if action contains "str_replace_editor str_replace"
-            has_str_replace = action and 'str_replace_editor str_replace' in action
-            
             if thought:
+                stats['assistant_with_thought'] += 1
+                
                 # Create thought lookup tokens
                 thought_dict = {"role": role, "content": thought}
                 
@@ -64,6 +76,7 @@ def process_example(tokenizer, conversation_list: List[Dict[str, Any]]):
                 
                 # Find thought tokens in original seg_ids
                 thought_mask = [0] * len(seg_ids)
+                thought_found = False
                 if thought_seg_ids:
                     # Look for the thought sequence in the original tokens
                     for j in range(len(seg_ids) - len(thought_seg_ids) + 1):
@@ -71,36 +84,33 @@ def process_example(tokenizer, conversation_list: List[Dict[str, Any]]):
                             # Mark these positions as thought tokens
                             for k in range(len(thought_seg_ids)):
                                 thought_mask[j + k] = 1
-                            print (f"Found thought seg ids with offset 0")
+                            thought_found = True
                             break
                         elif seg_ids[j:j+len(thought_seg_ids) - 1] == thought_seg_ids[:-1]:
                             # Mark these positions as thought tokens
                             for k in range(len(thought_seg_ids)-1):
                                 thought_mask[j + k] = 1
-                            print (f"Found thought seg ids with offset -1")
+                            thought_found = True
                             break
                         elif seg_ids[j:j+len(thought_seg_ids) - 2] == thought_seg_ids[:-2]:
                             # Mark these positions as thought tokens
                             for k in range(len(thought_seg_ids)-2):
                                 thought_mask[j + k] = 1
-                            print (f"Found thought seg ids with offset -2")
+                            thought_found = True
                             break
                 
+                if thought_found:
+                    stats['thought_found'] += 1
+                
+                action_weight = get_action_weight(action)
                 # Set loss masks
                 for is_thought in thought_mask:
                     if is_thought:
                         loss_mask.append(1)  # Thought tokens get weight 1
-                    else:
-                        if has_str_replace:
-                            loss_mask.append(4)  # Non-thought with str_replace gets weight 4
-                        else:
-                            loss_mask.append(2)  # Regular non-thought gets weight 2
-            else:
-                # No thought content
-                if has_str_replace:
-                    loss_mask.extend([4] * len(seg_ids))
-                else:
-                    loss_mask.extend([2] * len(seg_ids))
+                    else: 
+                        loss_mask.append(action_weight)  # Non-thought tokens
+            else:                
+                loss_mask.extend([get_action_weight(action)] * len(seg_ids))                
 
     assert len(input_ids) == len(labels) == len(loss_mask)
 
@@ -149,6 +159,7 @@ def main():
     parser.add_argument(
         '--model_path',
         type=str,
+        default="Qwen/Qwen3-Coder-30B-A3B-Instruct",
         required=False,
         help='HuggingFace model path for tokenizer (required unless --no-tokenize is used)'
     )
@@ -196,6 +207,19 @@ def main():
         processed_count = 0
         error_count = 0
         
+        # Initialize statistics
+        stats = {
+            'total_input_ids': 0,
+            'total_labels': 0,
+            'total_loss_mask': 0,
+            'loss_mask_0': 0,
+            'loss_mask_1': 0,
+            'loss_mask_2': 0,
+            'loss_mask_4': 0,
+            'assistant_with_thought': 0,
+            'thought_found': 0
+        }
+        
         # Scan subdirectories
         for subdir in os.listdir(args.input_dir):
             subdir_path = os.path.join(args.input_dir, subdir)
@@ -237,7 +261,23 @@ def main():
                     }
                 else:
                     # Process the conversation with tokenization
-                    input_ids, labels, loss_mask = process_example(tokenizer, messages)
+                    input_ids, labels, loss_mask = process_example(tokenizer, messages, stats)
+                    
+                    # Update statistics
+                    stats['total_input_ids'] += len(input_ids)
+                    stats['total_labels'] += len(labels)
+                    stats['total_loss_mask'] += len(loss_mask)
+                    
+                    # Count loss mask values
+                    for mask_val in loss_mask:
+                        if mask_val == 0:
+                            stats['loss_mask_0'] += 1
+                        elif mask_val == 1:
+                            stats['loss_mask_1'] += 1
+                        elif mask_val == 2:
+                            stats['loss_mask_2'] += 1
+                        elif mask_val == 4:
+                            stats['loss_mask_4'] += 1
                     
                     # Create output entry
                     output_entry = {
@@ -263,6 +303,25 @@ def main():
     print(f"Total bugs processed: {processed_count}")
     print(f"Errors encountered: {error_count}")
     print(f"Output written to: {args.output_file}")
+    
+    # Print statistics if tokenization was performed
+    if not args.no_tokenize:
+        print("\n=== TOKENIZATION STATISTICS ===")
+        print(f"Total input_ids: {stats['total_input_ids']:,}")
+        print(f"Total labels: {stats['total_labels']:,}")
+        print(f"Total loss_mask: {stats['total_loss_mask']:,}")
+        
+        print("\n=== LOSS MASK DISTRIBUTION ===")
+        if stats['total_loss_mask'] > 0:
+            print(f"Loss mask 0 (non-assistant): {stats['loss_mask_0']:,} ({stats['loss_mask_0']/stats['total_loss_mask']*100:.1f}%)")
+            print(f"Loss mask 1 (thought): {stats['loss_mask_1']:,} ({stats['loss_mask_1']/stats['total_loss_mask']*100:.1f}%)")
+            print(f"Loss mask 2 (assistant non-thought): {stats['loss_mask_2']:,} ({stats['loss_mask_2']/stats['total_loss_mask']*100:.1f}%)")
+            print(f"Loss mask 4 (assistant with str_replace): {stats['loss_mask_4']:,} ({stats['loss_mask_4']/stats['total_loss_mask']*100:.1f}%)")
+        
+        print("\n=== THOUGHT STATISTICS ===")
+        print(f"Assistant messages with non-empty thought: {stats['assistant_with_thought']:,}")
+        if stats['assistant_with_thought'] > 0:
+            print(f"Thoughts successfully found in tokens: {stats['thought_found']:,} ({stats['thought_found']/stats['assistant_with_thought']*100:.1f}%)")
 
 
 if __name__ == "__main__":
