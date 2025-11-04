@@ -3,7 +3,7 @@ import json
 import os
 import re
 from pathlib import Path
-from typing import Dict, Any, List, Tuple
+from typing import Dict, Any, List
 from transformers import AutoTokenizer
 import glob
 
@@ -107,28 +107,29 @@ def process_example(tokenizer, conversation_list: List[Dict[str, Any]]):
     return input_ids, labels, loss_mask
 
 
-def extract_trajectory_query(traj_file: str) -> Tuple[List[Dict[str, str]], Dict[str, Any]]:
-    """Extract query from trajectory file and return query and action info."""
+def extract_trajectory_query(traj_file: str) -> List[Dict[str, str]]:
+    """Extract messages from trajectory file using history field."""
     with open(traj_file, 'r') as f:
         data = json.load(f)
     
-    trajectory = data.get('trajectory', [])
-    if not trajectory:
-        raise ValueError(f"No trajectory found in {traj_file}")
+    history = data.get('history', [])
+    if not history:
+        raise ValueError(f"No history found in {traj_file}")
     
-    # Try to get query from last trajectory item
-    query = trajectory[-1].get('query', [])
+    # Find the last assistant message index
+    last_assistant_idx = -1
+    for i in range(len(history) - 1, -1, -1):
+        if history[i].get('role') == 'assistant':
+            last_assistant_idx = i
+            break
     
-    # If query is empty, try second to last
-    if not query and len(trajectory) > 1:
-        query = trajectory[-2].get('query', [])
-        
-        if not query:
-            raise ValueError(f"Empty query in both last and second-to-last trajectory items in {traj_file}")
+    if last_assistant_idx == -1:
+        raise ValueError(f"No assistant messages found in history in {traj_file}")
     
-    # Query is already a list of dicts with 'role' and 'content'
+    # Return all messages up to and including the last assistant message
+    messages = history[:last_assistant_idx + 1]
     
-    return query
+    return messages
 
 
 def main():
@@ -215,7 +216,6 @@ def main():
             
             # Process the first trajectory file found
             traj_file = traj_files[0]
-            print (f"Processing trajectory file: {traj_file}")
             
             try:
                 # Extract query from trajectory
@@ -253,7 +253,7 @@ def main():
                 processed_count += 1
                 
                 if processed_count % 10 == 0:
-                    print(f"Processed {processed_count} examples...")                
+                    print(f"Processed {processed_count} examples...")         
             except Exception as e:
                 error_count += 1
                 print(f"Error processing {subdir}/{os.path.basename(traj_file)}: {e}")
