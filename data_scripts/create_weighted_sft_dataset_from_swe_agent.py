@@ -147,7 +147,7 @@ def main():
     parser.add_argument(
         '--input_dir', 
         type=str, 
-        default='/home/shared/swe-agent_logs/shramana/20251103_121356_openai/surya_1000_bugs',
+        default='/home/shared/swe-agent_logs/saurav/20251009_190531_openai/Qwen3',
         help='Input directory containing SWE-Agent logs'
     )
     parser.add_argument(
