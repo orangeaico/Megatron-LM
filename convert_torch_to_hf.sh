@@ -109,4 +109,9 @@ for dir in "$TORCH_CHECKPOINTS_DIR_PATH"/iter_*; do
     fi
 done
 
+echo "Model conversion done!"
+
+echo "Starting upload of HF models to GDrive"
+bash /workspace/Megatron-LM/upload_hf_to_gdrive.sh $TIMESTAMP
+
 echo "All Done!"
