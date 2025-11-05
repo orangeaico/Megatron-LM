@@ -48,6 +48,8 @@ class SFTDatasetWeightedMask(SFTDataset):
         conversation_list = self.dataset[int(self.indices[idx % len(self.indices)])]
         
         tokens, target, loss_mask = self._process_example(conversation_list)
+        target = target[1:] + [IGNORE_INDEX]
+        loss_mask = loss_mask[1:] + [0]
 
         original_seq_len = len(tokens)
 

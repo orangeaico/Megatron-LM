@@ -9,6 +9,8 @@ mkdir -p ${DATA_DIRECTORY:-/workspace/}
 cd /workspace
 
 mkdir -p /workspace/data/
+mkdir -p /workspace/data/models/
+mkdir -p /workspace/repo_eval/quantization/
 
 if [ "$SETUP_DATA" -eq 1 ]; then
 echo "Installing rclone.."
@@ -25,7 +27,7 @@ type = drive
 scope = drive
 client_id = 983615320622-9vfjc78upb9igrcf54i6dvb4cvecfpm3.apps.googleusercontent.com
 client_secret = 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
-token = {"access_token":"ya29.a0AQQ_BDRFpxdfVvEThJD5xALTDJ5XciVW36HYBE0F8N0tA-gujurULRicrbBBMmQDtddyj2sLKLEaQWsu9skyopTDKn8lkEc4jbF7RxkzQ8IgrSFx6921wtPkSLYk1dA01v6lhG_s7VRXz04fUCQqmL7C8jJTUzrBhDQDkwob_MMWmpzZfKE0Ft9LOHdHJbBIdwh6BEEaCgYKAXwSARcSFQHGX2MiaO2wiHfWH0kDJghW3omc3g0206","token_type":"Bearer","refresh_token":"1//0g9XJCyR9hUR8CgYIARAAGBASNwF-L9Ir2ebGwJ6CNPVfSveAPJfmQI6bhgebJi6a5ZA_pybM-pYrOHqyL2PPskYltN3WtzI3NHM","expiry":"2025-10-13T18:19:07.314428+05:30","expires_in":3599}
+token = {}
 EOF
 
 chmod 600 "$CONFIG_PATH"
@@ -38,7 +40,12 @@ rclone about gdrive: -vv
 echo "🎉 Google Drive remote [gdrive] is ready!"
 fi
 
-pip install vllm==0.10.1.1
+rclone copy -P gdrive:megatron_dir/code/quantize_qwen_moe.py /workspace/repo_eval/quantization/
+
+# pip install vllm==0.10.1.1 accelerate transformers
+
+# rclone copy -P --transfers 13 gdrive:megatron_dir/himanshu/output/2025_11_04_09_56_13/Qwen3-Coder-30B-A3B-Instruct/conversion/qwen3_30b_a3b_0000188_hf/ /workspace/data/models/cpt/qwen3_30b_a3b_0000188_hf
+# python3 /workspace/repo_eval/quantization/quantize_qwen_moe.py --src /workspace/data/models/cpt/qwen3_30b_a3b_0000188_hf --dst /workspace/data/models/cpt/qwen3_30b_a3b_0000188_hf_fp8
 
 cd /workspace/data/
 
