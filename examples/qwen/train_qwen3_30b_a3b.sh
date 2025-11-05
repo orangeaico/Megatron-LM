@@ -18,7 +18,7 @@ ENABLE_PROFILING=0
 ENABLE_NSYS_PROFILING=0
 
 # CRITICAL - DOUBLE CHECK THIS VALUE
-TRAINING_MODE="distillation" # set from mock, cpt, sft or distillation
+TRAINING_MODE="sft" # set from mock, cpt, sft or distillation
 
 MODEL_NAME="Qwen3-Coder-30B-A3B-Instruct"
 
@@ -35,8 +35,8 @@ if [[ "$TRAINING_MODE" == "cpt" ]]; then
     TEST_DATA_PATH=$VALID_DATA_PATH
 
 elif [[ "$TRAINING_MODE" == "sft" ]]; then
-    TRAIN_DATA_PATH="$BASE_DIR/data/sft/train_data_sft_480b_375_swe_bench_shuf.jsonl"
-    VALID_DATA_PATH="$BASE_DIR/data/sft/train_data_sft_480b_375_swe_bench_shuf.jsonl"
+    TRAIN_DATA_PATH="$BASE_DIR/data/sft/train_data_sft_480b_375_swe_bench_weighted.jsonl"
+    VALID_DATA_PATH="$BASE_DIR/data/sft/train_data_sft_480b_97_swe_bench_weighted.jsonl"
     TEST_DATA_PATH=$VALID_DATA_PATH 
 
 elif [[ "$TRAINING_MODE" == "distillation" ]]; then
@@ -160,8 +160,8 @@ TRAINING_ARGS=(
 
     # Learning rate args
     --lr-warmup-samples 0
-    --lr 5.0e-5 # 5.0e-5
-    --min-lr 5.0e-6 # 5.0e-6
+    --lr 1.0e-5 # 5.0e-5
+    --min-lr 1.0e-6 # 5.0e-6
     # --decoupled-lr 8.0e-4  # Adjusted for smaller model
     # --decoupled-min-lr 8.0e-5  # Adjusted for smaller model
     --lr-decay-style cosine
@@ -271,6 +271,7 @@ elif [[ "$TRAINING_MODE" == "sft" ]]; then
         "--sft"
         "--num-workers 1"
         "--no-create-attention-mask-in-dataloader"
+        "--weighted-loss"
         # "--variable-seq-lengths"
         # "--moe-token-dispatcher-type alltoall" # This needs to be set for variable seq lengths
 
