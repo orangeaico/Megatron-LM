@@ -34,11 +34,11 @@ class SFTDatasetWeightedMask(SFTDataset):
 
         input_ids = conversation_dict.get("input_ids", [])
         labels = conversation_dict.get("labels", [])
-        loss_mask = conversation_dict.get("loss_mask", [])
+        loss_mask_weighted = conversation_dict.get("loss_mask", [])
 
-        assert len(input_ids) == len(labels) == len(loss_mask)
+        assert len(input_ids) == len(labels) == len(loss_mask_weighted)
     
-        return input_ids, labels, loss_mask
+        return input_ids, labels, loss_mask_weighted
 
     def __getitem__(self, idx: int) -> Dict[str, Any]:
 
@@ -47,9 +47,9 @@ class SFTDatasetWeightedMask(SFTDataset):
 
         conversation_list = self.dataset[int(self.indices[idx % len(self.indices)])]
         
-        tokens, target, loss_mask = self._process_example(conversation_list)
+        tokens, target, loss_mask_weighted = self._process_example(conversation_list)
         target = target[1:] + [IGNORE_INDEX]
-        loss_mask = loss_mask[1:] + [0]
+        loss_mask_weighted = loss_mask_weighted[1:] + [0]
 
         original_seq_len = len(tokens)
 
@@ -57,11 +57,11 @@ class SFTDatasetWeightedMask(SFTDataset):
             if True:  # TODO: when too long to fit in context, truncate left to right
                 tokens = tokens[: max_seq_len]
                 target = target[: max_seq_len]
-                loss_mask = loss_mask[: max_seq_len]
+                loss_mask_weighted = loss_mask_weighted[: max_seq_len]
             else:  # right to left
                 tokens = tokens[-(max_seq_len - 1) :]
                 target = target[-(max_seq_len - 1) :]
-                loss_mask = loss_mask[-(max_seq_len - 1) :]
+                loss_mask_weighted = loss_mask_weighted[-(max_seq_len - 1) :]
 
         use_variable_seq_len = getattr(self.config, "variable_seq_lengths", False)
 
@@ -99,7 +99,7 @@ class SFTDatasetWeightedMask(SFTDataset):
                 while final_seq_len > max_seq_len and tokens:
                     tokens.pop()
                     target.pop()
-                    loss_mask.pop()
+                    loss_mask_weighted.pop()
                     base_seq_len = len(tokens)
                     padding_len = 0
                     if required_multiple > 1:
@@ -125,20 +125,21 @@ class SFTDatasetWeightedMask(SFTDataset):
             target + [IGNORE_INDEX] * padding_len,
             dtype=np.int64,
         )
-        loss_mask = np.array(
-            loss_mask + [0.0] * padding_len,
+        loss_mask_weighted = np.array(
+            loss_mask_weighted + [0.0] * padding_len,
             dtype=float,
         )
 
         tokens = torch.tensor(tokens).contiguous()
         target = torch.tensor(target).contiguous()
-        loss_mask = torch.tensor(loss_mask).contiguous()
+        loss_mask_weighted = torch.tensor(loss_mask_weighted).contiguous()
 
-        target[loss_mask == 0.0] = IGNORE_INDEX
-
-        position_ids, attention_mask = self._get_ltor_masks_and_position_ids(
+        loss_mask, position_ids, attention_mask = self._get_ltor_masks_and_position_ids(
             max_seq_len, target, tokenizer.pad, use_variable_seq_len
         )
+
+        # Copy weighted mask values into loss_mask (preserve dtype)
+        loss_mask = loss_mask_weighted.to(dtype=loss_mask.dtype)
 
         if DEBUG:
             curr_rank = torch.distributed.get_rank()
@@ -188,26 +189,3 @@ class SFTDatasetWeightedMask(SFTDataset):
             }
 
         return ret
-
-    def _get_ltor_masks_and_position_ids(self, max_seq_len, target, pad_token, use_variable_seq_len):
-        """Build masks and position id for left to right model for SFT"""
-
-        assert not self.config.reset_position_ids and not self.config.reset_attention_mask
-
-        if use_variable_seq_len:
-            seq_length = target.size(0)
-        else:
-            seq_length = max_seq_len
-        # Position ids.
-        position_ids = torch.arange(seq_length, dtype=torch.long)
-
-        if self.config.create_attention_mask:
-            attention_mask = torch.tril(
-                torch.ones((seq_length, seq_length), device=target.device)
-            ).unsqueeze(0)
-            # Convert attention mask to binary:
-            attention_mask = attention_mask < 0.5
-        else:
-            attention_mask = None
-
-        return position_ids, attention_mask
