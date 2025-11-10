@@ -155,8 +155,8 @@ MOE_ARGS=(
 TRAINING_ARGS=(
     --micro-batch-size $MICRO_BATCH_SIZE
     --global-batch-size $GLOBAL_BATCH_SIZE
-    --train-samples 4008
-    --lr-decay-samples 4008
+    --train-samples 3816
+    --lr-decay-samples 3816
 
     # Learning rate args
     --lr-warmup-samples 0
@@ -310,7 +310,7 @@ CHECKPOINT_ARGS=(
     --no-save-rng
     --no-load-rng
     --no-load-optim
-    --save-interval 167
+    --save-interval 159
     --exit-on-missing-checkpoint
     # --ckpt-convert-format torch_dist
     # --ckpt-convert-save /workspace/data/himanshu/output/Qwen3-Coder-30B-A3B-Instruct/conversion/qwen3_30b_a3b_torch_dist/
@@ -318,7 +318,7 @@ CHECKPOINT_ARGS=(
 
 EVAL_AND_LOGGING_ARGS=(
     --eval-iters 3
-    --eval-interval 42
+    --eval-interval 40
     # --full-validation
     --log-interval 1
     --log-throughput
