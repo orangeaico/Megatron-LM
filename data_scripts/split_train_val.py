@@ -5,15 +5,16 @@ import os
 import random
 from pathlib import Path
 
-def split_jsonl_train_val(input_file, eval_ratio=5.0, seed=42):
+def split_jsonl_train_val(input_file, eval_ratio=5.0, seed=42, shuffle=False):
     """
     Split a JSONL file into training and validation sets.
-    Randomly samples validation set but preserves original order.
-    
+    Randomly samples validation set but preserves original order unless shuffle=True.
+
     Args:
         input_file: Path to input JSONL file
         eval_ratio: Percentage of data for validation (default: 5.0)
         seed: Random seed for reproducibility (default: 42)
+        shuffle: If True, shuffle the entire dataset before splitting (default: False)
     """
     # Set random seed for reproducibility
     random.seed(seed)
@@ -21,7 +22,12 @@ def split_jsonl_train_val(input_file, eval_ratio=5.0, seed=42):
     # Read all lines from the input file
     with open(input_file, 'r', encoding='utf-8') as f:
         lines = f.readlines()
-    
+
+    # Shuffle the entire dataset if requested
+    if shuffle:
+        random.shuffle(lines)
+        print("Dataset shuffled before splitting")
+
     # Calculate split sizes
     total_samples = len(lines)
     val_size = int(total_samples * (eval_ratio / 100))
@@ -74,6 +80,8 @@ def main():
                         help='Percentage of data for validation (default: 5.0)')
     parser.add_argument('--seed', type=int, default=42,
                         help='Random seed for reproducibility (default: 42)')
+    parser.add_argument('--shuffle', action='store_true',
+                        help='Shuffle the entire dataset before splitting')
     
     args = parser.parse_args()
     
@@ -87,7 +95,7 @@ def main():
         print(f"Error: eval_ratio must be between 0 and 100 (got {args.eval_ratio})")
         return
     
-    split_jsonl_train_val(args.input_file, args.eval_ratio, args.seed)
+    split_jsonl_train_val(args.input_file, args.eval_ratio, args.seed, args.shuffle)
 
 if __name__ == "__main__":
     main()
