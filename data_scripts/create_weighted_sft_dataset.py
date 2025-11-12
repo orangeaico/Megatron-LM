@@ -23,6 +23,22 @@ def get_action_weight(action: str) -> int:
             return weight
     return ACTION_DEFAULT_WEIGHT  # Default weight for other actions
 
+def count_tokens(tokenizer, conversation_list: List[Dict[str, Any]]) -> int:
+    """Count total tokens in a conversation without processing labels/loss_mask."""
+    if not isinstance(conversation_list, list):
+        raise ValueError(f"The sample must be a list but got {type(conversation_list)}")
+    
+    total_tokens = 0
+    for m in conversation_list:
+        msg_dict = {"role": m.get("role", ""), "content": m.get("content", "")}
+        seg_ids = tokenizer.apply_chat_template(
+            [msg_dict], tokenize=True, add_generation_prompt=False
+        )
+        total_tokens += len(seg_ids)
+    
+    return total_tokens
+
+
 def process_example(tokenizer, conversation_list: List[Dict[str, Any]], stats: Dict[str, int]):
     """Process conversation and create input_ids, labels, and custom loss_mask."""
     if not isinstance(conversation_list, list):
@@ -174,6 +190,12 @@ def main():
         default='/home/shared/swe-agent_logs/saurav/20251009_190531_openai/Qwen3/filtered_instances.txt',
         help='Text file containing bug names to filter (one per line)'
     )
+    parser.add_argument(
+        '--filter-len',
+        type=int,
+        default=64000,
+        help='Maximum token length for filtering examples (default: 64000)'
+    )
     
     args = parser.parse_args()
     
@@ -182,13 +204,11 @@ def main():
         input_path = Path(args.input_dir)
         args.output_file = str(input_path.parent / f"{input_path.name}_weighted.jsonl")
     
-    # Load tokenizer only if not in no-tokenize mode
-    tokenizer = None
-    if not args.no_tokenize:
-        if not args.model_path:
-            parser.error("--model_path is required unless --no-tokenize is specified")
-        print(f"Loading tokenizer from: {args.model_path}")
-        tokenizer = AutoTokenizer.from_pretrained(args.model_path)
+    # Load tokenizer (needed for both modes now due to filtering)
+    if not args.model_path:
+        parser.error("--model_path is required for token counting")
+    print(f"Loading tokenizer from: {args.model_path}")
+    tokenizer = AutoTokenizer.from_pretrained(args.model_path)
     
     # Load filter list if provided
     filter_bugs = None
@@ -200,12 +220,20 @@ def main():
     
     print(f"Processing input directory: {args.input_dir}")
     print(f"Writing output to: {args.output_file}")
+    print(f"Filter length: {args.filter_len:,} tokens")
+    
+    # Create overflow output file path
+    output_path = Path(args.output_file)
+    overflow_file = output_path.parent / f"{output_path.stem}_{args.filter_len}+{output_path.suffix}"
     
     # Process the dataset
-    with open(args.output_file, 'w', encoding='utf-8') as outfile:
+    with open(args.output_file, 'w', encoding='utf-8') as outfile, \
+         open(overflow_file, 'w', encoding='utf-8') as overflow_outfile:
         
         processed_count = 0
         error_count = 0
+        filtered_count = 0
+        overflow_count = 0
         
         # Initialize statistics
         stats = {
@@ -219,6 +247,19 @@ def main():
             'assistant_with_thought': 0,
             'thought_found': 0
         }
+        
+        # Initialize length buckets for input_ids
+        length_buckets = {
+            '<64000': 0,
+            '64000-70000': 0,
+            '70000-80000': 0,
+            '80000-90000': 0,
+            '90000-98000': 0,
+            '>=98000': 0
+        }
+        
+        # Per-example statistics list
+        example_stats = []
         
         # Scan subdirectories
         for subdir in os.listdir(args.input_dir):
@@ -245,6 +286,9 @@ def main():
                 # Extract query from trajectory
                 messages = extract_trajectory_query(traj_file)
                 
+                # Count tokens for filtering
+                token_count = count_tokens(tokenizer, messages)
+                
                 if args.no_tokenize:
                     # Output raw messages without tokenization
                     # Filter to only include role and content fields
@@ -259,6 +303,29 @@ def main():
                     output_entry = {
                         'messages': clean_messages
                     }
+                    
+                    # Print per-example stats
+                    print(f"Bug: {subdir} - Token count: {token_count:,}")
+                    
+                    # Update length buckets
+                    if token_count < 64000:
+                        length_buckets['<64000'] += 1
+                    elif token_count < 70000:
+                        length_buckets['64000-70000'] += 1
+                    elif token_count < 80000:
+                        length_buckets['70000-80000'] += 1
+                    elif token_count < 90000:
+                        length_buckets['80000-90000'] += 1
+                    elif token_count < 98000:
+                        length_buckets['90000-98000'] += 1
+                    else:
+                        length_buckets['>=98000'] += 1
+                    
+                    # Track example stats
+                    example_stats.append({
+                        'bug_id': subdir,
+                        'input_ids_length': token_count
+                    })
                 else:
                     # Process the conversation with tokenization
                     input_ids, labels, loss_mask = process_example(tokenizer, messages, stats)
@@ -279,6 +346,31 @@ def main():
                         elif mask_val == 4:
                             stats['loss_mask_4'] += 1
                     
+                    # Track per-example stats
+                    example_length = len(input_ids)
+                    token_count = example_length  # For tokenize mode, use actual input_ids length
+                    example_stats.append({
+                        'bug_id': subdir,
+                        'input_ids_length': example_length
+                    })
+                    
+                    # Update length buckets
+                    if example_length < 64000:
+                        length_buckets['<64000'] += 1
+                    elif example_length < 70000:
+                        length_buckets['64000-70000'] += 1
+                    elif example_length < 80000:
+                        length_buckets['70000-80000'] += 1
+                    elif example_length < 90000:
+                        length_buckets['80000-90000'] += 1
+                    elif example_length < 98000:
+                        length_buckets['90000-98000'] += 1
+                    else:
+                        length_buckets['>=98000'] += 1
+                    
+                    # Print per-example stats
+                    print(f"Bug: {subdir} - Input IDs length: {example_length:,}")
+                    
                     # Create output entry
                     output_entry = {
                         'messages': {
@@ -288,8 +380,13 @@ def main():
                         }
                     }
                 
-                # Write to output file
-                outfile.write(json.dumps(output_entry) + '\n')
+                # Write to appropriate output file based on token count
+                if token_count <= args.filter_len:
+                    outfile.write(json.dumps(output_entry) + '\n')
+                    filtered_count += 1
+                else:
+                    overflow_outfile.write(json.dumps(output_entry) + '\n')
+                    overflow_count += 1
                 processed_count += 1
                 
                 if processed_count % 10 == 0:
@@ -301,10 +398,14 @@ def main():
     
     print(f"\nProcessing complete!")
     print(f"Total bugs processed: {processed_count}")
+    print(f"Bugs within filter length ({args.filter_len:,}): {filtered_count}")
+    print(f"Bugs exceeding filter length: {overflow_count}")
     print(f"Errors encountered: {error_count}")
     print(f"Output written to: {args.output_file}")
+    if overflow_count > 0:
+        print(f"Overflow output written to: {overflow_file}")
     
-    # Print statistics if tokenization was performed
+    # Print statistics
     if not args.no_tokenize:
         print("\n=== TOKENIZATION STATISTICS ===")
         print(f"Total input_ids: {stats['total_input_ids']:,}")
@@ -322,6 +423,33 @@ def main():
         print(f"Assistant messages with non-empty thought: {stats['assistant_with_thought']:,}")
         if stats['assistant_with_thought'] > 0:
             print(f"Thoughts successfully found in tokens: {stats['thought_found']:,} ({stats['thought_found']/stats['assistant_with_thought']*100:.1f}%)")
+        
+    
+    print("\n=== TOKEN LENGTH DISTRIBUTION ===")
+    for bucket, count in length_buckets.items():
+        percentage = (count / processed_count * 100) if processed_count > 0 else 0
+        print(f"{bucket}: {count} ({percentage:.1f}%)")
+    
+    print("\n=== PER-EXAMPLE STATISTICS ===")
+    if example_stats:
+        # Sort by length for better visualization
+        sorted_examples = sorted(example_stats, key=lambda x: x['input_ids_length'], reverse=True)
+        
+        # Show top 10 longest examples
+        print("\nTop 10 longest examples:")
+        for i, ex in enumerate(sorted_examples[:10], 1):
+            print(f"{i}. Bug: {ex['bug_id']} - Length: {ex['input_ids_length']:,}")
+        
+        # Calculate average and median
+        lengths = [ex['input_ids_length'] for ex in example_stats]
+        avg_length = sum(lengths) / len(lengths)
+        sorted_lengths = sorted(lengths)
+        median_length = sorted_lengths[len(lengths) // 2]
+        
+        print(f"\nAverage token length: {avg_length:,.1f}")
+        print(f"Median token length: {median_length:,}")
+        print(f"Min token length: {min(lengths):,}")
+        print(f"Max token length: {max(lengths):,}")
 
 
 if __name__ == "__main__":
