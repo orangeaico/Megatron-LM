@@ -44,9 +44,13 @@ rclone copy -P gdrive:megatron_dir/code/quantize_qwen_moe.py /workspace/repo_eva
 
 # pip install vllm==0.10.1.1 accelerate transformers
 
-# rclone copy -P --transfers 13 gdrive:megatron_dir/himanshu/output/2025_11_04_09_56_13/Qwen3-Coder-30B-A3B-Instruct/conversion/qwen3_30b_a3b_0000188_hf/ /workspace/data/models/cpt/qwen3_30b_a3b_0000188_hf
-# python3 /workspace/repo_eval/quantization/quantize_qwen_moe.py --src /workspace/data/models/cpt/qwen3_30b_a3b_0000188_hf --dst /workspace/data/models/cpt/qwen3_30b_a3b_0000188_hf_fp8
+hf download Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8 --local-dir /workspace/data/models/Qwen3-Coder-480B-A35B-Instruct-FP8
+# rclone copy -P --transfers 13 gdrive:megatron_dir/himanshu/output/2025_11_12_12_34_44/Qwen3-Coder-30B-A3B-Instruct/conversion/qwen3_30b_a3b_0000740_hf/ /workspace/data/models/sft/qwen3_30b_a3b_0000740_hf/ 
+# python3 /workspace/repo_eval/quantization/quantize_qwen_moe.py --src /workspace/data/models/sft/qwen3_30b_a3b_0000740_hf --dst /workspace/data/models/sft/qwen3_30b_a3b_0000740_hf_fp8
 
 cd /workspace/data/
 
 echo "All Done!"
+
+vllm serve /workspace/data/models/Qwen3-Coder-480B-A35B-Instruct-FP8 --host 0.0.0.0 --port 4000 --served-model-name 480b_swe_mirror_validation_98k  --enable-expert-parallel --tensor-parallel-size 8 --max-model-len 98304 --gpu-memory-utilization 0.95 --max-num-batched-tokens 160000 --max-num-seqs 512 --disable-log-requests --kv-cache-dtype fp8
+# vllm serve /workspace/data/models/sft/qwen3_30b_a3b_0000740_hf_fp8 --port 4000 --served-model-name validation_set_98k_cpt_epoch3 --enable-expert-parallel --tensor-parallel-size 2 --max-model-len 98304 --gpu-memory-utilization 0.95 --kv-cache-dtype fp8
