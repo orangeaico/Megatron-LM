@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Dict, Any, List
 from transformers import AutoTokenizer
 import glob
+import sys
 
 IGNORE_INDEX = -100
 
@@ -187,7 +188,7 @@ def main():
     parser.add_argument(
         '--filter-file',
         type=str,
-        default='/home/shared/swe-agent_logs/saurav/20251009_190531_openai/Qwen3/filtered_instances.txt',
+        default=None,
         help='Text file containing bug names to filter (one per line)'
     )
     parser.add_argument(
@@ -202,7 +203,16 @@ def main():
     # Setup output file path
     if args.output_file is None:
         input_path = Path(args.input_dir)
-        args.output_file = str(input_path.parent / f"{input_path.name}_weighted.jsonl")
+        args.output_file = str(input_path / f"sft_dataset.jsonl")
+
+    if args.filter_file is None:
+        input_path = Path(args.input_dir)
+        args.filter_file = str(input_path / f"resolved_submitted.txt")
+    
+    print ("=== CONFIGURATION ===")
+    print (f"Input Directory: {args.input_dir}")
+    print (f"Output File: {args.output_file}")
+    print (f"Filter File: {args.filter_file}")
     
     # Load tokenizer (needed for both modes now due to filtering)
     if not args.model_path:
@@ -217,6 +227,8 @@ def main():
         with open(args.filter_file, 'r') as f:
             filter_bugs = set(line.strip() for line in f if line.strip())
         print(f"Loaded {len(filter_bugs)} bugs to process from filter file")
+    else:
+        sys.exit(f"ERROR: Filter file not found: {args.filter_file}, exiting..")
     
     print(f"Processing input directory: {args.input_dir}")
     print(f"Writing output to: {args.output_file}")
@@ -301,7 +313,8 @@ def main():
                         clean_messages.append(clean_msg)
                     
                     output_entry = {
-                        'messages': clean_messages
+                        'messages': clean_messages,
+                        'instance_id': subdir
                     }
                     
                     # Print per-example stats
@@ -377,7 +390,8 @@ def main():
                             'input_ids': input_ids,
                             'labels': labels,
                             'loss_mask': loss_mask
-                        }
+                        },
+                        'instance_id': subdir
                     }
                 
                 # Write to appropriate output file based on token count
