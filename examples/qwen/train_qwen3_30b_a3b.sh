@@ -35,7 +35,7 @@ if [[ "$TRAINING_MODE" == "cpt" ]]; then
     TEST_DATA_PATH=$VALID_DATA_PATH
 
 elif [[ "$TRAINING_MODE" == "sft" ]]; then
-    TRAIN_DATA_PATH="$BASE_DIR/data/sft/hard_set_24_nov/training_sft_480b_pr_mirror_old_new_lm_rewrite.jsonl"
+    TRAIN_DATA_PATH="$BASE_DIR/data/sft/hard_set_13_dec/training_traj_sft_480b_with_hints.jsonl"
     VALID_DATA_PATH="$BASE_DIR/data/sft/hard_set_24_nov/validation_sft_480b_pr_mirror_new.jsonl"
     TEST_DATA_PATH=$VALID_DATA_PATH 
 
@@ -155,8 +155,8 @@ MOE_ARGS=(
 TRAINING_ARGS=(
     --micro-batch-size $MICRO_BATCH_SIZE
     --global-batch-size $GLOBAL_BATCH_SIZE
-    --train-samples 1216
-    --lr-decay-samples 1216
+    --train-samples 2352
+    --lr-decay-samples 2352
 
     # Learning rate args
     --lr-warmup-samples 0
@@ -310,7 +310,7 @@ CHECKPOINT_ARGS=(
     --no-save-rng
     --no-load-rng
     --no-load-optim
-    --save-interval 38
+    --save-interval 98
     --exit-on-missing-checkpoint
     # --ckpt-convert-format torch_dist
     # --ckpt-convert-save /workspace/data/himanshu/output/Qwen3-Coder-30B-A3B-Instruct/conversion/qwen3_30b_a3b_torch_dist/
@@ -318,7 +318,7 @@ CHECKPOINT_ARGS=(
 
 EVAL_AND_LOGGING_ARGS=(
     --eval-iters 3
-    --eval-interval 38
+    --eval-interval 49
     # --full-validation
     --log-interval 1
     --log-throughput
