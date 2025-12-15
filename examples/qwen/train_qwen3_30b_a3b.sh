@@ -35,8 +35,8 @@ if [[ "$TRAINING_MODE" == "cpt" ]]; then
     TEST_DATA_PATH=$VALID_DATA_PATH
 
 elif [[ "$TRAINING_MODE" == "sft" ]]; then
-    TRAIN_DATA_PATH="$BASE_DIR/data/sft/hard_set_13_dec/training_traj_sft_480b_with_hints.jsonl"
-    VALID_DATA_PATH="$BASE_DIR/data/sft/hard_set_24_nov/validation_sft_480b_pr_mirror_new.jsonl"
+    TRAIN_DATA_PATH="$BASE_DIR/data/sft/hard_set_13_dec/weighted_training_traj_sft_480b_with_hints.jsonl"
+    VALID_DATA_PATH="$BASE_DIR/data/sft/hard_set_24_nov/weighted_training_traj_sft_480b_with_hints.jsonl"
     TEST_DATA_PATH=$VALID_DATA_PATH 
 
 elif [[ "$TRAINING_MODE" == "distillation" ]]; then
@@ -155,12 +155,12 @@ MOE_ARGS=(
 TRAINING_ARGS=(
     --micro-batch-size $MICRO_BATCH_SIZE
     --global-batch-size $GLOBAL_BATCH_SIZE
-    --train-samples 2352
-    --lr-decay-samples 2352
+    --train-samples 3136
+    --lr-decay-samples 3136
 
     # Learning rate args
-    --lr-warmup-samples 0
-    --lr 1.0e-5 # 5.0e-5
+    --lr-warmup-samples 400
+    --lr 5.0e-6 # 5.0e-5
     --min-lr 1.0e-6 # 5.0e-6
     # --decoupled-lr 8.0e-4  # Adjusted for smaller model
     # --decoupled-min-lr 8.0e-5  # Adjusted for smaller model
@@ -271,7 +271,7 @@ elif [[ "$TRAINING_MODE" == "sft" ]]; then
         "--sft"
         "--num-workers 1"
         "--no-create-attention-mask-in-dataloader"
-        # "--weighted-loss"
+        "--weighted-loss"
         # "--variable-seq-lengths"
         # "--moe-token-dispatcher-type alltoall" # This needs to be set for variable seq lengths
 
