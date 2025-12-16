@@ -36,7 +36,7 @@ if [[ "$TRAINING_MODE" == "cpt" ]]; then
 
 elif [[ "$TRAINING_MODE" == "sft" ]]; then
     TRAIN_DATA_PATH="$BASE_DIR/data/sft/hard_set_13_dec/weighted_training_traj_sft_480b_with_hints.jsonl"
-    VALID_DATA_PATH="$BASE_DIR/data/sft/hard_set_24_nov/weighted_training_traj_sft_480b_with_hints.jsonl"
+    VALID_DATA_PATH="$BASE_DIR/data/sft/hard_set_13_dec/weighted_training_traj_sft_480b_with_hints.jsonl"
     TEST_DATA_PATH=$VALID_DATA_PATH 
 
 elif [[ "$TRAINING_MODE" == "distillation" ]]; then

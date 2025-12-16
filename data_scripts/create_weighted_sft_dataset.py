@@ -11,6 +11,7 @@ import sys
 IGNORE_INDEX = -100
 
 ACTION_DEFAULT_WEIGHT = 2
+THOUGHT_WEIGHT = 1
 action_weight_dict = {
     "think": 1,
     "str_replace_editor str_replace": 4,
@@ -123,7 +124,7 @@ def process_example(tokenizer, conversation_list: List[Dict[str, Any]], stats: D
                 # Set loss masks
                 for is_thought in thought_mask:
                     if is_thought:
-                        loss_mask.append(1)  # Thought tokens get weight 1
+                        loss_mask.append(THOUGHT_WEIGHT)  # Thought tokens get weight 1
                     else: 
                         loss_mask.append(action_weight)  # Non-thought tokens
             else:                
