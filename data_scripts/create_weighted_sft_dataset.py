@@ -18,6 +18,13 @@ action_weight_dict = {
     "finish": 4
 }
 
+# Tag-based loss mask values (priority: loss_mask > low_value_mask)
+TAG_LOSS_MASK_VALUES = {
+    "loss_mask": 0,
+    "low_value_mask": 0.5,
+    "default": 1
+}
+
 def get_action_weight(action: str) -> int:
     """Get weight for a given action."""
     for act, weight in action_weight_dict.items():
@@ -135,6 +142,69 @@ def process_example(tokenizer, conversation_list: List[Dict[str, Any]], stats: D
     return input_ids, labels, loss_mask
 
 
+def process_example_with_tags(tokenizer, conversation_list: List[Dict[str, Any]], stats: Dict[str, int]):
+    """Process conversation and create input_ids, labels, and loss_mask based on update_tags."""
+    if not isinstance(conversation_list, list):
+        raise ValueError(f"The sample must be a list but got {type(conversation_list)}")
+
+    input_ids = []
+    labels = []
+    loss_mask = []
+
+    # Tokenize message-by-message using the chat template
+    for i, m in enumerate(conversation_list):
+        # Extract fields
+        role = m.get("role", "")
+        content = m.get("content", "")
+        update_tags = m.get("update_tags", [])
+        tags = m.get("tags", [])
+        
+        # Create sub-dictionary with only role and content
+        msg_dict = {"role": role, "content": content}
+        
+        seg_ids = tokenizer.apply_chat_template(
+            [msg_dict], tokenize=True, add_generation_prompt=False
+        )
+
+        input_ids.extend(seg_ids)
+        
+        if role != "assistant":
+            # Non-assistant messages
+            labels.extend([IGNORE_INDEX] * len(seg_ids))
+            loss_mask.extend([0] * len(seg_ids))
+        else:
+            # Assistant messages
+            labels.extend(seg_ids)
+            
+            # Process tags field for statistics
+            if tags:
+                if 'all_tags' not in stats:
+                    stats['all_tags'] = {}
+                for tag in tags:
+                    # Handle tags with ## by splitting and using only the first part
+                    tag_name = tag.split('##')[0] if '##' in tag else tag
+                    stats['all_tags'][tag_name] = stats['all_tags'].get(tag_name, 0) + 1
+            
+            # Determine loss mask value based on tags (priority: loss_mask > low_value_mask)
+            mask_value = TAG_LOSS_MASK_VALUES["default"]  # Default value if no tags
+            
+            if "loss_mask" in update_tags:
+                mask_value = TAG_LOSS_MASK_VALUES["loss_mask"]
+                stats['loss_mask_tag_count'] = stats.get('loss_mask_tag_count', 0) + 1
+            elif "low_value_mask" in update_tags:
+                mask_value = TAG_LOSS_MASK_VALUES["low_value_mask"]
+                stats['low_value_mask_tag_count'] = stats.get('low_value_mask_tag_count', 0) + 1
+            else:
+                stats['no_tag_count'] = stats.get('no_tag_count', 0) + 1
+            
+            # Apply the mask value to all tokens in this assistant turn
+            loss_mask.extend([mask_value] * len(seg_ids))
+
+    assert len(input_ids) == len(labels) == len(loss_mask)
+
+    return input_ids, labels, loss_mask
+
+
 def extract_trajectory_query(traj_file: str) -> List[Dict[str, str]]:
     """Extract messages from trajectory file using history field."""
     with open(traj_file, 'r') as f:
@@ -187,6 +257,11 @@ def main():
         help='Output raw messages without tokenization'
     )
     parser.add_argument(
+        '--weighted',
+        action='store_true',
+        help='Use weighted loss mask based on action types (default behavior)'
+    )
+    parser.add_argument(
         '--filter-file',
         type=str,
         default=None,
@@ -198,13 +273,28 @@ def main():
         default=64000,
         help='Maximum token length for filtering examples (default: 64000)'
     )
+    parser.add_argument(
+        '--use-loss-mask-tags',
+        action='store_true',
+        help='Use update_tags field to determine loss mask values instead of action-based logic'
+    )
     
     args = parser.parse_args()
     
-    # Setup output file path
+    # Validate that at least one processing mode is selected
+    if not (args.weighted or args.no_tokenize or args.use_loss_mask_tags):
+        parser.error("At least one of --weighted, --no-tokenize, or --use-loss-mask-tags must be specified")
+    
+    # Setup output file path based on processing mode
     if args.output_file is None:
         input_path = Path(args.input_dir)
-        args.output_file = str(input_path / f"sft_dataset.jsonl")
+        if args.no_tokenize:
+            output_filename = "sft_dataset.jsonl"
+        elif args.use_loss_mask_tags:
+            output_filename = "sft_dataset_loss_mask.jsonl"
+        elif args.weighted:
+            output_filename = "sft_dataset_weighted.jsonl"
+        args.output_file = str(input_path / output_filename)
 
     if args.filter_file is None:
         input_path = Path(args.input_dir)
@@ -342,23 +432,32 @@ def main():
                     })
                 else:
                     # Process the conversation with tokenization
-                    input_ids, labels, loss_mask = process_example(tokenizer, messages, stats)
+                    if args.use_loss_mask_tags:
+                        input_ids, labels, loss_mask = process_example_with_tags(tokenizer, messages, stats)
+                    elif args.weighted:
+                        input_ids, labels, loss_mask = process_example(tokenizer, messages, stats)
+                    else:
+                        # This should not happen due to validation, but keeping for clarity
+                        raise ValueError("No valid processing mode selected")
                     
                     # Update statistics
                     stats['total_input_ids'] += len(input_ids)
                     stats['total_labels'] += len(labels)
                     stats['total_loss_mask'] += len(loss_mask)
                     
-                    # Count loss mask values
-                    for mask_val in loss_mask:
-                        if mask_val == 0:
-                            stats['loss_mask_0'] += 1
-                        elif mask_val == 1:
-                            stats['loss_mask_1'] += 1
-                        elif mask_val == 2:
-                            stats['loss_mask_2'] += 1
-                        elif mask_val == 4:
-                            stats['loss_mask_4'] += 1
+                    # Count loss mask values (only for assistant tokens, i.e., where labels != IGNORE_INDEX)
+                    for i, mask_val in enumerate(loss_mask):
+                        if labels[i] != IGNORE_INDEX:  # Only count assistant tokens
+                            if mask_val == 0:
+                                stats['loss_mask_0'] += 1
+                            elif mask_val == 0.5:
+                                stats['loss_mask_0.5'] = stats.get('loss_mask_0.5', 0) + 1
+                            elif mask_val == 1:
+                                stats['loss_mask_1'] += 1
+                            elif mask_val == 2:
+                                stats['loss_mask_2'] += 1
+                            elif mask_val == 4:
+                                stats['loss_mask_4'] += 1
                     
                     # Track per-example stats
                     example_length = len(input_ids)
@@ -427,17 +526,39 @@ def main():
         print(f"Total labels: {stats['total_labels']:,}")
         print(f"Total loss_mask: {stats['total_loss_mask']:,}")
         
-        print("\n=== LOSS MASK DISTRIBUTION ===")
-        if stats['total_loss_mask'] > 0:
-            print(f"Loss mask 0 (non-assistant): {stats['loss_mask_0']:,} ({stats['loss_mask_0']/stats['total_loss_mask']*100:.1f}%)")
-            print(f"Loss mask 1 (thought): {stats['loss_mask_1']:,} ({stats['loss_mask_1']/stats['total_loss_mask']*100:.1f}%)")
-            print(f"Loss mask 2 (assistant non-thought): {stats['loss_mask_2']:,} ({stats['loss_mask_2']/stats['total_loss_mask']*100:.1f}%)")
-            print(f"Loss mask 4 (assistant with str_replace): {stats['loss_mask_4']:,} ({stats['loss_mask_4']/stats['total_loss_mask']*100:.1f}%)")
+        print("\n=== LOSS MASK DISTRIBUTION (Assistant tokens only) ===")
+        # Calculate total assistant tokens
+        total_assistant_tokens = stats['loss_mask_0'] + stats.get('loss_mask_0.5', 0) + stats['loss_mask_1'] + stats['loss_mask_2'] + stats['loss_mask_4']
+        if total_assistant_tokens > 0:
+            print(f"Loss mask 0: {stats['loss_mask_0']:,} ({stats['loss_mask_0']/total_assistant_tokens*100:.1f}%)")
+            if 'loss_mask_0.5' in stats:
+                print(f"Loss mask 0.5 (low_value_mask): {stats['loss_mask_0.5']:,} ({stats['loss_mask_0.5']/total_assistant_tokens*100:.1f}%)")
+            print(f"Loss mask 1 (thought): {stats['loss_mask_1']:,} ({stats['loss_mask_1']/total_assistant_tokens*100:.1f}%)")
+            print(f"Loss mask 2 (assistant non-thought): {stats['loss_mask_2']:,} ({stats['loss_mask_2']/total_assistant_tokens*100:.1f}%)")
+            print(f"Loss mask 4 (assistant with str_replace): {stats['loss_mask_4']:,} ({stats['loss_mask_4']/total_assistant_tokens*100:.1f}%)")
+            print(f"Total assistant tokens: {total_assistant_tokens:,}")
         
         print("\n=== THOUGHT STATISTICS ===")
         print(f"Assistant messages with non-empty thought: {stats['assistant_with_thought']:,}")
         if stats['assistant_with_thought'] > 0:
             print(f"Thoughts successfully found in tokens: {stats['thought_found']:,} ({stats['thought_found']/stats['assistant_with_thought']*100:.1f}%)")
+        
+        # Print tag-based statistics if using tag mode
+        if args.use_loss_mask_tags:
+            print("\n=== TAG-BASED LOSS MASK STATISTICS ===")
+            print(f"Assistant messages with loss_mask tag: {stats.get('loss_mask_tag_count', 0):,}")
+            print(f"Assistant messages with low_value_mask tag: {stats.get('low_value_mask_tag_count', 0):,}")
+            print(f"Assistant messages with no tags: {stats.get('no_tag_count', 0):,}")
+            
+            # Print all tags found
+            print("\n=== ALL TAGS FOUND ===")
+            if 'all_tags' in stats and stats['all_tags']:
+                # Sort tags by frequency (descending)
+                sorted_tags = sorted(stats['all_tags'].items(), key=lambda x: x[1], reverse=True)
+                for tag, count in sorted_tags:
+                    print(f"{tag}: {count:,}")
+            else:
+                print("No tags found in the 'tags' field of messages")
         
     
     print("\n=== TOKEN LENGTH DISTRIBUTION ===")
