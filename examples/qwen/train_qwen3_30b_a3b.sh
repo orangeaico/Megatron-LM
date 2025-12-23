@@ -35,8 +35,8 @@ if [[ "$TRAINING_MODE" == "cpt" ]]; then
     TEST_DATA_PATH=$VALID_DATA_PATH
 
 elif [[ "$TRAINING_MODE" == "sft" ]]; then
-    TRAIN_DATA_PATH="$BASE_DIR/data/sft/hard_set_23_dec/loss_mask_training_traj_sft_480b_with_hints_filtered.jsonl"
-    VALID_DATA_PATH="$BASE_DIR/data/sft/hard_set_23_dec/loss_mask_training_traj_sft_480b_with_hints_filtered.jsonl"
+    TRAIN_DATA_PATH="$BASE_DIR/data/sft/hard_set_23_dec/loss_mask_training_traj_sft_480b_with_hints_v1_filtered.jsonl"
+    VALID_DATA_PATH="$BASE_DIR/data/sft/hard_set_23_dec/loss_mask_training_traj_sft_480b_with_hints_v1_filtered.jsonl"
     TEST_DATA_PATH=$VALID_DATA_PATH 
 
 elif [[ "$TRAINING_MODE" == "distillation" ]]; then
@@ -160,8 +160,8 @@ TRAINING_ARGS=(
 
     # Learning rate args
     --lr-warmup-samples 400
-    --lr 2.5e-6 # 5.0e-5
-    --min-lr 5.0e-7 # 5.0e-6
+    --lr 5.0e-6 # 5.0e-5
+    --min-lr 1.0e-6 # 5.0e-6
     # --decoupled-lr 8.0e-4  # Adjusted for smaller model
     # --decoupled-min-lr 8.0e-5  # Adjusted for smaller model
     --lr-decay-style cosine
