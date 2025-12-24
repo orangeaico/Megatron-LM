@@ -18,11 +18,14 @@ action_weight_dict = {
     "finish": 4
 }
 
+DATASET_WEIGHT_MULTIPLIER = 1
+
 # Tag-based loss mask values (priority: loss_mask > low_value_mask)
 TAG_LOSS_MASK_VALUES = {
     "loss_mask": 0,
     "low_value_mask": 0.5,
-    "default": 1
+    "default": 1,
+    "trainable_observation": 1
 }
 
 def get_action_weight(action: str) -> int:
@@ -170,8 +173,13 @@ def process_example_with_tags(tokenizer, conversation_list: List[Dict[str, Any]]
         
         if role != "assistant":
             # Non-assistant messages
-            labels.extend([IGNORE_INDEX] * len(seg_ids))
-            loss_mask.extend([0] * len(seg_ids))
+            if "trainable_observation" in update_tags:
+                mask_value = TAG_LOSS_MASK_VALUES["trainable_observation"] * DATASET_WEIGHT_MULTIPLIER
+                labels.extend(seg_ids)
+                loss_mask.extend([mask_value] * len(seg_ids))
+            else:
+                labels.extend([IGNORE_INDEX] * len(seg_ids))
+                loss_mask.extend([0] * len(seg_ids))
         else:
             # Assistant messages
             labels.extend(seg_ids)
@@ -186,13 +194,13 @@ def process_example_with_tags(tokenizer, conversation_list: List[Dict[str, Any]]
                     stats['all_tags'][tag_name] = stats['all_tags'].get(tag_name, 0) + 1
             
             # Determine loss mask value based on tags (priority: loss_mask > low_value_mask)
-            mask_value = TAG_LOSS_MASK_VALUES["default"]  # Default value if no tags
+            mask_value = TAG_LOSS_MASK_VALUES["default"] * DATASET_WEIGHT_MULTIPLIER  # Default value if no tags
             
             if "loss_mask" in update_tags:
-                mask_value = TAG_LOSS_MASK_VALUES["loss_mask"]
+                mask_value = TAG_LOSS_MASK_VALUES["loss_mask"] * DATASET_WEIGHT_MULTIPLIER
                 stats['loss_mask_tag_count'] = stats.get('loss_mask_tag_count', 0) + 1
             elif "low_value_mask" in update_tags:
-                mask_value = TAG_LOSS_MASK_VALUES["low_value_mask"]
+                mask_value = TAG_LOSS_MASK_VALUES["low_value_mask"] * DATASET_WEIGHT_MULTIPLIER
                 stats['low_value_mask_tag_count'] = stats.get('low_value_mask_tag_count', 0) + 1
             else:
                 stats['no_tag_count'] = stats.get('no_tag_count', 0) + 1
