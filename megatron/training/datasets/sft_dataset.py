@@ -1,6 +1,6 @@
 # Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Iterable, Optional, Union
 from math import gcd
 import numpy as np
 import torch
@@ -64,6 +64,15 @@ class SFTDataset(MegatronDataset):
         config: GPTDatasetConfig,
     ) -> None:
         super().__init__(dataset, dataset_path, indices, num_samples, index_split, config)
+        self.use_variable_seq_len = getattr(self.config, "variable_seq_lengths", False)
+        self.create_attention_mask = self.config.create_attention_mask
+
+        self.collate_fn = SFTCollator(
+            pad_token_id=self.config.tokenizer.pad,
+            label_pad_id=IGNORE_INDEX,
+            create_attention_mask=self.create_attention_mask,
+            use_variable_seq_len=self.use_variable_seq_len,
+        ) if self.use_variable_seq_len else None
 
     @staticmethod
     def numel_low_level_dataset(low_level_dataset: LowLevelDataset) -> int:
@@ -283,3 +292,86 @@ class SFTDataset(MegatronDataset):
             attention_mask = None
 
         return loss_mask, position_ids, attention_mask
+
+
+class SFTCollator:
+    """Batch collator that pads variable-length sequences for SFT datasets."""
+
+    def __init__(
+        self,
+        pad_token_id: int,
+        label_pad_id: int,
+        create_attention_mask: bool,
+        use_variable_seq_len: bool,
+    ) -> None:
+        self.pad_token_id = pad_token_id
+        self.label_pad_id = label_pad_id
+        self.create_attention_mask = create_attention_mask
+        self.use_variable_seq_len = use_variable_seq_len
+
+    @staticmethod
+    def _pad_1d(tensor: torch.Tensor, target_len: int, pad_value: Union[int, float]) -> torch.Tensor:
+        if tensor.size(0) == target_len:
+            return tensor
+        pad_shape = (target_len - tensor.size(0),)
+        pad_tensor = torch.full(pad_shape, pad_value, dtype=tensor.dtype, device=tensor.device)
+        return torch.cat([tensor, pad_tensor], dim=0)
+
+    def __call__(self, samples: Iterable[Dict[str, Any]]) -> Dict[str, Any]:
+        sample_list = list(samples)
+        if not sample_list:
+            raise ValueError("SFTCollator received an empty batch")
+
+        if not self.use_variable_seq_len:
+            tokens = torch.stack([sample["tokens"] for sample in sample_list])
+            labels = torch.stack([sample["labels"] for sample in sample_list])
+            loss_mask = torch.stack([sample["loss_mask"] for sample in sample_list])
+            position_ids = torch.stack([sample["position_ids"] for sample in sample_list])
+            if self.create_attention_mask:
+                attention = torch.stack([sample["attention_mask"] for sample in sample_list])
+            else:
+                attention = None
+        else:
+            seq_lengths = [sample["tokens"].size(0) for sample in sample_list]
+            target_len = max(seq_lengths)
+
+            tokens = torch.stack([
+                self._pad_1d(sample["tokens"], target_len, self.pad_token_id)
+                for sample in sample_list
+            ])
+            labels = torch.stack([
+                self._pad_1d(sample["labels"], target_len, self.label_pad_id)
+                for sample in sample_list
+            ])
+            loss_mask = torch.stack([
+                self._pad_1d(sample["loss_mask"], target_len, 0.0)
+                for sample in sample_list
+            ])
+            position_ids = torch.stack([
+                self._pad_1d(sample["position_ids"], target_len, 0)
+                for sample in sample_list
+            ])
+
+            if self.create_attention_mask:
+                attention_list = []
+                causal_base = torch.triu(torch.ones((target_len, target_len), dtype=torch.bool), diagonal=1)
+                for seq_len in seq_lengths:
+                    mask = causal_base.clone()
+                    if seq_len < target_len:
+                        mask[seq_len:, :] = True
+                    attention_list.append(mask.unsqueeze(0))
+                attention = torch.stack(attention_list)
+            else:
+                attention = None
+
+        batch = {
+            "tokens": tokens,
+            "labels": labels,
+            "loss_mask": loss_mask,
+            "position_ids": position_ids,
+        }
+        
+        if self.create_attention_mask:
+            batch["attention_mask"] = attention
+
+        return batch
