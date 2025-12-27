@@ -3178,6 +3178,9 @@ def _add_sft_args(parser):
         help='Enable variable sequence length packing for SFT datasets.'
     )
     group.add_argument('--weighted-loss', action="store_true", help='Support weighted loss per position for SFT training using pre generated loss mask')
+    group.add_argument('--trsft', action='store_true', help='Enable TRSFT gradient scaling for SFT loss.')
+    group.add_argument('--trsft-alpha', type=float, default=0.1,
+                       help='TRSFT alpha used to compute per-token gradient scaling.')
     return parser
 
 

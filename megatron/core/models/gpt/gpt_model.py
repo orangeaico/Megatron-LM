@@ -720,6 +720,16 @@ class GPTModel(LanguageModule):
                 else:
                     print(f"\n[Rank {tp_rank_local}] Reference loss returned no negative values!")
 
+            if self.config.trsft:
+                target_log_probs = -token_losses
+                target_probs = torch.exp(target_log_probs)
+                if self.config.trsft_alpha > 0:
+                    gradient_scale = torch.clamp(target_probs / self.config.trsft_alpha, max=1.0)
+                else:
+                    gradient_scale = torch.ones_like(target_probs)
+                gradient_scale = gradient_scale.detach()
+                token_losses *= gradient_scale
+
             if self.config.return_logits_when_using_cce:
                 # Compute logits after the fact only if explicitly requested.
                 logits, _ = self.output_layer(
@@ -843,6 +853,15 @@ class GPTModel(LanguageModule):
             return logits.transpose(0, 1).contiguous()
 
         loss = self.compute_language_model_loss(labels, logits)
+        if self.config.trsft:
+            target_log_probs = -loss
+            target_probs = torch.exp(target_log_probs)
+            if self.config.trsft_alpha > 0:
+                gradient_scale = torch.clamp(target_probs / self.config.trsft_alpha, max=1.0)
+            else:
+                gradient_scale = torch.ones_like(target_probs)
+            gradient_scale = gradient_scale.detach()
+            loss *= gradient_scale
 
         return loss
 

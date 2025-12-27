@@ -708,6 +708,13 @@ class TransformerConfig(ModelParallelConfig):
     # Distillation loss alpha
     distillation_loss_alpha: float = 0.5
 
+    # ---------------- TRSFT ----------------
+    # Enable TRSFT gradient scaling for per-token loss.
+    trsft: bool = False
+
+    # TRSFT alpha used to compute the gradient scaling factor.
+    trsft_alpha: float = 0.1
+
     def __post_init__(self):
         """Python dataclass method that is used to modify attributes after initialization.
         See https://docs.python.org/3/library/dataclasses.html#post-init-processing for more
