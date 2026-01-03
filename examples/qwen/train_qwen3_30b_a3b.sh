@@ -155,8 +155,8 @@ MOE_ARGS=(
 TRAINING_ARGS=(
     --micro-batch-size $MICRO_BATCH_SIZE
     --global-batch-size $GLOBAL_BATCH_SIZE
-    --train-samples 3336
-    --lr-decay-samples 3336
+    --train-samples 2224
+    --lr-decay-samples 2224
 
     # Learning rate args
     --lr-warmup-samples 320
@@ -271,8 +271,8 @@ elif [[ "$TRAINING_MODE" == "sft" ]]; then
         "--sft"
         "--num-workers 1"
         "--no-create-attention-mask-in-dataloader"        
-        "--trsft"
-        "--trsft-alpha 0.01"
+        # "--trsft"
+        # "--trsft-alpha 0.01"
         "--weighted-loss"
         # "--variable-seq-lengths"
         # "--moe-token-dispatcher-type alltoall" # This needs to be set for variable seq lengths
