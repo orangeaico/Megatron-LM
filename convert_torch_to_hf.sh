@@ -8,6 +8,8 @@ SAVE_ONLY_LAST_CHECKPOINT=0
 
 # Copy the logs as well
 echo "Copying the training logs to gdrive"
+cp /workspace/Megatron-LM/logs.txt /workspace/data/himanshu/output/$TIMESTAMP/$MODEL_NAME/logs/
+cp /workspace/Megatron-LM/examples/qwen/train_qwen3_30b_a3b.sh /workspace/data/himanshu/output/$TIMESTAMP/$MODEL_NAME/logs/
 rclone copy /workspace/data/himanshu/output/$TIMESTAMP/$MODEL_NAME/logs/ gdrive:megatron_dir/himanshu/output/$TIMESTAMP/$MODEL_NAME/logs/ --progress 
 
 cd /workspace
