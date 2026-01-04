@@ -12,6 +12,8 @@ IGNORE_INDEX = -100
 
 DATASET_WEIGHT_MULTIPLIER = 1
 
+THOUGHT_WEIGHT = 0.5
+
 # Tag-based loss mask values (priority: loss_mask > low_value_mask)
 TAG_LOSS_MASK_VALUES = {
     "loss_mask": 0,
@@ -19,7 +21,6 @@ TAG_LOSS_MASK_VALUES = {
     "medium_value_mask": 1,
     "high_value_mask": 2,
     "default": 1,
-    # "trainable_observation": 1
 }
 
 LOSS_MASK_TAG_KEYS = ["loss_mask", "low_value_mask", "medium_value_mask", "high_value_mask"]
@@ -40,6 +41,34 @@ def count_tokens(tokenizer, conversation_list: List[Dict[str, Any]]) -> int:
     return total_tokens
 
 
+def get_zero_loss_mask_indices(tokenizer, token_ids, msg_dict, assistant_turn) -> List[int]:
+    """
+    Determine which token indices should have their loss mask set to 0 for a given message.
+    
+    Args:
+        msg_dict: Dictionary containing 'role' and 'content' fields
+        
+    Returns:
+        List of indices (relative to the message tokens) that should have loss mask set to 0
+    """
+    content = msg_dict.get('content', '')
+    if assistant_turn != 1:
+        return []
+    tokens = tokenizer.convert_ids_to_tokens(token_ids)
+    token_to_mask = '>'
+    masked_ids = []
+    for i, token in enumerate(tokens[:-1]):
+        if token_to_mask in token and 'command' in ''.join(tokens[i-3:i+1]):
+            masked_ids.append(i)
+    
+    token_to_mask = '>'
+    masked_ids = []
+    for i, token in enumerate(tokens[:-1]):
+        if token_to_mask in token and 'command' in ''.join(tokens[i-3:i+1]):
+            masked_ids.append(i)
+    return masked_ids
+
+
 def process_example_with_tags(tokenizer, conversation_list: List[Dict[str, Any]], stats: Dict[str, int]):
     """Process conversation and create input_ids, labels, and loss_mask based on update_tags."""
     if not isinstance(conversation_list, list):
@@ -49,11 +78,13 @@ def process_example_with_tags(tokenizer, conversation_list: List[Dict[str, Any]]
     labels = []
     loss_mask = []
 
+    assistant_turn = 0
     # Tokenize message-by-message using the chat template
     for i, m in enumerate(conversation_list):
         # Extract fields
         role = m.get("role", "")
         content = m.get("content", "")
+        thought = m.get("thought", "")
         update_tags = m.get("update_tags", [])
         tags = m.get("tags", [])
         
@@ -68,14 +99,10 @@ def process_example_with_tags(tokenizer, conversation_list: List[Dict[str, Any]]
         
         if role != "assistant":
             # Non-assistant messages
-            if False and "trainable_observation" in update_tags:
-                mask_value = TAG_LOSS_MASK_VALUES["trainable_observation"] * DATASET_WEIGHT_MULTIPLIER
-                labels.extend(seg_ids)
-                loss_mask.extend([mask_value] * len(seg_ids))
-            else:
-                labels.extend([IGNORE_INDEX] * len(seg_ids))
-                loss_mask.extend([0] * len(seg_ids))
+            labels.extend([IGNORE_INDEX] * len(seg_ids))
+            loss_mask.extend([0] * len(seg_ids))
         else:
+            assistant_turn += 1
             # Assistant messages
             labels.extend(seg_ids)
             
@@ -102,8 +129,72 @@ def process_example_with_tags(tokenizer, conversation_list: List[Dict[str, Any]]
                 mask_value = TAG_LOSS_MASK_VALUES["default"] * DATASET_WEIGHT_MULTIPLIER  # Default value if no tags
                 stats["default"] = stats.get('default', 0) + 1
             
-            # Apply the mask value to all tokens in this assistant turn
-            loss_mask.extend([mask_value] * len(seg_ids))
+            # Create initial loss mask for this assistant turn
+            turn_loss_mask = [mask_value] * len(seg_ids)
+
+            if thought:                                
+                # Create thought lookup tokens
+                thought_dict = {"role": role, "content": thought}
+                
+                thought_seg_ids = tokenizer.apply_chat_template(
+                    [thought_dict], tokenize=True, add_generation_prompt=False
+                )
+                
+                # Remove special tokens at beginning and end. 
+                # 3 beginning tokens: <im_start> assistant \n 
+                # 2 ending tokens: <im_end> \n
+                thought_seg_ids = thought_seg_ids[3:-2]                
+                
+                # Find thought tokens in original seg_ids
+                thought_mask = [0] * len(seg_ids)                
+                if thought_seg_ids:
+                    # Look for the thought sequence in the original tokens
+                    for j in range(len(seg_ids) - len(thought_seg_ids) + 1):
+                        if seg_ids[j:j+len(thought_seg_ids)] == thought_seg_ids:
+                            # Mark these positions as thought tokens
+                            for k in range(len(thought_seg_ids)):
+                                thought_mask[j + k] = 1
+                            break
+                        elif seg_ids[j:j+len(thought_seg_ids) - 1] == thought_seg_ids[:-1]:
+                            # Mark these positions as thought tokens
+                            for k in range(len(thought_seg_ids)-1):
+                                thought_mask[j + k] = 1                            
+                            break
+                        elif seg_ids[j:j+len(thought_seg_ids) - 2] == thought_seg_ids[:-2]:
+                            # Mark these positions as thought tokens
+                            for k in range(len(thought_seg_ids)-2):
+                                thought_mask[j + k] = 1                            
+                            break
+            
+                for thought_index, is_thought in enumerate(thought_mask):
+                    if is_thought:
+                        turn_loss_mask[thought_index] = THOUGHT_WEIGHT * DATASET_WEIGHT_MULTIPLIER  
+            
+            zero_mask_indices = []
+            # Get indices that should be set to 0
+            # zero_mask_indices = get_zero_loss_mask_indices(tokenizer, seg_ids, msg_dict, assistant_turn)
+            
+            # Track statistics for zero masking
+            if zero_mask_indices:
+                if 'zero_masked_indices_count' not in stats:
+                    stats['zero_masked_indices_count'] = 0
+                if 'zero_masked_messages_count' not in stats:
+                    stats['zero_masked_messages_count'] = 0
+                
+                # Count valid indices that were actually masked
+                valid_masked_count = sum(1 for idx in zero_mask_indices if 0 <= idx < len(turn_loss_mask))
+                stats['zero_masked_indices_count'] += valid_masked_count
+                if valid_masked_count > 0:
+                    stats['zero_masked_messages_count'] += 1
+            
+            # Apply zero masking to specified indices
+            for idx in zero_mask_indices:
+                if 0 <= idx < len(turn_loss_mask):
+                    turn_loss_mask[idx] = 0
+            
+            # Extend the overall loss mask
+            loss_mask.extend(turn_loss_mask)
+            
 
     assert len(input_ids) == len(labels) == len(loss_mask)
 
@@ -459,6 +550,17 @@ def main():
                     print(f"{tag}: {count:,}")
             else:
                 print("No tags found in the 'tags' field of messages")
+            
+            # Print zero masking statistics
+            print("\n=== ZERO LOSS MASKING STATISTICS ===")
+            if 'zero_masked_indices_count' in stats:
+                print(f"Total indices masked to 0: {stats['zero_masked_indices_count']:,}")
+                print(f"Messages with zero masking: {stats['zero_masked_messages_count']:,}")
+                if stats['zero_masked_messages_count'] > 0:
+                    avg_masked_per_message = stats['zero_masked_indices_count'] / stats['zero_masked_messages_count']
+                    print(f"Average indices masked per message: {avg_masked_per_message:.1f}")
+            else:
+                print("No indices were masked to 0 by get_zero_loss_mask_indices()")
         
     
     print("\n=== TOKEN LENGTH DISTRIBUTION ===")

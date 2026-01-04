@@ -35,7 +35,7 @@ if [[ "$TRAINING_MODE" == "cpt" ]]; then
     TEST_DATA_PATH=$VALID_DATA_PATH
 
 elif [[ "$TRAINING_MODE" == "sft" ]]; then
-    TRAIN_DATA_PATH="$BASE_DIR/data/sft/hard_set_2_jan/sft_dataset_30b_480b.jsonl"
+    TRAIN_DATA_PATH="$BASE_DIR/data/sft/hard_set_2_jan/sft_dataset_30b_480b_thought_05.jsonl"
     VALID_DATA_PATH="$BASE_DIR/data/sft/validation_set_480b/validation_set_sft_loss_mask.jsonl"
     TEST_DATA_PATH=$VALID_DATA_PATH 
 
@@ -272,7 +272,7 @@ elif [[ "$TRAINING_MODE" == "sft" ]]; then
         "--num-workers 1"
         "--no-create-attention-mask-in-dataloader"        
         "--trsft"
-        "--trsft-alpha 0.1"
+        "--trsft-alpha 0.05"
         "--weighted-loss"
         # "--variable-seq-lengths"
         # "--moe-token-dispatcher-type alltoall" # This needs to be set for variable seq lengths
