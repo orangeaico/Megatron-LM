@@ -269,28 +269,46 @@ class StrReplaceEditorProcessor(LossMaskProcessor):
                 # Find the quote type
                 quote_type = '"""' if '"""' in line_content else "'''"
                 
-                # Collect all lines of this docstring
-                docstring_lines = []
-                
-                # Add lines until we find the closing quotes
-                j = i
-                found_closing = False
-                while j < len(sorted_lines):
-                    current_line_num = sorted_lines[j]
-                    if current_line_num in target_lines and current_line_num <= len(file_lines):
-                        current_content = file_lines[current_line_num - 1]
-                        docstring_lines.append(current_line_num)
+                # Check if the docstring starts and ends on the same line
+                quote_count = line_content.count(quote_type)
+                if quote_count >= 2:
+                    # Single-line docstring
+                    comment_groups.append(('docstring', [line_num]))
+                    i += 1
+                else:
+                    # Multi-line docstring - collect consecutive lines until closing quote
+                    docstring_lines = [line_num]
+                    j = i + 1
+                    found_closing = False
+                    
+                    # Look for consecutive lines in target_lines that continue the docstring
+                    while j < len(sorted_lines):
+                        next_line_num = sorted_lines[j]
                         
-                        # Check if this line closes the docstring
-                        if j > i and quote_type in current_content:
-                            found_closing = True
-                            j += 1
+                        # Check if this is the next consecutive line
+                        expected_line = docstring_lines[-1] + 1
+                        if next_line_num != expected_line:
+                            # Not consecutive - this docstring is incomplete, treat first line as single comment
                             break
-                    j += 1
-                
-                if docstring_lines:
-                    comment_groups.append(('docstring', docstring_lines))
-                i = j
+                        
+                        if next_line_num <= len(file_lines):
+                            next_content = file_lines[next_line_num - 1]
+                            docstring_lines.append(next_line_num)
+                            
+                            # Check if this line closes the docstring
+                            if quote_type in next_content:
+                                found_closing = True
+                                j += 1
+                                break
+                        j += 1
+                    
+                    if found_closing and len(docstring_lines) > 1:
+                        comment_groups.append(('docstring', docstring_lines))
+                        i = j
+                    else:
+                        # Treat as single line comment if no proper closing found
+                        comment_groups.append(('single', [line_num]))
+                        i += 1
             else:
                 # Single line comment
                 comment_groups.append(('single', [line_num]))
@@ -553,7 +571,7 @@ class StrReplaceEditorProcessor(LossMaskProcessor):
                     
                     if boundaries is None:
                         # Always print warnings, regardless of debug mode
-                        print(f"WARNING: Could not find file_text content in token sequence")
+                        print(f"WARNING: Could not find create command file_text content in token sequence")
                         return []
                     
                     file_text_start_idx, file_text_end_idx = boundaries
@@ -588,15 +606,6 @@ class StrReplaceEditorProcessor(LossMaskProcessor):
                                 token_text = tokens[idx]
                                 clean = token_text.replace('Ġ', ' ').replace('Ċ', '\n').replace('▁', ' ')
                                 total_masked_chars += len(clean)
-                        
-                        # Check for character count mismatch (always check, not just in debug)
-                        if total_comment_chars > 0:
-                            diff_percent = abs(total_masked_chars - total_comment_chars) / total_comment_chars * 100
-                            if diff_percent > 3:
-                                print(f"WARNING: Character count mismatch! Masked tokens differ from identified comments by {diff_percent:.1f}%")
-                                print(f"  Comment characters: {total_comment_chars}, Masked characters: {total_masked_chars}")
-                                print(f"  Returning empty list due to excessive mismatch (>3%)")
-                                return []
                         
                         if DEBUG_MODE:
                             print(f"Masking {len(masked_indices)} tokens for comment lines")
@@ -644,14 +653,26 @@ class StrReplaceEditorProcessor(LossMaskProcessor):
                                 
                                 if total_comment_chars > 0:
                                     diff_percent = abs(total_masked_chars - total_comment_chars) / total_comment_chars * 100
+                                    threshold = 5
                                     print(f"  Difference: {diff_percent:.1f}%")
-                                    if diff_percent > 3:
-                                        print(f"  WARNING: Exceeds 3% threshold - will return empty list")
+                                    if diff_percent > threshold:
+                                        print(f"  WARNING: Exceeds {threshold}% threshold - will return empty list")
+                        
+                        # Check for character count mismatch (always check, not just in debug) - AFTER printing debug info
+                        if total_comment_chars > 0:
+                            diff_percent = abs(total_masked_chars - total_comment_chars) / total_comment_chars * 100
+                            threshold = 5
+                            if diff_percent > threshold:
+                                print(f"WARNING: Character count mismatch in create command! Masked tokens differ from identified comments by {diff_percent:.1f}%")
+                                print(f"  Comment characters: {total_comment_chars}, Masked characters: {total_masked_chars}")
+                                print(f"  Returning empty list due to excessive mismatch (>{threshold}%)")
+                                return []
+                        
                         return masked_indices
                     else:
                         # No tokens were masked but we had comments - this is a problem
                         if comment_lines and total_comment_chars > 0:
-                            print(f"WARNING: Found {len(comment_lines)} comment lines ({total_comment_chars} chars) but could not mask any tokens!")
+                            print(f"WARNING: Found {len(comment_lines)} comment lines ({total_comment_chars} chars) in create command but could not mask any tokens!")
                             if DEBUG_MODE:
                                 print(f"Comment lines that were not masked:")
                                 for line_num in sorted(comment_lines):
@@ -712,7 +733,7 @@ class StrReplaceEditorProcessor(LossMaskProcessor):
                         boundaries = self._find_parameter_boundaries(tokenizer, token_ids, 'old_str')
                         
                         if boundaries is None:
-                            print(f"WARNING: Could not find old_str content in token sequence")
+                            print(f"WARNING: Could not find str_replace old_str content in token sequence")
                         else:
                             old_str_start_idx, old_str_end_idx = boundaries
                             
@@ -744,15 +765,6 @@ class StrReplaceEditorProcessor(LossMaskProcessor):
                                         token_text = tokens[idx]
                                         clean = token_text.replace('Ġ', ' ').replace('Ċ', '\n').replace('▁', ' ')
                                         total_masked_chars += len(clean)
-                                
-                                # Check for character count mismatch
-                                if total_comment_chars > 0:
-                                    diff_percent = abs(total_masked_chars - total_comment_chars) / total_comment_chars * 100
-                                    if diff_percent > 3:
-                                        print(f"WARNING: Character count mismatch in old_str! Masked tokens differ from identified comments by {diff_percent:.1f}%")
-                                        print(f"  Comment characters: {total_comment_chars}, Masked characters: {total_masked_chars}")
-                                        print(f"  Returning empty list due to excessive mismatch (>3%)")
-                                        return []
                                 
                                 if DEBUG_MODE:
                                     print(f"Masking {len(masked_indices)} tokens for comment lines in old_str")
@@ -800,15 +812,26 @@ class StrReplaceEditorProcessor(LossMaskProcessor):
                                         
                                         if total_comment_chars > 0:
                                             diff_percent = abs(total_masked_chars - total_comment_chars) / total_comment_chars * 100
+                                            threshold = 5
                                             print(f"  Difference: {diff_percent:.1f}%")
-                                            if diff_percent > 3:
-                                                print(f"  WARNING: Exceeds 3% threshold - will return empty list")
+                                            if diff_percent > threshold:
+                                                print(f"  WARNING: Exceeds {threshold}% threshold - will return empty list")
+                                
+                                # Check for character count mismatch (always check, not just in debug) - AFTER printing debug info
+                                if total_comment_chars > 0:
+                                    diff_percent = abs(total_masked_chars - total_comment_chars) / total_comment_chars * 100
+                                    threshold = 5
+                                    if diff_percent > threshold:
+                                        print(f"WARNING: Character count mismatch in str_replace old_str! Masked tokens differ from identified comments by {diff_percent:.1f}%")
+                                        print(f"  Comment characters: {total_comment_chars}, Masked characters: {total_masked_chars}")
+                                        print(f"  Returning empty list due to excessive mismatch (>{threshold}%)")
+                                        return []
                                 
                                 all_masked_indices.extend(masked_indices)
                             else:
                                 # No tokens were masked but we had comments - this is a problem
                                 if comment_lines and total_comment_chars > 0:
-                                    print(f"WARNING: Found {len(comment_lines)} comment lines ({total_comment_chars} chars) in old_str but could not mask any tokens!")
+                                    print(f"WARNING: Found {len(comment_lines)} comment lines ({total_comment_chars} chars) in str_replace old_str but could not mask any tokens!")
                                     if DEBUG_MODE:
                                         print(f"Comment lines in old_str that were not masked:")
                                         for line_num in sorted(comment_lines):
@@ -836,7 +859,7 @@ class StrReplaceEditorProcessor(LossMaskProcessor):
                         boundaries = self._find_parameter_boundaries(tokenizer, token_ids, 'new_str')
                         
                         if boundaries is None:
-                            print(f"WARNING: Could not find new_str content in token sequence")
+                            print(f"WARNING: Could not find str_replace new_str content in token sequence")
                         else:
                             new_str_start_idx, new_str_end_idx = boundaries
                             
@@ -868,15 +891,6 @@ class StrReplaceEditorProcessor(LossMaskProcessor):
                                         token_text = tokens[idx]
                                         clean = token_text.replace('Ġ', ' ').replace('Ċ', '\n').replace('▁', ' ')
                                         total_masked_chars += len(clean)
-                                
-                                # Check for character count mismatch
-                                if total_comment_chars > 0:
-                                    diff_percent = abs(total_masked_chars - total_comment_chars) / total_comment_chars * 100
-                                    if diff_percent > 3:
-                                        print(f"WARNING: Character count mismatch in new_str! Masked tokens differ from identified comments by {diff_percent:.1f}%")
-                                        print(f"  Comment characters: {total_comment_chars}, Masked characters: {total_masked_chars}")
-                                        print(f"  Returning empty list due to excessive mismatch (>3%)")
-                                        return []
                                 
                                 if DEBUG_MODE:
                                     print(f"Masking {len(masked_indices)} tokens for comment lines in new_str")
@@ -924,15 +938,26 @@ class StrReplaceEditorProcessor(LossMaskProcessor):
                                         
                                         if total_comment_chars > 0:
                                             diff_percent = abs(total_masked_chars - total_comment_chars) / total_comment_chars * 100
+                                            threshold = 5
                                             print(f"  Difference: {diff_percent:.1f}%")
-                                            if diff_percent > 3:
-                                                print(f"  WARNING: Exceeds 3% threshold - will return empty list")
+                                            if diff_percent > threshold:
+                                                print(f"  WARNING: Exceeds {threshold}% threshold - will return empty list")
+                                
+                                # Check for character count mismatch (always check, not just in debug) - AFTER printing debug info
+                                if total_comment_chars > 0:
+                                    diff_percent = abs(total_masked_chars - total_comment_chars) / total_comment_chars * 100
+                                    threshold = 5
+                                    if diff_percent > threshold:
+                                        print(f"WARNING: Character count mismatch in str_replace new_str! Masked tokens differ from identified comments by {diff_percent:.1f}%")
+                                        print(f"  Comment characters: {total_comment_chars}, Masked characters: {total_masked_chars}")
+                                        print(f"  Returning empty list due to excessive mismatch (>{threshold}%)")
+                                        return []
                                 
                                 all_masked_indices.extend(masked_indices)
                             else:
                                 # No tokens were masked but we had comments - this is a problem
                                 if comment_lines and total_comment_chars > 0:
-                                    print(f"WARNING: Found {len(comment_lines)} comment lines ({total_comment_chars} chars) in new_str but could not mask any tokens!")
+                                    print(f"WARNING: Found {len(comment_lines)} comment lines ({total_comment_chars} chars) in str_replace new_str but could not mask any tokens!")
                                     if DEBUG_MODE:
                                         print(f"Comment lines in new_str that were not masked:")
                                         for line_num in sorted(comment_lines):
