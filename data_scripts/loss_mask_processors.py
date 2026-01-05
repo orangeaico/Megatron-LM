@@ -405,6 +405,7 @@ class StrReplaceEditorProcessor(LossMaskProcessor):
                 
                 if not found:
                     print(f"WARNING: Could not find docstring in token sequence! Lines: {lines}")
+                    return []
             
             else:
                 # Process single line comment
@@ -489,6 +490,7 @@ class StrReplaceEditorProcessor(LossMaskProcessor):
                 
                 if not found:
                     print(f"WARNING: Could not find line {line_num} in token sequence: {repr(comment_line)}")
+                    return []
         
         # Remove duplicates and sort
         masked_indices = sorted(set(masked_indices))
@@ -678,6 +680,7 @@ class StrReplaceEditorProcessor(LossMaskProcessor):
                                 for line_num in sorted(comment_lines):
                                     if 1 <= line_num <= len(file_lines):
                                         print(f"  Line {line_num}: {repr(file_lines[line_num - 1])}")
+                            return []
                         elif DEBUG_MODE:
                             print(f"Could not map comment lines to token indices")
                 else:
@@ -734,6 +737,7 @@ class StrReplaceEditorProcessor(LossMaskProcessor):
                         
                         if boundaries is None:
                             print(f"WARNING: Could not find str_replace old_str content in token sequence")
+                            return []
                         else:
                             old_str_start_idx, old_str_end_idx = boundaries
                             
@@ -837,6 +841,7 @@ class StrReplaceEditorProcessor(LossMaskProcessor):
                                         for line_num in sorted(comment_lines):
                                             if 1 <= line_num <= len(file_lines):
                                                 print(f"  Line {line_num}: {repr(file_lines[line_num - 1])}")
+                                    return []
                 
                 # Process new_str if present
                 if new_str is not None:
@@ -860,6 +865,7 @@ class StrReplaceEditorProcessor(LossMaskProcessor):
                         
                         if boundaries is None:
                             print(f"WARNING: Could not find str_replace new_str content in token sequence")
+                            return []
                         else:
                             new_str_start_idx, new_str_end_idx = boundaries
                             
@@ -963,6 +969,7 @@ class StrReplaceEditorProcessor(LossMaskProcessor):
                                         for line_num in sorted(comment_lines):
                                             if 1 <= line_num <= len(file_lines):
                                                 print(f"  Line {line_num}: {repr(file_lines[line_num - 1])}")
+                                    return []
                 
                 # Remove duplicates and sort
                 all_masked_indices = sorted(set(all_masked_indices))
