@@ -533,10 +533,6 @@ class StrReplaceEditorProcessor(LossMaskProcessor):
                 # Get all comment lines
                 comment_lines = self._get_all_comment_lines(file_text_stripped)
                 
-                if DEBUG_MODE:
-                    print("Full file_text content:")
-                    print(file_text_stripped)
-                    print("=" * 80)
                 
                 if comment_lines:
                     if DEBUG_MODE:
@@ -674,11 +670,286 @@ class StrReplaceEditorProcessor(LossMaskProcessor):
                     print(f"StrReplaceEditorProcessor: Create command found but no file_text parameter (assistant turn {assistant_turn})")
                 return []
         
-        # Handle str_replace command - return empty list (no masking)
+        # Handle str_replace command
         elif is_str_replace:
-            if DEBUG_MODE:
-                print(f"StrReplaceEditorProcessor: Found str_replace command (assistant turn {assistant_turn}) - no masking applied")
-            return []
+            old_str = self._extract_parameter(content, 'old_str')
+            new_str = self._extract_parameter(content, 'new_str')
+            
+            if old_str is not None or new_str is not None:
+                if DEBUG_MODE:
+                    print(f"StrReplaceEditorProcessor: Found str_replace command (assistant turn {assistant_turn})")
+                    if old_str is not None:
+                        old_str_stripped = self._strip_newlines(old_str)
+                        print("Full old_str content:")
+                        print(old_str_stripped)
+                        print("=" * 80)
+                    if new_str is not None:
+                        new_str_stripped = self._strip_newlines(new_str)
+                        print("Full new_str content:")
+                        print(new_str_stripped)
+                        print("=" * 80)
+                
+                all_masked_indices = []
+                
+                # Process old_str if present
+                if old_str is not None:
+                    old_str_stripped = self._strip_newlines(old_str)
+                    comment_lines = self._get_all_comment_lines(old_str_stripped)
+                    
+                    if comment_lines:
+                        if DEBUG_MODE:
+                            print(f"Found {len(comment_lines)} comment lines in old_str")
+                            # Print the actual comment lines
+                            file_lines = old_str_stripped.split('\n')
+                            print(f"Comment lines being masked in old_str:")
+                            for line_num in sorted(comment_lines):
+                                if 1 <= line_num <= len(file_lines):
+                                    comment_content = file_lines[line_num - 1]
+                                    if comment_content or comment_content.strip():
+                                        print(f"  Line {line_num}: {repr(comment_content)}")
+                        
+                        # Find old_str boundaries using the same method as file_text
+                        boundaries = self._find_parameter_boundaries(tokenizer, token_ids, 'old_str')
+                        
+                        if boundaries is None:
+                            print(f"WARNING: Could not find old_str content in token sequence")
+                        else:
+                            old_str_start_idx, old_str_end_idx = boundaries
+                            
+                            if DEBUG_MODE:
+                                print(f"Found old_str boundaries: start={old_str_start_idx}, end={old_str_end_idx}")
+                            
+                            # Extract only the tokens that are part of old_str
+                            old_str_token_ids = token_ids[old_str_start_idx:old_str_end_idx]
+                            
+                            # Find token indices corresponding to comment lines within old_str
+                            masked_indices = self._find_token_indices_for_lines(
+                                tokenizer, old_str_token_ids, content, comment_lines, old_str_stripped, 
+                                offset=old_str_start_idx
+                            )
+                            
+                            # Calculate character counts for validation
+                            total_comment_chars = 0
+                            file_lines = old_str_stripped.split('\n')
+                            for line_num in sorted(comment_lines):
+                                if 1 <= line_num <= len(file_lines):
+                                    total_comment_chars += len(file_lines[line_num - 1]) + 1
+                            
+                            if masked_indices:
+                                # Calculate total characters in masked tokens
+                                tokens = tokenizer.convert_ids_to_tokens(token_ids)
+                                total_masked_chars = 0
+                                for idx in masked_indices:
+                                    if 0 <= idx < len(tokens):
+                                        token_text = tokens[idx]
+                                        clean = token_text.replace('Ġ', ' ').replace('Ċ', '\n').replace('▁', ' ')
+                                        total_masked_chars += len(clean)
+                                
+                                # Check for character count mismatch
+                                if total_comment_chars > 0:
+                                    diff_percent = abs(total_masked_chars - total_comment_chars) / total_comment_chars * 100
+                                    if diff_percent > 3:
+                                        print(f"WARNING: Character count mismatch in old_str! Masked tokens differ from identified comments by {diff_percent:.1f}%")
+                                        print(f"  Comment characters: {total_comment_chars}, Masked characters: {total_masked_chars}")
+                                        print(f"  Returning empty list due to excessive mismatch (>3%)")
+                                        return []
+                                
+                                if DEBUG_MODE:
+                                    print(f"Masking {len(masked_indices)} tokens for comment lines in old_str")
+                                    # Print the actual tokens being masked
+                                    print(f"Tokens being masked in old_str:")
+                                    
+                                    # Group consecutive tokens
+                                    if masked_indices:
+                                        consecutive_groups = []
+                                        current_group = [masked_indices[0]]
+                                        
+                                        for i in range(1, len(masked_indices)):
+                                            if masked_indices[i] == masked_indices[i-1] + 1:
+                                                # Consecutive token
+                                                current_group.append(masked_indices[i])
+                                            else:
+                                                # New group
+                                                consecutive_groups.append(current_group)
+                                                current_group = [masked_indices[i]]
+                                        
+                                        # Add the last group
+                                        consecutive_groups.append(current_group)
+                                        
+                                        # Print each group
+                                        for group in consecutive_groups:
+                                            # Build the text for this group
+                                            group_text = ""
+                                            for idx in group:
+                                                if 0 <= idx < len(tokens):
+                                                    token_text = tokens[idx]
+                                                    # Convert to readable format
+                                                    clean = token_text.replace('Ġ', ' ').replace('Ċ', '\n').replace('▁', ' ')
+                                                    group_text += clean
+                                            
+                                            # Print with token range
+                                            if len(group) == 1:
+                                                print(f"  Token {group[0]}: {repr(group_text)}")
+                                            else:
+                                                print(f"  Tokens {group[0]}-{group[-1]}: {repr(group_text)}")
+                                        
+                                        # Show character count comparison in debug mode
+                                        print(f"\nCharacter count comparison for old_str:")
+                                        print(f"  Total characters in identified comments: {total_comment_chars}")
+                                        print(f"  Total characters in masked tokens: {total_masked_chars}")
+                                        
+                                        if total_comment_chars > 0:
+                                            diff_percent = abs(total_masked_chars - total_comment_chars) / total_comment_chars * 100
+                                            print(f"  Difference: {diff_percent:.1f}%")
+                                            if diff_percent > 3:
+                                                print(f"  WARNING: Exceeds 3% threshold - will return empty list")
+                                
+                                all_masked_indices.extend(masked_indices)
+                            else:
+                                # No tokens were masked but we had comments - this is a problem
+                                if comment_lines and total_comment_chars > 0:
+                                    print(f"WARNING: Found {len(comment_lines)} comment lines ({total_comment_chars} chars) in old_str but could not mask any tokens!")
+                                    if DEBUG_MODE:
+                                        print(f"Comment lines in old_str that were not masked:")
+                                        for line_num in sorted(comment_lines):
+                                            if 1 <= line_num <= len(file_lines):
+                                                print(f"  Line {line_num}: {repr(file_lines[line_num - 1])}")
+                
+                # Process new_str if present
+                if new_str is not None:
+                    new_str_stripped = self._strip_newlines(new_str)
+                    comment_lines = self._get_all_comment_lines(new_str_stripped)
+                    
+                    if comment_lines:
+                        if DEBUG_MODE:
+                            print(f"Found {len(comment_lines)} comment lines in new_str")
+                            # Print the actual comment lines
+                            file_lines = new_str_stripped.split('\n')
+                            print(f"Comment lines being masked in new_str:")
+                            for line_num in sorted(comment_lines):
+                                if 1 <= line_num <= len(file_lines):
+                                    comment_content = file_lines[line_num - 1]
+                                    if comment_content or comment_content.strip():
+                                        print(f"  Line {line_num}: {repr(comment_content)}")
+                        
+                        # Find new_str boundaries using the same method as file_text
+                        boundaries = self._find_parameter_boundaries(tokenizer, token_ids, 'new_str')
+                        
+                        if boundaries is None:
+                            print(f"WARNING: Could not find new_str content in token sequence")
+                        else:
+                            new_str_start_idx, new_str_end_idx = boundaries
+                            
+                            if DEBUG_MODE:
+                                print(f"Found new_str boundaries: start={new_str_start_idx}, end={new_str_end_idx}")
+                            
+                            # Extract only the tokens that are part of new_str
+                            new_str_token_ids = token_ids[new_str_start_idx:new_str_end_idx]
+                            
+                            # Find token indices corresponding to comment lines within new_str
+                            masked_indices = self._find_token_indices_for_lines(
+                                tokenizer, new_str_token_ids, content, comment_lines, new_str_stripped, 
+                                offset=new_str_start_idx
+                            )
+                            
+                            # Calculate character counts for validation
+                            total_comment_chars = 0
+                            file_lines = new_str_stripped.split('\n')
+                            for line_num in sorted(comment_lines):
+                                if 1 <= line_num <= len(file_lines):
+                                    total_comment_chars += len(file_lines[line_num - 1]) + 1
+                            
+                            if masked_indices:
+                                # Calculate total characters in masked tokens
+                                tokens = tokenizer.convert_ids_to_tokens(token_ids)
+                                total_masked_chars = 0
+                                for idx in masked_indices:
+                                    if 0 <= idx < len(tokens):
+                                        token_text = tokens[idx]
+                                        clean = token_text.replace('Ġ', ' ').replace('Ċ', '\n').replace('▁', ' ')
+                                        total_masked_chars += len(clean)
+                                
+                                # Check for character count mismatch
+                                if total_comment_chars > 0:
+                                    diff_percent = abs(total_masked_chars - total_comment_chars) / total_comment_chars * 100
+                                    if diff_percent > 3:
+                                        print(f"WARNING: Character count mismatch in new_str! Masked tokens differ from identified comments by {diff_percent:.1f}%")
+                                        print(f"  Comment characters: {total_comment_chars}, Masked characters: {total_masked_chars}")
+                                        print(f"  Returning empty list due to excessive mismatch (>3%)")
+                                        return []
+                                
+                                if DEBUG_MODE:
+                                    print(f"Masking {len(masked_indices)} tokens for comment lines in new_str")
+                                    # Print the actual tokens being masked
+                                    print(f"Tokens being masked in new_str:")
+                                    
+                                    # Group consecutive tokens
+                                    if masked_indices:
+                                        consecutive_groups = []
+                                        current_group = [masked_indices[0]]
+                                        
+                                        for i in range(1, len(masked_indices)):
+                                            if masked_indices[i] == masked_indices[i-1] + 1:
+                                                # Consecutive token
+                                                current_group.append(masked_indices[i])
+                                            else:
+                                                # New group
+                                                consecutive_groups.append(current_group)
+                                                current_group = [masked_indices[i]]
+                                        
+                                        # Add the last group
+                                        consecutive_groups.append(current_group)
+                                        
+                                        # Print each group
+                                        for group in consecutive_groups:
+                                            # Build the text for this group
+                                            group_text = ""
+                                            for idx in group:
+                                                if 0 <= idx < len(tokens):
+                                                    token_text = tokens[idx]
+                                                    # Convert to readable format
+                                                    clean = token_text.replace('Ġ', ' ').replace('Ċ', '\n').replace('▁', ' ')
+                                                    group_text += clean
+                                            
+                                            # Print with token range
+                                            if len(group) == 1:
+                                                print(f"  Token {group[0]}: {repr(group_text)}")
+                                            else:
+                                                print(f"  Tokens {group[0]}-{group[-1]}: {repr(group_text)}")
+                                        
+                                        # Show character count comparison in debug mode
+                                        print(f"\nCharacter count comparison for new_str:")
+                                        print(f"  Total characters in identified comments: {total_comment_chars}")
+                                        print(f"  Total characters in masked tokens: {total_masked_chars}")
+                                        
+                                        if total_comment_chars > 0:
+                                            diff_percent = abs(total_masked_chars - total_comment_chars) / total_comment_chars * 100
+                                            print(f"  Difference: {diff_percent:.1f}%")
+                                            if diff_percent > 3:
+                                                print(f"  WARNING: Exceeds 3% threshold - will return empty list")
+                                
+                                all_masked_indices.extend(masked_indices)
+                            else:
+                                # No tokens were masked but we had comments - this is a problem
+                                if comment_lines and total_comment_chars > 0:
+                                    print(f"WARNING: Found {len(comment_lines)} comment lines ({total_comment_chars} chars) in new_str but could not mask any tokens!")
+                                    if DEBUG_MODE:
+                                        print(f"Comment lines in new_str that were not masked:")
+                                        for line_num in sorted(comment_lines):
+                                            if 1 <= line_num <= len(file_lines):
+                                                print(f"  Line {line_num}: {repr(file_lines[line_num - 1])}")
+                
+                # Remove duplicates and sort
+                all_masked_indices = sorted(set(all_masked_indices))
+                
+                if DEBUG_MODE and all_masked_indices:
+                    print(f"Total masked indices for str_replace: {len(all_masked_indices)}")
+                
+                return all_masked_indices
+            else:
+                if DEBUG_MODE:
+                    print(f"StrReplaceEditorProcessor: str_replace command found but no old_str or new_str parameters (assistant turn {assistant_turn})")
+                return []
         
         # Return None to continue processing
         return None
