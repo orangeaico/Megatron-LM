@@ -7,6 +7,7 @@ from typing import Dict, Any, List
 from transformers import AutoTokenizer
 import glob
 import sys
+from loss_mask_processors import get_zero_loss_mask_indices as get_loss_mask_indices, set_debug_mode
 
 IGNORE_INDEX = -100
 
@@ -41,32 +42,8 @@ def count_tokens(tokenizer, conversation_list: List[Dict[str, Any]]) -> int:
     return total_tokens
 
 
-def get_zero_loss_mask_indices(tokenizer, token_ids, msg_dict, assistant_turn) -> List[int]:
-    """
-    Determine which token indices should have their loss mask set to 0 for a given message.
-    
-    Args:
-        msg_dict: Dictionary containing 'role' and 'content' fields
-        
-    Returns:
-        List of indices (relative to the message tokens) that should have loss mask set to 0
-    """
-    content = msg_dict.get('content', '')
-    if assistant_turn != 1:
-        return []
-    tokens = tokenizer.convert_ids_to_tokens(token_ids)
-    token_to_mask = '>'
-    masked_ids = []
-    for i, token in enumerate(tokens[:-1]):
-        if token_to_mask in token and 'command' in ''.join(tokens[i-3:i+1]):
-            masked_ids.append(i)
-    
-    token_to_mask = '>'
-    masked_ids = []
-    for i, token in enumerate(tokens[:-1]):
-        if token_to_mask in token and 'command' in ''.join(tokens[i-3:i+1]):
-            masked_ids.append(i)
-    return masked_ids
+# The get_zero_loss_mask_indices function has been moved to loss_mask_processors.py
+# and is imported as get_loss_mask_indices at the top of this file
 
 
 def process_example_with_tags(tokenizer, conversation_list: List[Dict[str, Any]], stats: Dict[str, int]):
@@ -168,11 +145,10 @@ def process_example_with_tags(tokenizer, conversation_list: List[Dict[str, Any]]
             
                 for thought_index, is_thought in enumerate(thought_mask):
                     if is_thought:
-                        turn_loss_mask[thought_index] = THOUGHT_WEIGHT * DATASET_WEIGHT_MULTIPLIER  
-            
-            zero_mask_indices = []
-            # Get indices that should be set to 0
-            # zero_mask_indices = get_zero_loss_mask_indices(tokenizer, seg_ids, msg_dict, assistant_turn)
+                        turn_loss_mask[thought_index] = turn_loss_mask[thought_index] * THOUGHT_WEIGHT 
+                        
+            # Get indices that should be set to 0 using the new loss masking module
+            zero_mask_indices = get_loss_mask_indices(tokenizer, seg_ids, msg_dict, assistant_turn)
             
             # Track statistics for zero masking
             if zero_mask_indices:
@@ -269,12 +245,21 @@ def main():
         action='store_true',
         help='Use update_tags field to determine loss mask values instead of action-based logic'
     )
+    parser.add_argument(
+        '--debug',
+        action='store_true',
+        help='Enable debug logging for loss mask processors'
+    )
     
     args = parser.parse_args()
     
     # Validate that at least one processing mode is selected
     if not (args.no_tokenize or args.use_loss_mask_tags):
         parser.error("At least one of --no-tokenize or --use-loss-mask-tags must be specified")
+    
+    # Set debug mode for loss mask processors
+    if args.use_loss_mask_tags and args.debug:
+        set_debug_mode(True)
     
     # Setup output file path based on processing mode
     if args.output_file is None:
