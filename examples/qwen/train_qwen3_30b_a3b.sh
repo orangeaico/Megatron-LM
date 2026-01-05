@@ -35,7 +35,7 @@ if [[ "$TRAINING_MODE" == "cpt" ]]; then
     TEST_DATA_PATH=$VALID_DATA_PATH
 
 elif [[ "$TRAINING_MODE" == "sft" ]]; then
-    TRAIN_DATA_PATH="$BASE_DIR/data/sft/hard_set_2_jan/sft_dataset_30b_480b.jsonl"
+    TRAIN_DATA_PATH="$BASE_DIR/data/sft/hard_set_2_jan/sft_dataset_30b_480b_comment_mask.jsonl"
     VALID_DATA_PATH="$BASE_DIR/data/sft/validation_set_480b/validation_set_sft_loss_mask.jsonl"
     TEST_DATA_PATH=$VALID_DATA_PATH 
 
@@ -155,11 +155,11 @@ MOE_ARGS=(
 TRAINING_ARGS=(
     --micro-batch-size $MICRO_BATCH_SIZE
     --global-batch-size $GLOBAL_BATCH_SIZE
-    --train-samples 2224
-    --lr-decay-samples 11120
+    --train-samples 3336
+    --lr-decay-samples 3336
 
     # Learning rate args
-    --lr-warmup-samples 240
+    --lr-warmup-samples 320
     --lr 5.0e-6 # 5.0e-5
     --min-lr 1.0e-6 # 5.0e-6
     # --decoupled-lr 8.0e-4  # Adjusted for smaller model

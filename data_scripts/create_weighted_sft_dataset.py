@@ -13,7 +13,7 @@ IGNORE_INDEX = -100
 
 DATASET_WEIGHT_MULTIPLIER = 1
 
-THOUGHT_WEIGHT = 0.5
+THOUGHT_WEIGHT = 1
 
 # Tag-based loss mask values (priority: loss_mask > low_value_mask)
 TAG_LOSS_MASK_VALUES = {
