@@ -14,6 +14,47 @@ import io
 # Global debug flag
 DEBUG_MODE = False
 
+# Unicode character corruption mappings
+# Maps corrupted characters to their correct emoji equivalents
+# 
+# To add new emoji mappings:
+# 1. Find the corrupted characters in debug output (e.g., 'âľħ')
+# 2. Identify the correct emoji it should be (e.g., '✅') 
+# 3. Add mapping: 'corrupted_chars': 'correct_emoji'
+#
+# Common sources of corruption:
+# - Emoji characters getting mangled during tokenization/decoding
+# - UTF-8 encoding issues with special characters
+# - Multi-byte Unicode characters being split incorrectly
+EMOJI_CORRUPTION_MAP = {
+    'âľħ': '✅',  # WHITE HEAVY CHECK MARK (U+2705)
+    'âĿĮ': '❌',  # CROSS MARK (U+274C)
+    'âľĵ': '✓',  # CHECK MARK (U+2713)
+    'âľĹ': '✗',  # BALLOT X (U+2717)
+    'âĶĶâĶĢâĶĢ': '└──',  # BOX DRAWINGS LIGHT UP AND RIGHT + HORIZONTAL (tree branch)
+    'âĨĴ': '→',  # RIGHTWARDS ARROW (U+2192)
+    'ĉ': '\t',  # TAB CHARACTER (U+0009)
+    'âĶĤ': '│',  # BOX DRAWINGS LIGHT VERTICAL (U+2502)
+    # Add more mappings here as they are discovered
+    # Example:
+    # 'âł': '❗',  # Heavy exclamation mark
+    # 'âĸ': '⚠️',   # Warning sign
+}
+
+def apply_unicode_corrections(text: str) -> str:
+    """Apply Unicode corruption corrections to text.
+    
+    Args:
+        text: Text that may contain corrupted Unicode characters
+        
+    Returns:
+        Text with corrupted characters replaced with correct emojis
+    """
+    corrected_text = text
+    for corrupted, correct in EMOJI_CORRUPTION_MAP.items():
+        corrected_text = corrected_text.replace(corrupted, correct)
+    return corrected_text
+
 def set_debug_mode(enabled: bool):
     """Enable or disable debug logging."""
     global DEBUG_MODE
@@ -996,6 +1037,457 @@ class StrReplaceEditorProcessor(LossMaskProcessor):
         return None
 
 
+class DiffProcessor(LossMaskProcessor):
+    """
+    Processor that masks diff tokens in str_replace commands.
+    
+    This processor identifies removed lines from old_str and added lines from new_str
+    in str_replace commands and masks their corresponding tokens.
+    """
+    
+    def __init__(self):
+        super().__init__()
+        self.mask_value = 2  # Set mask value to 2 for this processor
+    
+    def _extract_parameter(self, content: str, param_name: str) -> Optional[str]:
+        """Extract parameter value from XML content."""
+        param_tag = f'<parameter={param_name}>'
+        if param_tag not in content:
+            return None
+            
+        param_start = content.find(param_tag) + len(param_tag)
+        param_end = content.find('</parameter>', param_start)
+        
+        if param_end == -1:
+            return None
+            
+        return content[param_start:param_end]
+    
+    def _strip_newlines(self, text: str) -> str:
+        """Strip leading and trailing newlines from text."""
+        if text.startswith('\n'):
+            text = text[1:]
+        if text.endswith('\n'):
+            text = text[:-1]
+        return text
+    
+    def _check_command_type(self, content: str, command: str) -> bool:
+        """Check if content contains a command parameter with optional newlines."""
+        # Check all possible variations with newlines
+        variations = [
+            f'<parameter=command>{command}</parameter>',
+            f'<parameter=command>\n{command}</parameter>',
+            f'<parameter=command>{command}\n</parameter>',
+            f'<parameter=command>\n{command}\n</parameter>'
+        ]
+        return any(var in content for var in variations)
+    
+    def _get_diff_lines(self, old_str: str, new_str: str) -> tuple[Set[int], Set[int]]:
+        """
+        Find the diff between old_str and new_str.
+        
+        Returns:
+            A tuple of (removed_line_nums, added_line_nums) where:
+            - removed_line_nums: Line numbers in old_str that were removed
+            - added_line_nums: Line numbers in new_str that were added
+        """
+        import difflib
+        
+        old_lines = old_str.split('\n')
+        new_lines = new_str.split('\n')
+        
+        # Get the sequence matcher
+        matcher = difflib.SequenceMatcher(None, old_lines, new_lines)
+        
+        removed_lines = set()
+        added_lines = set()
+        
+        # Get the opcodes
+        for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+            if tag == 'delete':
+                # Lines removed from old_str
+                for i in range(i1, i2):
+                    removed_lines.add(i + 1)  # 1-based line numbers
+            elif tag == 'insert':
+                # Lines added to new_str
+                for j in range(j1, j2):
+                    added_lines.add(j + 1)  # 1-based line numbers
+            elif tag == 'replace':
+                # Lines changed - mark old lines as removed and new lines as added
+                for i in range(i1, i2):
+                    removed_lines.add(i + 1)
+                for j in range(j1, j2):
+                    added_lines.add(j + 1)
+        
+        return removed_lines, added_lines
+    
+    def _group_consecutive_lines(self, line_nums: Set[int]) -> List[List[int]]:
+        """Group consecutive line numbers into blocks."""
+        if not line_nums:
+            return []
+        
+        sorted_lines = sorted(line_nums)
+        groups = []
+        current_group = [sorted_lines[0]]
+        
+        for i in range(1, len(sorted_lines)):
+            if sorted_lines[i] == current_group[-1] + 1:
+                current_group.append(sorted_lines[i])
+            else:
+                groups.append(current_group)
+                current_group = [sorted_lines[i]]
+        
+        groups.append(current_group)
+        return groups
+    
+    def _find_block_in_content(self, content: str, block_text: str, param_name: str, 
+                               param_content: str, line_numbers: List[int]) -> Optional[int]:
+        """
+        Find the character index of a block of text within the full content.
+        
+        Args:
+            content: The full message content
+            block_text: The text block to find
+            param_name: Parameter name ('old_str' or 'new_str')
+            param_content: The full parameter content (old_str or new_str)
+            line_numbers: Line numbers of this block in the parameter
+            
+        Returns:
+            Character index where the block starts in content, or None if not found
+        """
+        # Find the parameter boundaries
+        param_tag_start = f'<parameter={param_name}>'
+        param_tag_end = '</parameter>'
+        
+        param_start_pos = content.find(param_tag_start)
+        if param_start_pos == -1:
+            return None
+            
+        # Find the end of this parameter
+        search_from = param_start_pos + len(param_tag_start)
+        param_end_pos = content.find(param_tag_end, search_from)
+        if param_end_pos == -1:
+            return None
+        
+        # Extract the parameter content from the original content
+        param_in_content = content[search_from:param_end_pos]
+        
+        # Find the block text within this parameter content
+        block_pos = param_in_content.find(block_text)
+        if block_pos == -1:
+            # Try to find just the first line if full block fails
+            first_line = block_text.split('\n')[0]
+            block_pos = param_in_content.find(first_line)
+            if block_pos == -1:
+                return None
+            
+            if DEBUG_MODE:
+                print(f"    Note: Full block not found, using first line position")
+        
+        # Return the absolute position in content
+        return search_from + block_pos
+    
+    def process(self, tokenizer, token_ids: List[int], msg_dict: Dict[str, Any], 
+                assistant_turn: int) -> List[int]:
+        """
+        Process str_replace commands and return indices of diff tokens to mask.
+        
+        Args:
+            tokenizer: The tokenizer instance
+            token_ids: List of token IDs for the message
+            msg_dict: Dictionary containing 'role' and 'content' fields
+            assistant_turn: The turn number for assistant messages
+            
+        Returns:
+            List of token indices that should be masked (diff tokens)
+        """
+        # Skip non-assistant messages
+        if msg_dict.get("role") != "assistant":
+            return []
+        
+        content = msg_dict.get("content", "")
+        
+        # Check if content contains str_replace_editor function call
+        if '<function=str_replace_editor>' not in content:
+            return []
+        
+        # Check if it's a str_replace command
+        is_str_replace = False
+        
+        if self._check_command_type(content, 'str_replace'):
+            is_str_replace = True
+        elif '<parameter=old_str>' in content:
+            is_str_replace = True
+        
+        if not is_str_replace:
+            return []
+        
+        # Extract old_str and new_str
+        old_str = self._extract_parameter(content, 'old_str')
+        new_str = self._extract_parameter(content, 'new_str')
+        
+        if old_str is None or new_str is None:
+            print(f"WARNING: DiffProcessor could not extract old_str or new_str from str_replace command (assistant turn {assistant_turn})")
+            return []
+        
+        # Strip newlines
+        old_str_stripped = self._strip_newlines(old_str)
+        new_str_stripped = self._strip_newlines(new_str)
+        
+        if DEBUG_MODE:
+            print(f"DiffProcessor: Processing str_replace command (assistant turn {assistant_turn})")
+        
+        # Get diff lines
+        removed_lines, added_lines = self._get_diff_lines(old_str_stripped, new_str_stripped)
+        
+        # Group consecutive lines
+        removed_blocks = self._group_consecutive_lines(removed_lines)
+        added_blocks = self._group_consecutive_lines(added_lines)
+        
+        diff_blocks = []
+        
+        # Process removed blocks from old_str
+        old_lines = old_str_stripped.split('\n')
+        for block in removed_blocks:
+            # Build the block text
+            block_lines = []
+            for line_num in block:
+                if 1 <= line_num <= len(old_lines):
+                    block_lines.append(old_lines[line_num - 1])
+            
+            if block_lines:
+                block_text = '\n'.join(block_lines)
+                char_idx = self._find_block_in_content(content, block_text, 'old_str', 
+                                                       old_str_stripped, block)
+                if char_idx is not None:
+                    diff_blocks.append({
+                        'text': block_text,
+                        'char_index': char_idx,
+                        'lines': block,
+                        'param': 'old_str',
+                        'type': 'removed'
+                    })
+                else:
+                    print(f"WARNING: DiffProcessor could not find character index for removed block lines {block} in old_str")
+                    if DEBUG_MODE and block_lines:
+                        print(f"  Block text: {repr(block_text)}")
+        
+        # Process added blocks from new_str
+        new_lines = new_str_stripped.split('\n')
+        for block in added_blocks:
+            # Build the block text
+            block_lines = []
+            for line_num in block:
+                if 1 <= line_num <= len(new_lines):
+                    block_lines.append(new_lines[line_num - 1])
+            
+            if block_lines:
+                block_text = '\n'.join(block_lines)
+                char_idx = self._find_block_in_content(content, block_text, 'new_str', 
+                                                       new_str_stripped, block)
+                if char_idx is not None:
+                    diff_blocks.append({
+                        'text': block_text,
+                        'char_index': char_idx,
+                        'lines': block,
+                        'param': 'new_str',
+                        'type': 'added'
+                    })
+                else:
+                    print(f"WARNING: DiffProcessor could not find character index for added block lines {block} in new_str")
+                    if DEBUG_MODE and block_lines:
+                        print(f"  Block text: {repr(block_text)}")
+        
+        if DEBUG_MODE:
+            print(f"DiffProcessor: Found {len(removed_blocks)} removed blocks and {len(added_blocks)} added blocks")
+            for block_info in diff_blocks:
+                print(f"  {block_info['type']} block in {block_info['param']} at char {block_info['char_index']}: lines {block_info['lines']}")
+                print(f"    Text: {repr(block_info['text'])}")
+        
+        # Map character indices to token indices
+        masked_indices = []
+        
+        if not diff_blocks:
+            if DEBUG_MODE:
+                print(f"DiffProcessor: No diff blocks found to map to tokens")
+            return []
+        
+        # First, find where the content starts in the token sequence
+        # Take first characters of content as a search pattern, but skip leading whitespace
+        content_stripped = content.lstrip()
+        search_pattern = content_stripped[:50] if len(content_stripped) >= 50 else content_stripped
+        content_start_char = -1
+        
+        # Decode the full token sequence
+        try:
+            decoded_full = tokenizer.decode(token_ids, skip_special_tokens=False)
+            
+            # Find where our content starts
+            content_start_char = decoded_full.find(search_pattern)
+            if content_start_char == -1:
+                print(f"WARNING: DiffProcessor could not find content start in token sequence")
+                print(f"  Search pattern: {repr(search_pattern[:30])}...")
+                return []
+            
+            # Adjust for any leading whitespace we skipped
+            whitespace_skipped = len(content) - len(content_stripped)
+            content_start_char = content_start_char - whitespace_skipped
+            
+            if DEBUG_MODE:
+                print(f"DiffProcessor: Found content start at character position {content_start_char} in decoded tokens")
+                
+        except Exception as e:
+            print(f"WARNING: DiffProcessor error finding content start: {str(e)}")
+            return []
+        
+        # Build accurate character position to token mapping using actual decoded positions
+        token_char_ranges = []  # List of (start_char, end_char, token_idx)
+        
+        try:
+            for idx in range(len(token_ids)):
+                # Get the text up to this token by decoding
+                if idx == 0:
+                    prefix_text = ""
+                else:
+                    prefix_text = tokenizer.decode(token_ids[:idx], skip_special_tokens=False)
+                
+                # Get the text including this token
+                current_text = tokenizer.decode(token_ids[:idx+1], skip_special_tokens=False)
+                
+                # The token spans from end of prefix to end of current
+                start_char = len(prefix_text)
+                end_char = len(current_text)
+                token_char_ranges.append((start_char, end_char, idx))
+        except Exception as e:
+            print(f"WARNING: DiffProcessor error building token character mapping: {str(e)}")
+            return []
+        
+        if DEBUG_MODE:
+            total_chars = len(decoded_full) if token_char_ranges else 0
+            print(f"DiffProcessor: Total characters in token sequence: {total_chars}")
+            print(f"DiffProcessor: Mapping {len(diff_blocks)} diff blocks to tokens")
+        
+        # For each diff block, find the tokens it spans
+        for block_info in diff_blocks:
+            # Adjust block positions by the content start offset
+            adjusted_block_start = block_info['char_index'] + content_start_char
+            adjusted_block_end = adjusted_block_start + len(block_info['text'])
+            
+            if DEBUG_MODE:
+                print(f"  Block char range in content: {block_info['char_index']}-{block_info['char_index'] + len(block_info['text'])}")
+                print(f"  Adjusted char range in tokens: {adjusted_block_start}-{adjusted_block_end}")
+                # Show what's actually at that position in the decoded content
+                decoded_full = tokenizer.decode(token_ids, skip_special_tokens=False)
+                sample_start = max(0, adjusted_block_start - 10)
+                sample_end = min(len(decoded_full), adjusted_block_start + 50)
+                print(f"  Content at adjusted position: {repr(decoded_full[sample_start:sample_end])}")
+            
+            block_token_indices = []
+            
+            # Find tokens that overlap with this block
+            for start_char, end_char, token_idx in token_char_ranges:
+                # Check if this token overlaps with the block
+                if start_char < adjusted_block_end and end_char > adjusted_block_start:
+                    block_token_indices.append(token_idx)
+            
+            if block_token_indices:
+                if DEBUG_MODE:
+                    print(f"  Block '{block_info['type']}' lines {block_info['lines']} maps to tokens {block_token_indices[0]}-{block_token_indices[-1]}")
+                    # Print the actual masked content
+                    masked_content = []
+                    for token_idx in block_token_indices:
+                        if token_idx < len(token_ids):
+                            token_str = tokenizer.convert_ids_to_tokens([token_ids[token_idx]])[0]
+                            # Normalize for display
+                            normalized = token_str.replace('Ġ', ' ').replace('▁', ' ').replace('Ċ', '\n')
+                            masked_content.append(normalized)
+                    masked_text = ''.join(masked_content)
+                    # Apply Unicode correction for display
+                    display_text = apply_unicode_corrections(masked_text)
+                    print(f"    Masked content: {repr(display_text)}")
+                    
+                    # Verify the masked content matches the expected block text
+                    expected_text = block_info['text']
+                    if masked_text != expected_text:
+                        # Check various acceptable differences
+                        is_acceptable = False
+                        
+                        # 1. Check if it's just a whitespace difference
+                        if masked_text.strip() == expected_text.strip():
+                            is_acceptable = True
+                        
+                        # 2. Check if expected_text is a substring of masked_text with small length difference
+                        elif expected_text in masked_text and abs(len(masked_text) - len(expected_text)) <= 10:
+                            is_acceptable = True
+                        
+                        # 3. Check if masked_text is a substring of expected_text with small length difference
+                        elif masked_text in expected_text and abs(len(masked_text) - len(expected_text)) <= 10:
+                            is_acceptable = True
+                        
+                        # 4. Check for Unicode corruption issues - compare after removing potential corrupted chars
+                        elif abs(len(masked_text) - len(expected_text)) <= 10:
+                            # Apply Unicode corruption corrections
+                            masked_normalized = apply_unicode_corrections(masked_text)
+                            if masked_normalized.strip() == expected_text.strip():
+                                is_acceptable = True
+                            # Also try with leading/trailing character differences
+                            elif len(masked_normalized) > len(expected_text) and expected_text in masked_normalized:
+                                is_acceptable = True
+                            elif len(expected_text) > len(masked_normalized) and masked_normalized in expected_text:
+                                is_acceptable = True
+                        
+                        if not is_acceptable:
+                            # Return empty list when validation fails
+                            if DEBUG_MODE:
+                                print(f"    DEBUG: Masked content validation failed, returning empty mask")
+                                print(f"    Expected: {repr(expected_text)}")
+                                print(f"    Actually masked: {repr(apply_unicode_corrections(masked_text))}")
+                            return []
+                # Also verify content when not in debug mode (but without printing everything)
+                if not DEBUG_MODE:
+                    # Quick verification
+                    masked_content = []
+                    for token_idx in block_token_indices:
+                        if token_idx < len(token_ids):
+                            token_str = tokenizer.convert_ids_to_tokens([token_ids[token_idx]])[0]
+                            normalized = token_str.replace('Ġ', ' ').replace('▁', ' ').replace('Ċ', '\n')
+                            masked_content.append(normalized)
+                    masked_text = ''.join(masked_content)
+                    expected_text = block_info['text']
+                    
+                    # Check if the mismatch is acceptable
+                    is_acceptable = (
+                        # Whitespace-only difference
+                        masked_text.strip() == expected_text.strip() or
+                        # Expected is substring of masked with small difference
+                        (expected_text in masked_text and abs(len(masked_text) - len(expected_text)) <= 10) or
+                        # Masked is substring of expected with small difference  
+                        (masked_text in expected_text and abs(len(masked_text) - len(expected_text)) <= 10) or
+                        # Handle Unicode corruption
+                        (abs(len(masked_text) - len(expected_text)) <= 10 and 
+                         (apply_unicode_corrections(masked_text).strip() == expected_text.strip() or
+                          expected_text in apply_unicode_corrections(masked_text) or
+                          apply_unicode_corrections(masked_text) in expected_text))
+                    )
+                    
+                    if not is_acceptable:
+                        # Return empty list when validation fails
+                        return []
+                
+                masked_indices.extend(block_token_indices)
+            else:
+                # Return empty list if block has no matching tokens
+                return []
+        
+        # Remove duplicates and sort
+        masked_indices = sorted(set(masked_indices))
+        
+        if DEBUG_MODE:
+            print(f"DiffProcessor: Total tokens to mask: {len(masked_indices)}")
+        
+        return masked_indices
+
+
 class CommandGtProcessor(LossMaskProcessor):
     """
     Original processor that masks '>' tokens when preceded by 'command'.
@@ -1037,11 +1529,12 @@ class LossMaskProcessorManager:
         # Store all available processors in registered order
         self.available_processors = {
             'StrReplaceEditorProcessor': StrReplaceEditorProcessor,
+            'DiffProcessor': DiffProcessor,
             'CommandGtProcessor': CommandGtProcessor
         }
         # Define the order in which processors should be applied
         # Later processors overwrite earlier ones for overlapping indices
-        self.processor_order = ['StrReplaceEditorProcessor', 'CommandGtProcessor']
+        self.processor_order = ['StrReplaceEditorProcessor', 'DiffProcessor', 'CommandGtProcessor']
     
     def configure_processors(self, processor_names: Optional[str]):
         """Configure which processors to use based on command line argument.
