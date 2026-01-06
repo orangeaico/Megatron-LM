@@ -7,7 +7,11 @@ from typing import Dict, Any, List
 from transformers import AutoTokenizer
 import glob
 import sys
-from loss_mask_processors import get_zero_loss_mask_indices as get_loss_mask_indices, set_debug_mode
+from loss_mask_processors import (
+    get_zero_loss_mask_indices as get_loss_mask_indices, 
+    set_debug_mode,
+    configure_loss_mask_processors
+)
 
 IGNORE_INDEX = -100
 
@@ -147,26 +151,28 @@ def process_example_with_tags(tokenizer, conversation_list: List[Dict[str, Any]]
                     if is_thought:
                         turn_loss_mask[thought_index] = turn_loss_mask[thought_index] * THOUGHT_WEIGHT 
                         
-            # Get indices that should be set to 0 using the new loss masking module
-            zero_mask_indices = get_loss_mask_indices(tokenizer, seg_ids, msg_dict, assistant_turn)
+            # Get loss mask array from the new loss masking module
+            loss_mask_array = get_loss_mask_indices(tokenizer, seg_ids, msg_dict, assistant_turn)
             
             # Track statistics for zero masking
-            if zero_mask_indices:
-                if 'zero_masked_indices_count' not in stats:
-                    stats['zero_masked_indices_count'] = 0
-                if 'zero_masked_messages_count' not in stats:
-                    stats['zero_masked_messages_count'] = 0
+            if loss_mask_array and len(loss_mask_array) == len(seg_ids):
+                # Count indices that will be masked to 0
+                masked_count = sum(1 for val in loss_mask_array if val == 0)
                 
-                # Count valid indices that were actually masked
-                valid_masked_count = sum(1 for idx in zero_mask_indices if 0 <= idx < len(turn_loss_mask))
-                stats['zero_masked_indices_count'] += valid_masked_count
-                if valid_masked_count > 0:
+                if masked_count > 0:
+                    if 'zero_masked_indices_count' not in stats:
+                        stats['zero_masked_indices_count'] = 0
+                    if 'zero_masked_messages_count' not in stats:
+                        stats['zero_masked_messages_count'] = 0
+                    
+                    stats['zero_masked_indices_count'] += masked_count
                     stats['zero_masked_messages_count'] += 1
-            
-            # Apply zero masking to specified indices
-            for idx in zero_mask_indices:
-                if 0 <= idx < len(turn_loss_mask):
-                    turn_loss_mask[idx] = 0
+                
+                # Apply the mask values from processors
+                # Only apply mask values that are not -1 (which means no mask)
+                for idx, mask_val in enumerate(loss_mask_array):
+                    if mask_val != -1 and 0 <= idx < len(turn_loss_mask):
+                        turn_loss_mask[idx] = mask_val * DATASET_WEIGHT_MULTIPLIER
             
             # Extend the overall loss mask
             loss_mask.extend(turn_loss_mask)
@@ -250,6 +256,13 @@ def main():
         action='store_true',
         help='Enable debug logging for loss mask processors'
     )
+    parser.add_argument(
+        '--loss-mask-processors',
+        type=str,
+        default=None,
+        help='Comma-separated list of loss mask processors to use (e.g., "StrReplaceEditorProcessor,CommandGtProcessor"). '
+             'Use "all" to enable all available processors. Default is None (no processors applied).'
+    )
     
     args = parser.parse_args()
     
@@ -257,9 +270,13 @@ def main():
     if not (args.no_tokenize or args.use_loss_mask_tags):
         parser.error("At least one of --no-tokenize or --use-loss-mask-tags must be specified")
     
-    # Set debug mode for loss mask processors
-    if args.use_loss_mask_tags and args.debug:
-        set_debug_mode(True)
+    # Configure loss mask processors
+    if args.use_loss_mask_tags:
+        # Set debug mode if requested
+        if args.debug:
+            set_debug_mode(True)
+        # Configure which processors to use
+        configure_loss_mask_processors(args.loss_mask_processors)
     
     # Setup output file path based on processing mode
     if args.output_file is None:
@@ -278,6 +295,10 @@ def main():
     print (f"Input Directory: {args.input_dir}")
     print (f"Output File: {args.output_file}")
     print (f"Filter File: {args.filter_file}")
+    
+    if args.use_loss_mask_tags:
+        processor_config = args.loss_mask_processors if args.loss_mask_processors else "None"
+        print(f"Loss Mask Processors: {processor_config}")
     
     # Load tokenizer (needed for both modes now due to filtering)
     if not args.model_path:

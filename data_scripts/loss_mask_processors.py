@@ -23,11 +23,14 @@ def set_debug_mode(enabled: bool):
 class LossMaskProcessor(ABC):
     """Abstract base class for loss mask processors."""
     
+    def __init__(self):
+        self.mask_value = -1  # Default mask value
+    
     @abstractmethod
     def process(self, tokenizer, token_ids: List[int], msg_dict: Dict[str, Any], 
                 assistant_turn: int) -> List[int]:
         """
-        Process the message and return indices that should be masked (loss=0).
+        Process the message and return loss mask array.
         
         Args:
             tokenizer: The tokenizer instance
@@ -36,7 +39,9 @@ class LossMaskProcessor(ABC):
             assistant_turn: The turn number for assistant messages (1-indexed)
             
         Returns:
-            List of indices (relative to the message tokens) that should have loss mask set to 0
+            List of same length as token_ids where:
+            - mask_value at indices that should be masked
+            - -1 at all other indices
         """
         pass
 
@@ -50,6 +55,10 @@ class StrReplaceEditorProcessor(LossMaskProcessor):
     - For str_replace commands: extracts old_str and new_str
     - For view commands: returns empty list (ignore)
     """
+    
+    def __init__(self):
+        super().__init__()
+        self.mask_value = 0  # Set mask value to 0 for this processor
     
     def _extract_parameter(self, content: str, param_name: str) -> Optional[str]:
         """Extract parameter value from XML content."""
@@ -994,10 +1003,17 @@ class CommandGtProcessor(LossMaskProcessor):
     This is the existing logic from get_zero_loss_mask_indices.
     """
     
+    def __init__(self):
+        super().__init__()
+        self.mask_value = 0  # Set mask value to 0 for this processor
+    
     def process(self, tokenizer, token_ids: List[int], msg_dict: Dict[str, Any], 
                 assistant_turn: int) -> List[int]:
         """
-        Find '>' tokens preceded by 'command' and mark them for masking.
+        Dummy implementation - always returns empty list.
+        
+        This processor is a placeholder for future implementation
+        of masking '>' tokens preceded by 'command'.
         
         Args:
             tokenizer: The tokenizer instance
@@ -1006,36 +1022,55 @@ class CommandGtProcessor(LossMaskProcessor):
             assistant_turn: The turn number for assistant messages
             
         Returns:
-            List of indices to mask, or None if not applicable
+            Empty list (no masking applied)
         """
-        if assistant_turn != 1:
-            return []
-            
-        tokens = tokenizer.convert_ids_to_tokens(token_ids)
-        token_to_mask = '>'
-        masked_ids = []
-        
-        for i, token in enumerate(tokens[:-1]):
-            if token_to_mask in token and 'command' in ''.join(tokens[i-3:i+1]):
-                masked_ids.append(i)
-        
-        return masked_ids
+        # Always return empty list - dummy implementation for now
+        return []
 
 
 class LossMaskProcessorManager:
     """Manager class that handles multiple loss mask processors."""
     
     def __init__(self):
-        """Initialize the processor manager with default processors."""
+        """Initialize the processor manager without any processors."""
         self.processors: List[LossMaskProcessor] = []
-        self._initialize_default_processors()
+        # Store all available processors in registered order
+        self.available_processors = {
+            'StrReplaceEditorProcessor': StrReplaceEditorProcessor,
+            'CommandGtProcessor': CommandGtProcessor
+        }
+        # Define the order in which processors should be applied
+        # Later processors overwrite earlier ones for overlapping indices
+        self.processor_order = ['StrReplaceEditorProcessor', 'CommandGtProcessor']
     
-    def _initialize_default_processors(self):
-        """Initialize the default set of processors."""
-        # Add processors in order of priority
-        self.processors.append(StrReplaceEditorProcessor())
-        # Comment out CommandGtProcessor for now since the original logic is commented out
-        # self.processors.append(CommandGtProcessor())
+    def configure_processors(self, processor_names: Optional[str]):
+        """Configure which processors to use based on command line argument.
+        
+        Args:
+            processor_names: None (no processors), "all" (all processors), 
+                           or comma-separated list of processor names
+        """
+        self.processors.clear()
+        
+        if processor_names is None:
+            # No processors - default behavior
+            return
+        
+        if processor_names.lower() == 'all':
+            # Use all processors in registered order
+            for proc_name in self.processor_order:
+                if proc_name in self.available_processors:
+                    self.processors.append(self.available_processors[proc_name]())
+        else:
+            # Use specific processors in registered order
+            requested = [name.strip() for name in processor_names.split(',')]
+            # Apply in registered order, not command line order
+            for proc_name in self.processor_order:
+                if proc_name in requested and proc_name in self.available_processors:
+                    self.processors.append(self.available_processors[proc_name]())
+        
+        if DEBUG_MODE:
+            print(f"Configured processors: {[type(p).__name__ for p in self.processors]}")
     
     def add_processor(self, processor: LossMaskProcessor):
         """Add a new processor to the manager."""
@@ -1044,7 +1079,7 @@ class LossMaskProcessorManager:
     def get_zero_loss_mask_indices(self, tokenizer, token_ids: List[int], 
                                    msg_dict: Dict[str, Any], assistant_turn: int) -> List[int]:
         """
-        Process the message through all processors to get indices to mask.
+        Process the message through all processors to get loss mask array.
         
         This is the main entry point that replaces the original get_zero_loss_mask_indices function.
         
@@ -1055,28 +1090,45 @@ class LossMaskProcessorManager:
             assistant_turn: The turn number for assistant messages
             
         Returns:
-            List of indices (relative to the message tokens) that should have loss mask set to 0
+            List of same length as token_ids where:
+            - processor.mask_value at indices that should be masked
+            - -1 at all other indices
         """
+        # Initialize mask array with -1 (no mask)
+        mask_array = [-1] * len(token_ids)
+        
+        # Process through each processor in order
+        # Later processors overwrite earlier ones for overlapping indices
         for processor in self.processors:
             result = processor.process(tokenizer, token_ids, msg_dict, assistant_turn)
             
-            # If a processor returns a list (including empty list), use that result
-            # If it returns None, continue to the next processor
-            if result is not None:
-                return result
+            # If a processor returns indices, update the mask array
+            if result is not None and isinstance(result, list) and len(result) > 0:
+                for idx in result:
+                    if 0 <= idx < len(token_ids):
+                        mask_array[idx] = processor.mask_value
         
-        # If no processor handled the message, return empty list
-        return []
+        return mask_array
 
 
 # Global instance for easy access
 loss_mask_processor_manager = LossMaskProcessorManager()
 
 
+def configure_loss_mask_processors(processor_names: Optional[str]):
+    """Configure which loss mask processors to use.
+    
+    Args:
+        processor_names: None (no processors), "all" (all processors), 
+                       or comma-separated list of processor names
+    """
+    loss_mask_processor_manager.configure_processors(processor_names)
+
+
 def get_zero_loss_mask_indices(tokenizer, token_ids: List[int], 
                                msg_dict: Dict[str, Any], assistant_turn: int) -> List[int]:
     """
-    Main function to get indices that should have loss mask set to 0.
+    Main function to get loss mask array.
     
     This function serves as the single entry point from create_weighted_sft_dataset.py
     and internally handles all processors.
@@ -1088,7 +1140,9 @@ def get_zero_loss_mask_indices(tokenizer, token_ids: List[int],
         assistant_turn: The turn number for assistant messages
         
     Returns:
-        List of indices (relative to the message tokens) that should have loss mask set to 0
+        List of same length as token_ids where:
+        - 0 at indices that should be masked (loss = 0)
+        - -1 at all other indices
     """
     return loss_mask_processor_manager.get_zero_loss_mask_indices(
         tokenizer, token_ids, msg_dict, assistant_turn
