@@ -35,7 +35,7 @@ if [[ "$TRAINING_MODE" == "cpt" ]]; then
     TEST_DATA_PATH=$VALID_DATA_PATH
 
 elif [[ "$TRAINING_MODE" == "sft" ]]; then
-    TRAIN_DATA_PATH="$BASE_DIR/data/sft/hard_set_2_jan/sft_dataset_30b_480b.jsonl"
+    TRAIN_DATA_PATH="$BASE_DIR/data/sft/hard_set_2_jan/sft_dataset_30b_480b_diff_mask.jsonl"
     VALID_DATA_PATH="$BASE_DIR/data/sft/validation_set_480b/validation_set_sft_loss_mask.jsonl"
     TEST_DATA_PATH=$VALID_DATA_PATH 
 
