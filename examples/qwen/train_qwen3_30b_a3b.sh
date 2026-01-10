@@ -35,8 +35,8 @@ if [[ "$TRAINING_MODE" == "cpt" ]]; then
     TEST_DATA_PATH=$VALID_DATA_PATH
 
 elif [[ "$TRAINING_MODE" == "sft" ]]; then
-    TRAIN_DATA_PATH="$BASE_DIR/data/sft/all_solved_bugs_9_jan/training_traj_sft_480b_30b_combined_32k.jsonl"
-    VALID_DATA_PATH="$BASE_DIR/data/sft/validation_set_480b/validation_set_sft.jsonl"
+    TRAIN_DATA_PATH="$BASE_DIR/data/sft/all_solved_bugs_9_jan/training_data_30b_480b_postprocessed_loss_mask.jsonl"
+    VALID_DATA_PATH="$BASE_DIR/data/sft/validation_set_480b/validation_set_pr_mirror_sft_loss_mask.jsonl"
     TEST_DATA_PATH=$VALID_DATA_PATH 
 
 elif [[ "$TRAINING_MODE" == "distillation" ]]; then
@@ -94,11 +94,11 @@ EP_SIZE=4
 EXPERT_TP_SIZE=1
 PP_SIZE=1
 LAYERS_PER_VP=1
-MICRO_BATCH_SIZE=2 
+MICRO_BATCH_SIZE=1 
 GLOBAL_BATCH_SIZE=8
 NUM_LAYERS=48  
 DTYPE="bf16"
-SEQ_LENGTH=32000
+SEQ_LENGTH=65000
 MAX_POSITION_EMBEDDINGS=262144 
 
 DISTRIBUTED_ARGS=(
@@ -155,13 +155,13 @@ MOE_ARGS=(
 TRAINING_ARGS=(
     --micro-batch-size $MICRO_BATCH_SIZE
     --global-batch-size $GLOBAL_BATCH_SIZE
-    --train-samples 2056
-    --lr-decay-samples 2056
+    --train-samples 7800
+    --lr-decay-samples 7800
 
     # Learning rate args
-    --lr-warmup-samples 160
-    --lr 1.0e-5 # 5.0e-5
-    --min-lr 2.0e-6 # 5.0e-6
+    --lr-warmup-samples 320
+    --lr 5.0e-6 # 5.0e-5
+    --min-lr 1.0e-6 # 5.0e-6
     # --decoupled-lr 8.0e-4  # Adjusted for smaller model
     # --decoupled-min-lr 8.0e-5  # Adjusted for smaller model
     --lr-decay-style cosine
@@ -271,10 +271,10 @@ elif [[ "$TRAINING_MODE" == "sft" ]]; then
         "--sft"
         "--num-workers 1"
         "--no-create-attention-mask-in-dataloader"        
-        # "--trsft"
-        # "--trsft-alpha 0.05"
-        # "--weighted-loss"
-        # "--variable-seq-lengths"
+        "--trsft"
+        "--trsft-alpha 0.05"
+        "--weighted-loss"
+        "--variable-seq-lengths"
         # "--moe-token-dispatcher-type alltoall" # This needs to be set for variable seq lengths
 
         # "--reset-position-ids"
@@ -312,15 +312,15 @@ CHECKPOINT_ARGS=(
     --no-save-rng
     --no-load-rng
     --no-load-optim
-    --save-interval 257
+    --save-interval 163
     --exit-on-missing-checkpoint
     # --ckpt-convert-format torch_dist
     # --ckpt-convert-save /workspace/data/himanshu/output/Qwen3-Coder-30B-A3B-Instruct/conversion/qwen3_30b_a3b_torch_dist/
 )
 
 EVAL_AND_LOGGING_ARGS=(
-    --eval-iters 2
-    --eval-interval 64
+    --eval-iters 3
+    --eval-interval 81
     # --full-validation
     --log-interval 1
     --log-throughput
