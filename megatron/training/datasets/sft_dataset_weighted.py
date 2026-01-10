@@ -85,7 +85,7 @@ class SFTDatasetWeightedMask(SFTDataset):
                 except AssertionError:
                     tp_size = 1
             if tp_size > 1:
-                required_multiple = _lcm(required_multiple, tp_size)
+                required_multiple = _lcm(required_multiple, cp_size * tp_size)
 
             padding_len = 0
             if required_multiple > 1:
