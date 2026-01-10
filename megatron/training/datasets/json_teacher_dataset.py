@@ -263,7 +263,7 @@ class JsonTeacherDataset(MegatronDataset):
             except AssertionError:
                 tp_size = 1
         if tp_size > 1:
-            required_multiple = _lcm(required_multiple, tp_size)
+            required_multiple = _lcm(required_multiple, cp_size * tp_size)
 
         self._cached_required_multiple = required_multiple
         return required_multiple
