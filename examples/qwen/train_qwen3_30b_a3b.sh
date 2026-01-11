@@ -35,8 +35,8 @@ if [[ "$TRAINING_MODE" == "cpt" ]]; then
     TEST_DATA_PATH=$VALID_DATA_PATH
 
 elif [[ "$TRAINING_MODE" == "sft" ]]; then
-    TRAIN_DATA_PATH="$BASE_DIR/data/sft/onehop_tasks_26dec/train/sft_data/onehop_train_14469.jsonl"
-    VALID_DATA_PATH="$BASE_DIR/data/sft/onehop_tasks_26dec/val/sft_data/onehop_val_1418_sample_24.jsonl"
+    TRAIN_DATA_PATH="$BASE_DIR/data/sft/hard_set_2_jan/sft_dataset_30b_480b.jsonl"
+    VALID_DATA_PATH="$BASE_DIR/data/sft/validation_set_480b/validation_set_sft_loss_mask.jsonl"
     TEST_DATA_PATH=$VALID_DATA_PATH 
 
 elif [[ "$TRAINING_MODE" == "distillation" ]]; then
@@ -94,11 +94,11 @@ EP_SIZE=4
 EXPERT_TP_SIZE=1
 PP_SIZE=1
 LAYERS_PER_VP=1
-MICRO_BATCH_SIZE=4 
-GLOBAL_BATCH_SIZE=16
+MICRO_BATCH_SIZE=1 
+GLOBAL_BATCH_SIZE=8
 NUM_LAYERS=48  
 DTYPE="bf16"
-SEQ_LENGTH=16384
+SEQ_LENGTH=65000
 MAX_POSITION_EMBEDDINGS=262144 
 
 DISTRIBUTED_ARGS=(
@@ -155,11 +155,11 @@ MOE_ARGS=(
 TRAINING_ARGS=(
     --micro-batch-size $MICRO_BATCH_SIZE
     --global-batch-size $GLOBAL_BATCH_SIZE
-    --train-samples 14480
-    --lr-decay-samples 14480
+    --train-samples 3336
+    --lr-decay-samples 3336
 
     # Learning rate args
-    --lr-warmup-samples 48
+    --lr-warmup-samples 320
     --lr 5.0e-6 # 5.0e-5
     --min-lr 1.0e-6 # 5.0e-6
     # --decoupled-lr 8.0e-4  # Adjusted for smaller model
@@ -275,7 +275,7 @@ elif [[ "$TRAINING_MODE" == "sft" ]]; then
         "--no-create-attention-mask-in-dataloader"        
         "--trsft"
         "--trsft-alpha 0.05"
-        # "--weighted-loss"
+        "--weighted-loss"
         "--variable-seq-lengths"
         # "--moe-token-dispatcher-type alltoall" # This needs to be set for variable seq lengths
 
@@ -314,15 +314,15 @@ CHECKPOINT_ARGS=(
     --no-save-rng
     --no-load-rng
     --no-load-optim
-    --save-interval 905
+    --save-interval 139
     --exit-on-missing-checkpoint
     # --ckpt-convert-format torch_dist
     # --ckpt-convert-save /workspace/data/himanshu/output/Qwen3-Coder-30B-A3B-Instruct/conversion/qwen3_30b_a3b_torch_dist/
 )
 
 EVAL_AND_LOGGING_ARGS=(
-    --eval-iters 3
-    --eval-interval 100
+    --eval-iters 2
+    --eval-interval 46
     # --full-validation
     --log-interval 1
     --log-throughput
