@@ -160,8 +160,8 @@ TRAINING_ARGS=(
 
     # Learning rate args
     --lr-warmup-samples 48
-    --lr 5.0e-6 # 5.0e-5
-    --min-lr 1.0e-6 # 5.0e-6
+    --lr 1.0e-5 # 5.0e-5
+    --min-lr 3.0e-6 # 5.0e-6
     # --decoupled-lr 8.0e-4  # Adjusted for smaller model
     # --decoupled-min-lr 8.0e-5  # Adjusted for smaller model
     --lr-decay-style cosine
@@ -254,8 +254,8 @@ elif [[ "$TRAINING_MODE" == "cpt" ]]; then
         "--tokenizer-model $TOKENIZER_ARG"
         "--num-workers 1"
         "--no-create-attention-mask-in-dataloader"
-        "--trsft"
-        "--trsft-alpha 0.05"
+        # "--trsft"
+        # "--trsft-alpha 0.05"
         # "--reset-position-ids"
         # "--reset-attention-mask"
         # "--eod-mask-loss"        
