@@ -18,7 +18,7 @@ ENABLE_PROFILING=0
 ENABLE_NSYS_PROFILING=0
 
 # CRITICAL - DOUBLE CHECK THIS VALUE
-TRAINING_MODE="cpt" # set from mock, cpt, sft or distillation
+TRAINING_MODE="sft" # set from mock, cpt, sft or distillation
 
 MODEL_NAME="Qwen3-Coder-30B-A3B-Instruct"
 
@@ -35,8 +35,8 @@ if [[ "$TRAINING_MODE" == "cpt" ]]; then
     TEST_DATA_PATH=$VALID_DATA_PATH
 
 elif [[ "$TRAINING_MODE" == "sft" ]]; then
-    TRAIN_DATA_PATH="$BASE_DIR/data/sft/all_solved_bugs_9_jan/training_data_30b_480b_postprocessed_loss_mask_fixed.jsonl"
-    VALID_DATA_PATH="$BASE_DIR/data/sft/validation_set_480b/validation_set_pr_mirror_sft_loss_mask.jsonl"
+    TRAIN_DATA_PATH="$BASE_DIR/data/sft/onehop_tasks_26dec/train/sft_data/onehop_train_14469.jsonl"
+    VALID_DATA_PATH="$BASE_DIR/data/sft/onehop_tasks_26dec/val/sft_data/onehop_val_1418_sample_24.jsonl"
     TEST_DATA_PATH=$VALID_DATA_PATH 
 
 elif [[ "$TRAINING_MODE" == "distillation" ]]; then
@@ -155,13 +155,13 @@ MOE_ARGS=(
 TRAINING_ARGS=(
     --micro-batch-size $MICRO_BATCH_SIZE
     --global-batch-size $GLOBAL_BATCH_SIZE
-    --train-samples 948
-    --lr-decay-samples 948
+    --train-samples 14480
+    --lr-decay-samples 14480
 
     # Learning rate args
     --lr-warmup-samples 48
-    --lr 1.0e-5 # 5.0e-5
-    --min-lr 3.0e-6 # 5.0e-6
+    --lr 5.0e-6 # 5.0e-5
+    --min-lr 1.0e-6 # 5.0e-6
     # --decoupled-lr 8.0e-4  # Adjusted for smaller model
     # --decoupled-min-lr 8.0e-5  # Adjusted for smaller model
     --lr-decay-style cosine
@@ -275,7 +275,7 @@ elif [[ "$TRAINING_MODE" == "sft" ]]; then
         "--no-create-attention-mask-in-dataloader"        
         "--trsft"
         "--trsft-alpha 0.05"
-        "--weighted-loss"
+        # "--weighted-loss"
         "--variable-seq-lengths"
         # "--moe-token-dispatcher-type alltoall" # This needs to be set for variable seq lengths
 
@@ -314,15 +314,15 @@ CHECKPOINT_ARGS=(
     --no-save-rng
     --no-load-rng
     --no-load-optim
-    --save-interval 60
+    --save-interval 905
     --exit-on-missing-checkpoint
     # --ckpt-convert-format torch_dist
     # --ckpt-convert-save /workspace/data/himanshu/output/Qwen3-Coder-30B-A3B-Instruct/conversion/qwen3_30b_a3b_torch_dist/
 )
 
 EVAL_AND_LOGGING_ARGS=(
-    --eval-iters 2
-    --eval-interval 30
+    --eval-iters 3
+    --eval-interval 100
     # --full-validation
     --log-interval 1
     --log-throughput
