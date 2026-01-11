@@ -18,7 +18,7 @@ ENABLE_PROFILING=0
 ENABLE_NSYS_PROFILING=0
 
 # CRITICAL - DOUBLE CHECK THIS VALUE
-TRAINING_MODE="sft" # set from mock, cpt, sft or distillation
+TRAINING_MODE="cpt" # set from mock, cpt, sft or distillation
 
 MODEL_NAME="Qwen3-Coder-30B-A3B-Instruct"
 
@@ -30,8 +30,8 @@ TOKENIZER_ARG="$BASE_DIR/mega-models/Qwen3-Coder-30B-A3B-Instruct_torch_tp4_ep4"
 echo "Training mode: $TRAINING_MODE"
 
 if [[ "$TRAINING_MODE" == "cpt" ]]; then
-    TRAIN_DATA_PATH="$BASE_DIR/data/cpt/memmap_xarray_8192_overlap5_combined/megatron_indexed/train_text_document"
-    VALID_DATA_PATH="$BASE_DIR/data/cpt/memmap_xarray_8192_overlap5_combined/megatron_indexed/val_text_document"
+    TRAIN_DATA_PATH="$BASE_DIR/data/sft/pretraining/xarray_ctx4096_diff_16k_combined_text_document"
+    VALID_DATA_PATH="$BASE_DIR/data/sft/pretraining/xarray_validation_ctx4096_text_document"
     TEST_DATA_PATH=$VALID_DATA_PATH
 
 elif [[ "$TRAINING_MODE" == "sft" ]]; then
@@ -94,11 +94,11 @@ EP_SIZE=4
 EXPERT_TP_SIZE=1
 PP_SIZE=1
 LAYERS_PER_VP=1
-MICRO_BATCH_SIZE=1 
-GLOBAL_BATCH_SIZE=8
+MICRO_BATCH_SIZE=4 
+GLOBAL_BATCH_SIZE=16
 NUM_LAYERS=48  
 DTYPE="bf16"
-SEQ_LENGTH=65000
+SEQ_LENGTH=16384
 MAX_POSITION_EMBEDDINGS=262144 
 
 DISTRIBUTED_ARGS=(
@@ -155,11 +155,11 @@ MOE_ARGS=(
 TRAINING_ARGS=(
     --micro-batch-size $MICRO_BATCH_SIZE
     --global-batch-size $GLOBAL_BATCH_SIZE
-    --train-samples 7632
-    --lr-decay-samples 7632
+    --train-samples 948
+    --lr-decay-samples 948
 
     # Learning rate args
-    --lr-warmup-samples 320
+    --lr-warmup-samples 48
     --lr 5.0e-6 # 5.0e-5
     --min-lr 1.0e-6 # 5.0e-6
     # --decoupled-lr 8.0e-4  # Adjusted for smaller model
@@ -254,6 +254,8 @@ elif [[ "$TRAINING_MODE" == "cpt" ]]; then
         "--tokenizer-model $TOKENIZER_ARG"
         "--num-workers 1"
         "--no-create-attention-mask-in-dataloader"
+        "--trsft"
+        "--trsft-alpha 0.05"
         # "--reset-position-ids"
         # "--reset-attention-mask"
         # "--eod-mask-loss"        
@@ -312,15 +314,15 @@ CHECKPOINT_ARGS=(
     --no-save-rng
     --no-load-rng
     --no-load-optim
-    --save-interval 159
+    --save-interval 60
     --exit-on-missing-checkpoint
     # --ckpt-convert-format torch_dist
     # --ckpt-convert-save /workspace/data/himanshu/output/Qwen3-Coder-30B-A3B-Instruct/conversion/qwen3_30b_a3b_torch_dist/
 )
 
 EVAL_AND_LOGGING_ARGS=(
-    --eval-iters 3
-    --eval-interval 79
+    --eval-iters 2
+    --eval-interval 30
     # --full-validation
     --log-interval 1
     --log-throughput
