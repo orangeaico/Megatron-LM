@@ -20,7 +20,7 @@ ENABLE_NSYS_PROFILING=0
 # CRITICAL - DOUBLE CHECK THIS VALUE
 TRAINING_MODE="sft" # set from mock, cpt, sft or distillation
 
-MODEL_NAME="qwen3_8b"
+MODEL_NAME="Qwen3-8B"
 
 TIMESTAMP=$(date +"%Y_%m_%d_%H_%M_%S")
 BASE_DIR="/workspace/data/"
@@ -163,13 +163,15 @@ TRAINING_ARGS=(
     # Computation optimisation and recomputation args
     --transformer-impl transformer_engine
     --enable-experimental
+    --attention-backend flash
     --use-flash-attn
     --fused-linear-cross-entropy
     # --cross-entropy-loss-fusion
     # --cross-entropy-fusion-impl native
-    --recompute-granularity full
-    --recompute-method uniform
-    --recompute-num-layers 1
+
+    # --recompute-granularity full
+    # --recompute-method uniform
+    # --recompute-num-layers 1
     --calculate-per-token-loss
     # --no-gradient-accumulation-fusion
 
@@ -184,10 +186,6 @@ TRAINING_ARGS=(
     --grad-reduce-in-bf16
     --exp-avg-dtype fp16
     --exp-avg-sq-dtype fp16
-    # --optimizer-cpu-offload
-    # --optimizer-offload-fraction 1.0
-    # --overlap-cpu-optimizer-d2h-h2d
-    # --use-torch-optimizer-for-cpu-offload
 )
 
 # Conditional arguments based on DTYPE (FP8)
