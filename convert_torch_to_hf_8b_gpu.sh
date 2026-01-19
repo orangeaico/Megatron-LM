@@ -89,6 +89,6 @@ done
 echo "Model conversion done!"
 
 echo "Starting upload of HF models to GDrive"
-bash /workspace/Megatron-LM/upload_hf_to_gdrive.sh $TIMESTAMP
+bash /workspace/Megatron-LM/upload_hf_to_gdrive_8b.sh $TIMESTAMP
 
 echo "All Done!"
