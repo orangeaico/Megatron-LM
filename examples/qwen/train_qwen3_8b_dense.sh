@@ -255,8 +255,8 @@ elif [[ "$TRAINING_MODE" == "sft" ]]; then
         # "--trsft"
         # "--trsft-alpha 0.05"
         # "--weighted-loss"
-        # "--variable-seq-lengths"                
-        # "--moe-token-dispatcher-type alltoall" # This needs to be set for variable seq lengths
+        "--variable-seq-lengths"                
+        "--moe-token-dispatcher-type alltoall" # This needs to be set for variable seq lengths
 
         # "--reset-position-ids"
         # "--reset-attention-mask"
