@@ -78,7 +78,7 @@ mkdir -p "$LOG_DIR_PATH"
 mkdir -p "$CONVERSION_DIR_PATH"
 
 # Distributed training setup
-GPUS_PER_NODE=2
+GPUS_PER_NODE=4
 NUM_NODES=1
 MASTER_ADDR=${MASTER_ADDR:-localhost}
 MASTER_PORT=${MASTER_PORT:-6000}
@@ -89,8 +89,8 @@ WORLD_SIZE=$(($GPUS_PER_NODE*$NUM_NODES))
 PRETRAIN_SCRIPT_PATH="pretrain_gpt.py"
 
 # Fixed model and training parameters for Qwen3-1.7B
-TP_SIZE=1 
-CP_SIZE=1     
+TP_SIZE=2 
+CP_SIZE=2     
 PP_SIZE=1     
 MICRO_BATCH_SIZE=1
 GLOBAL_BATCH_SIZE=8
@@ -204,7 +204,7 @@ MODEL_PARALLEL_ARGS=(
     --tensor-model-parallel-size $TP_SIZE
     --context-parallel-size $CP_SIZE
     # --pipeline-model-parallel-size $PP_SIZE # Not explicitly set in llama script options, assume 1 if not multi-node PP
-    # --sequence-parallel  # Always enable sequence parallelism with TP_SIZE=2
+    --sequence-parallel  # Always enable sequence parallelism with TP_SIZE=2
 )
 
 # Data arguments (conditional for mock vs real data)
