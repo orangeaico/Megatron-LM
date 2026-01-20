@@ -3,7 +3,7 @@ set -euo pipefail
 
 # The input to the script is the timestamp of the current run
 TIMESTAMP=$1
-MODEL_NAME=Qwen3-8B
+MODEL_NAME=SWE-Lego-Qwen3-8B
 SAVE_ONLY_LAST_CHECKPOINT=0
 
 # Copy the logs as well

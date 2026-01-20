@@ -20,13 +20,13 @@ ENABLE_NSYS_PROFILING=0
 # CRITICAL - DOUBLE CHECK THIS VALUE
 TRAINING_MODE="sft" # set from mock, cpt, sft or distillation
 
-MODEL_NAME="Qwen3-8B"
+MODEL_NAME="SWE-Lego-Qwen3-8B"
 
 TIMESTAMP=$(date +"%Y_%m_%d_%H_%M_%S")
 BASE_DIR="/workspace/data/"
 
-LOAD_CHECKPOINT_PATH="$BASE_DIR/mega-models/Qwen3-8B"
-TOKENIZER_ARG="$BASE_DIR/mega-models/Qwen3-8B" # Path to tokenizer model, or "MOCK"
+LOAD_CHECKPOINT_PATH="$BASE_DIR/mega-models/SWE-Lego-Qwen3-8B"
+TOKENIZER_ARG="$BASE_DIR/mega-models/SWE-Lego-Qwen3-8B" # Path to tokenizer model, or "MOCK"
 
 echo "Training mode: $TRAINING_MODE"
 
@@ -36,8 +36,8 @@ if [[ "$TRAINING_MODE" == "cpt" ]]; then
     TEST_DATA_PATH=$VALID_DATA_PATH
 
 elif [[ "$TRAINING_MODE" == "sft" ]]; then
-    TRAIN_DATA_PATH="$BASE_DIR/data/sft/swe_bench_19_jan/480b_swe_bench.jsonl"
-    VALID_DATA_PATH="$BASE_DIR/data/sft/validation_set_480b/validation_set_pr_mirror_sft.jsonl"
+    TRAIN_DATA_PATH="$BASE_DIR/data/sft/all_solved_bugs_9_jan/training_data_30b_480b_postprocessed_loss_mask_fixed.jsonl"
+    VALID_DATA_PATH="$BASE_DIR/data/sft/validation_set_480b/validation_set_pr_mirror_sft_loss_mask.jsonl"
     TEST_DATA_PATH=$VALID_DATA_PATH 
 
 elif [[ "$TRAINING_MODE" == "distillation" ]]; then
@@ -97,7 +97,7 @@ GLOBAL_BATCH_SIZE=8
 NUM_LAYERS=36  
 DTYPE="bf16"
 SEQ_LENGTH=65000 # 65000
-MAX_POSITION_EMBEDDINGS=65536 # 40960
+MAX_POSITION_EMBEDDINGS=163840 # 40960
 
 DISTRIBUTED_ARGS=(
     --nproc_per_node $GPUS_PER_NODE
@@ -137,13 +137,13 @@ MODEL_ARGS=(
 TRAINING_ARGS=(
     --micro-batch-size $MICRO_BATCH_SIZE
     --global-batch-size $GLOBAL_BATCH_SIZE
-    --train-samples 1760
-    --lr-decay-samples 1760
+    --train-samples 5088
+    --lr-decay-samples 5088
 
     # Learning rate args
-    --lr-warmup-samples 96
-    --lr 1.0e-4 # 5.0e-5
-    --min-lr 3.0e-5 # 5.0e-6
+    --lr-warmup-samples 320
+    --lr 5.0e-6 # 5.0e-5
+    --min-lr 1.0e-6 # 5.0e-6
     # --decoupled-lr 8.0e-4  # Adjusted for smaller model
     # --decoupled-min-lr 8.0e-5  # Adjusted for smaller model
     --lr-decay-style cosine
@@ -254,7 +254,7 @@ elif [[ "$TRAINING_MODE" == "sft" ]]; then
         "--no-create-attention-mask-in-dataloader"
         # "--trsft"
         # "--trsft-alpha 0.05"
-        # "--weighted-loss"
+        "--weighted-loss"
         "--variable-seq-lengths"                
         "--moe-token-dispatcher-type alltoall" # This needs to be set for variable seq lengths
 
@@ -293,13 +293,13 @@ CHECKPOINT_ARGS=(
     --no-save-rng
     --no-load-rng
     --no-load-optim
-    --save-interval 55
+    --save-interval 159
     --exit-on-missing-checkpoint
 )
 
 EVAL_AND_LOGGING_ARGS=(
     --eval-iters 3
-    --eval-interval 55
+    --eval-interval 79
     # --full-validation
     --log-interval 1
     --log-throughput

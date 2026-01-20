@@ -2,7 +2,7 @@
 set -euo pipefail
 
 TIMESTAMP=$1
-MODEL_NAME="Qwen3-8B"
+MODEL_NAME="SWE-Lego-Qwen3-8B"
 BASE_CONVERSION_DIR="/workspace/data/himanshu/output/$TIMESTAMP/$MODEL_NAME/conversion/"
 
 echo "Searching for *_fp8 directories inside: $BASE_CONVERSION_DIR"
