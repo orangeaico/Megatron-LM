@@ -4,7 +4,7 @@ set -euo pipefail
 # The input to the script is the timestamp of the current run
 TIMESTAMP=$1
 MODEL_NAME=SWE-Lego-Qwen3-8B
-SAVE_ONLY_LAST_CHECKPOINT=0
+SAVE_ONLY_LAST_CHECKPOINT=1
 
 # Copy the logs as well
 echo "Copying the training logs to gdrive"
@@ -63,7 +63,7 @@ for dir in "$TORCH_CHECKPOINTS_DIR_PATH"/iter_*; do
         else
             # Convert the torch model to HF
             echo "Converting the torch model to HF and saving to: $HF_MODEL_PATH"
-            bash scripts/qwen3/run_8xH20.sh 8B /workspace/data/himanshu/output/$TIMESTAMP/$MODEL_NAME/checkpoints $HF_MODEL_PATH true true bf16 /workspace/data/mega-models/Qwen3-8B/
+            bash scripts/qwen3/run_8xH20.sh 8B /workspace/data/himanshu/output/$TIMESTAMP/$MODEL_NAME/checkpoints $HF_MODEL_PATH true true bf16 /workspace/data/mega-models/SWE-Lego-Qwen3-8B/
         fi
 
         # cd /workspace/repo_eval
