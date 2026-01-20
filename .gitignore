@@ -13,9 +13,8 @@ wandb/
 onelogger.log
 onelogger.err
 .venv
-test_cases/
 runs/
-**/dist/
+
 benchmark_cache_phi_tiny/
 benchmark_cache_qwen3_1.7b_fp8/
 checkpoints/
@@ -26,3 +25,9 @@ examples/lora/unsloth_compiled_cache/
 lora/unsloth_compiled_cache/
 unsloth_compiled_cache/
 
+/test_cases/
+**/dist/
+
+# Sphinx documentation
+docs/_build
+docs/apidocs

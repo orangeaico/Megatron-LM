@@ -103,11 +103,9 @@ class SFTDataset(MegatronDataset):
 
         input_ids = []
         labels = []
-        hf_tokenizer = tokenizer._tokenizer
-
         # Tokenize message-by-message using the chat template so formatting stays consistent
         for i, m in enumerate(conversation_list):
-            seg_ids = hf_tokenizer.apply_chat_template(
+            seg_ids = tokenizer.apply_chat_template(
                 [m], tokenize=True, add_generation_prompt=False
             )
             input_ids.extend(seg_ids)
@@ -267,8 +265,6 @@ class SFTDataset(MegatronDataset):
 
     def _get_ltor_masks_and_position_ids(self, max_seq_len, target, pad_token, use_variable_seq_len):
         """Build masks and position id for left to right model for SFT"""
-
-        assert not self.config.reset_position_ids and not self.config.reset_attention_mask
 
         if use_variable_seq_len:
             seq_length = target.size(0)

@@ -3,6 +3,7 @@
 """Megatron optimizer."""
 
 import copy
+import logging
 import math
 import warnings
 from abc import ABC, abstractmethod
@@ -152,7 +153,9 @@ class MegatronOptimizer(ABC):
                 grad = param.grad
             grad_not_none = grad is not None
             is_not_shared = param_is_not_shared(param)
-            is_not_tp_duplicate = tensor_parallel.param_is_not_tensor_parallel_duplicate(param)
+            is_not_tp_duplicate = tensor_parallel.param_is_not_tensor_parallel_duplicate(
+                param, getattr(self, 'tp_group', None)
+            )
             if grad_not_none and is_not_shared and is_not_tp_duplicate:
                 grads_for_norm.append(grad)
 
@@ -224,6 +227,7 @@ class MegatronOptimizer(ABC):
             params,
             grad_stats_parallel_group=self.get_grad_stats_parallel_group(),
             use_decoupled_grad=self.config.use_precision_aware_optimizer_no_fp8_or_ds_fp8,
+            tp_group=getattr(self, 'tp_group', None),
         )
 
     @abstractmethod
@@ -1181,17 +1185,17 @@ class ChainedOptimizer(MegatronOptimizer):
         self, model_sharded_state_dict: ShardedStateDict, is_loading: bool = False, **kwargs
     ):
         metadata = kwargs.get('metadata') or {}
-        # ChainedOptimizer should add its prefix to the tensor state keys only for formats
-        # leveraging internal DistOpt structure ('distrib_optim_sharding_type' is empty if
-        # not using DistOpt). For backward-compatibility we also add it if
-        # `chained_optim_avoid_prefix` is False.
-        _distopt_requires_prefix = metadata.get('distrib_optim_sharding_type') in (
-            'dp_zero_gather_scatter',
-            'dp_reshardable',
-        )
-        should_add_prefix = _distopt_requires_prefix or not metadata.get(
-            'chained_optim_avoid_prefix', False
-        )
+        # ChainedOptimizer should add its prefix to the tensor state keys only if
+        # DistributedOptimizer is used (non-empty 'distrib_optim_sharding_type') and uses
+        # a non fully-reshardable format. For backward compatibility we also add it
+        # if `chained_optim_avoid_prefix` is False.
+        from .distrib_optimizer import DistributedOptimizer
+
+        should_add_prefix = (
+            "distrib_optim_sharding_type" in metadata
+            and metadata["distrib_optim_sharding_type"]
+            not in DistributedOptimizer.checkpoint_fully_reshardable_formats
+        ) or not metadata.get('chained_optim_avoid_prefix', False)
 
         if len(self.chained_optimizers) == 1:
             return self.chained_optimizers[0].sharded_state_dict(
@@ -1402,7 +1406,8 @@ class ChainedOptimizer(MegatronOptimizer):
         step = steps[0] if len(steps) == 1 else None
         for optimizer in self.chained_optimizers:
             for param_group in optimizer.optimizer.param_groups:
-                param_group['step'] = step
+                if len(param_group['params']) > 0 and 'step' in param_group:
+                    param_group['step'] = step
 
         return step
 

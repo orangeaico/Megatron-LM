@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 import logging
 from contextlib import nullcontext
 from dataclasses import dataclass
@@ -11,14 +11,15 @@ from megatron.core import parallel_state, tensor_parallel
 from megatron.core.dist_checkpointing.mapping import ShardedStateDict
 from megatron.core.dist_checkpointing.utils import replace_prefix_for_sharding
 from megatron.core.enums import Fp8Recipe
+from megatron.core.fp4_utils import get_fp4_context
 from megatron.core.fp8_utils import get_fp8_context
 from megatron.core.fusions.fused_layer_norm import FusedLayerNorm
 from megatron.core.inference.contexts import BaseInferenceContext
 from megatron.core.packed_seq_params import PackedSeqParams
 from megatron.core.pipeline_parallel.utils import is_vp_first_stage, is_vp_last_stage
 from megatron.core.process_groups_config import ProcessGroupCollection
-from megatron.core.transformer.enums import LayerType
-from megatron.core.transformer.module import MegatronModule
+from megatron.core.transformer.enums import CudaGraphScope, LayerType
+from megatron.core.transformer.module import GraphableMegatronModule, MegatronModule
 from megatron.core.transformer.spec_utils import ModuleSpec, build_module
 from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.core.transformer.transformer_layer import (
@@ -217,7 +218,7 @@ class TransformerBlockSubmodules:
             or instance of the layer normalization to be applied.
     """
 
-    layer_specs: List[ModuleSpec] = None
+    layer_specs: Optional[List[ModuleSpec]] = None
     layer_norm: Optional[Union[ModuleSpec, torch.nn.Module]] = None
 
 
@@ -262,7 +263,7 @@ def _get_block_submodules(
         raise Exception(f"specialize for {type(spec).__name__}.")
 
 
-class TransformerBlock(MegatronModule):
+class TransformerBlock(GraphableMegatronModule, MegatronModule):
     """Transformer class."""
 
     def __init__(
@@ -272,7 +273,7 @@ class TransformerBlock(MegatronModule):
         post_layer_norm: bool = True,
         pre_process: bool = True,
         post_process: bool = True,
-        pg_collection: ProcessGroupCollection = None,
+        pg_collection: Optional[ProcessGroupCollection] = None,
         vp_stage: Optional[int] = None,
     ):
         super().__init__(config=config)
@@ -280,6 +281,7 @@ class TransformerBlock(MegatronModule):
         if pg_collection is None:
             pg_collection = ProcessGroupCollection.use_mpu_process_groups()
         self.pg_collection = pg_collection
+        self.tp_group = pg_collection.tp
 
         pp_group = self.pg_collection.pp if hasattr(self.pg_collection, 'pp') else None
         pp_rank = get_pg_rank(pp_group)
@@ -339,8 +341,19 @@ class TransformerBlock(MegatronModule):
             else:
                 layer_config = self.config
 
-            fp8_init_context = get_fp8_context(layer_config, global_layer_number - 1, is_init=True)
-            with fp8_init_context:
+            # Get appropriate quantization context (FP8 and FP4 are mutually exclusive)
+            if layer_config.fp8:
+                quantization_context = get_fp8_context(
+                    layer_config, global_layer_number - 1, is_init=True
+                )
+            elif layer_config.fp4:
+                quantization_context = get_fp4_context(
+                    layer_config, global_layer_number - 1, is_init=True
+                )
+            else:
+                quantization_context = nullcontext()
+
+            with quantization_context:
                 module = build_module(
                     layer_spec,
                     config=layer_config,
@@ -361,7 +374,7 @@ class TransformerBlock(MegatronModule):
         # @TODO: add back account_for_embedding_in_pipeline_split (see issue #293)
         # In pipeline parallelism, we want to add this LN only to the last stage of the pipeline
         # self.post_process and self.post_layer_norm guide this behavior
-        if self.submodules.layer_norm and self.post_process and self.post_layer_norm:
+        if self.has_final_layernorm_in_this_stage():
             self.final_layernorm = build_module(
                 self.submodules.layer_norm,
                 config=self.config,
@@ -370,6 +383,62 @@ class TransformerBlock(MegatronModule):
             )
         else:
             self.final_layernorm = None  # Either this or nn.Identity
+
+        if self.config.inference_fuse_tp_communication:
+            self._setup_fused_tp_communication()
+
+    def has_final_layernorm_in_this_stage(self):
+        """
+        Check if this vpp stage contains the final layernorm.
+
+        Note:
+            Final layernorm now has been moved from the post-process stage to the last decoder
+            layer by using this function.
+            There will be a small numeric difference because of grad norm reduction when final
+            layernorm is placed in different pipeline stages in deterministic mode. It can still
+            be bitwise aligned by disabling grad norm clipping.
+        """
+        if self.config.mtp_num_layers is None:
+            # for model without MTPLayer, the final layernorm is set in the stage which does
+            # post_process
+            return self.submodules.layer_norm and self.post_process and self.post_layer_norm
+        else:
+            # for model with MTPLayer, the final layernorm is set in the stage which has the
+            # last layer of the decoder
+            has_final_layernorm_in_this_stage = False
+            for layer in self.layers:
+                if layer.layer_number == self.config.num_layers:
+                    has_final_layernorm_in_this_stage = True
+                    break
+            return (
+                self.submodules.layer_norm
+                and has_final_layernorm_in_this_stage
+                and self.post_layer_norm
+            )
+
+    def _setup_fused_tp_communication(self):
+        """Setup fused TP communication for all layers.
+        We have a fused reduce-scatter + add + layer-norm + all-gather operation.
+        We call this kernel from within row parallel linear layers.
+        But layer-norm needs the layer norm weights from the
+        successive column parallel linear layer.
+        This function is used to pass those weights to the respective layers.
+        """
+
+        for i in range(len(self.layers)):
+            current_layer = self.layers[i]
+
+            # Get next layer's QKV norm weights (None for last layer)
+            if i < len(self.layers) - 1:
+                next_qkv_norm_weights = self.layers[i + 1].get_qkv_layer_norm_weights()
+            else:
+                next_qkv_norm_weights = None
+
+            # Configure all fused TP communication settings in one call
+            current_layer.configure_fused_tp_inference(
+                skip_qkv_norm_and_all_gather=(i > 0),
+                fc2_next_layer_norm_weights=next_qkv_norm_weights,
+            )
 
     def _get_layer(self, layer_number: int):
         return self.layers[layer_number]
@@ -383,7 +452,7 @@ class TransformerBlock(MegatronModule):
         rotary_pos_emb: Tensor,
         attention_bias: Tensor,
         packed_seq_params: PackedSeqParams,
-        use_inner_fp8_context: bool,
+        use_inner_quantization_context: bool,
     ):
         """Forward method with activation checkpointing."""
 
@@ -393,12 +462,24 @@ class TransformerBlock(MegatronModule):
             ):
                 for index in range(start, end):
                     layer = self._get_layer(index)
-                    inner_fp8_context = (
-                        get_fp8_context(self.config, layer.layer_number - 1)
-                        if use_inner_fp8_context
-                        else nullcontext()
-                    )
-                    with inner_fp8_context:
+
+                    # Get appropriate inner quantization context
+                    if use_inner_quantization_context:
+                        if self.config.fp8:
+                            inner_quantization_context = get_fp8_context(
+                                self.config, layer.layer_number - 1
+                            )
+                        # TODO: check if fp4 is supported in this case
+                        elif self.config.fp4:
+                            inner_quantization_context = get_fp4_context(
+                                self.config, layer.layer_number - 1
+                            )
+                        else:
+                            inner_quantization_context = nullcontext()
+                    else:
+                        inner_quantization_context = nullcontext()
+
+                    with inner_quantization_context:
                         hidden_states, context = layer(
                             hidden_states=hidden_states,
                             attention_mask=attention_mask,
@@ -415,7 +496,8 @@ class TransformerBlock(MegatronModule):
 
         def checkpoint_handler(forward_func):
             """Determines whether to use the `te_checkpoint` or `tensor_parallel.checkpoint`"""
-            if self.config.fp8:
+            # TODO: check if fp4 is supported in this case
+            if self.config.fp8 or self.config.fp4:
                 return te_checkpoint(
                     forward_func,
                     self.config.distribute_saved_activations,
@@ -459,7 +541,8 @@ class TransformerBlock(MegatronModule):
                 # Skip recomputation when input grad computation is not needed.
                 # Need to have at least one input tensor with gradient computation
                 # for re-enterant autograd engine.
-                if self.config.fp8 and not hidden_states.requires_grad:
+                # TODO: check if fp4 is supported in this case
+                if (self.config.fp8 or self.config.fp4) and not hidden_states.requires_grad:
                     recompute_skip_num_layers += 1
                 if (
                     layer_idx >= recompute_skip_num_layers
@@ -485,6 +568,47 @@ class TransformerBlock(MegatronModule):
         forward_step_func"""
         self.input_tensor = input_tensor
 
+    def _should_call_local_cudagraph(self, *args, **kwargs):
+        """
+        Check if we should call the local cudagraph path.
+        """
+        if not self.training and (
+            hasattr(self, 'cudagraph_manager')
+            and kwargs['attention_mask'] is None
+            and (
+                kwargs.get('inference_context') is not None
+                or kwargs.get('inference_params') is not None
+            )
+            and CudaGraphScope.full_iteration in self.config.cuda_graph_scope
+        ):
+            if kwargs['inference_context'].is_static_batching():
+                using_cuda_graph = kwargs['inference_context'].is_decode_only()
+            else:
+                using_cuda_graph = kwargs['inference_context'].using_cuda_graph_this_step()
+
+            if using_cuda_graph:
+                return True
+        return False
+
+    def __call__(self, *args, **kwargs):
+        if self._should_call_local_cudagraph(*args, **kwargs):
+            kwargs['hidden_states'] = (
+                kwargs['hidden_states'].unwrap()
+                if isinstance(kwargs['hidden_states'], WrappedTensor)
+                else kwargs['hidden_states']
+            )
+            # dynamic_inference_decode_only is not a real argument to forward, it is only used
+            # to differentiate the cuda graph used for decode from the one used for non-decode
+            # inference.
+            dynamic_inference_decode_only = kwargs['inference_context'].is_decode_only()
+            # cudagraphmanager returns a singleton tuple, whereas the
+            # normal forward returns a tensor, therefore we need
+            # to extract the tensor from the tuple
+            return super().__call__(
+                *args, dynamic_inference_decode_only=dynamic_inference_decode_only, **kwargs
+            )[0]
+        return super().__call__(*args, **kwargs)
+
     def forward(
         self,
         hidden_states: Union[Tensor, WrappedTensor],
@@ -494,12 +618,14 @@ class TransformerBlock(MegatronModule):
         rotary_pos_emb: Optional[Tensor] = None,
         rotary_pos_cos: Optional[Tensor] = None,
         rotary_pos_sin: Optional[Tensor] = None,
+        rotary_pos_cos_sin: Optional[Tensor] = None,
         attention_bias: Optional[Tensor] = None,
         inference_context: Optional[BaseInferenceContext] = None,
         packed_seq_params: Optional[PackedSeqParams] = None,
         sequence_len_offset: Optional[Tensor] = None,
         *,
         inference_params: Optional[BaseInferenceContext] = None,
+        dynamic_inference_decode_only: Optional[bool] = None,
     ):
         """
         Perform the forward pass through the transformer block.
@@ -517,6 +643,10 @@ class TransformerBlock(MegatronModule):
             context (Tensor, optional): Context tensor for cross-attention.
             context_mask (Tensor, optional): Mask for cross-attention context
             rotary_pos_emb (Tensor, optional): Rotary positional embeddings.
+            rotary_pos_cos (Optional[Tensor]): Rotary embedding cosine.
+            rotary_pos_sin (Optional[Tensor]): Rotary embedding sine.
+            rotary_pos_cos_sin (Optional[Tensor]): Combined rotary embedding cosine and sine.
+            Currently used exclusively for inference with dynamic batching and flashinfer RoPE.
             attention_bias (Tensor): Bias tensor for Q * K.T of shape in shape broadcastable
                 to [b, num_head, sq, skv], e.g. [1, 1, sq, skv].
                 Used as an alternative to apply attention mask for TE cuDNN attention.
@@ -524,6 +654,9 @@ class TransformerBlock(MegatronModule):
                 optimizations.
             packed_seq_params (PackedSeqParams, optional): Parameters for packed sequence
                 processing.
+            dynamic_inference_decode_only: Optional[bool]: If true, indicates that the current
+                inference context is for decode-only. This args is only used to uniquely
+                identify decode and non-decode cuda graph runners in the cuda graph manager.
 
         Returns:
             Union[Tensor, Tuple[Tensor, Tensor]]: The output hidden states tensor of shape
@@ -531,6 +664,9 @@ class TransformerBlock(MegatronModule):
         """
 
         inference_context = deprecate_inference_params(inference_context, inference_params)
+        # Remove 'dynamic_inference_decode_only' from kwargs if present
+        # this is only used to uniquely identify decode and non-decode cuda graph
+        # runners in the cuda graph manager
 
         # Delete the obsolete reference to the initial input tensor if necessary
         if isinstance(hidden_states, WrappedTensor):
@@ -567,11 +703,24 @@ class TransformerBlock(MegatronModule):
         # if we are using other fp8 recipes, then the context manager enter&exit are free
         # we can wrap fp8_context within the for loop over layers, so that we can fine-grained
         # control which layer will be fp8 or bf16
-        use_outer_fp8_context = self.config.fp8 and self.config.fp8_recipe == Fp8Recipe.delayed
-        use_inner_fp8_context = self.config.fp8 and self.config.fp8_recipe != Fp8Recipe.delayed
-        outer_fp8_context = get_fp8_context(self.config) if use_outer_fp8_context else nullcontext()
+        # For FP4: NVFP4BlockScaling doesn't have delayed scaling, always uses inner context
+        if self.config.fp8:
+            use_outer_quantization_context = self.config.fp8_recipe == Fp8Recipe.delayed
+            use_inner_quantization_context = self.config.fp8_recipe != Fp8Recipe.delayed
+            outer_quantization_context = (
+                get_fp8_context(self.config) if use_outer_quantization_context else nullcontext()
+            )
+        elif self.config.fp4:
+            use_outer_quantization_context = False
+            use_inner_quantization_context = True
+            outer_quantization_context = nullcontext()
+        else:
+            # No quantization
+            use_outer_quantization_context = False
+            use_inner_quantization_context = False
+            outer_quantization_context = nullcontext()
 
-        with rng_context, outer_fp8_context:
+        with rng_context, outer_quantization_context:
             # Forward pass.
             if self.config.recompute_granularity == 'full' and self.training:
                 hidden_states = self._checkpointed_forward(
@@ -582,16 +731,26 @@ class TransformerBlock(MegatronModule):
                     rotary_pos_emb=rotary_pos_emb,
                     attention_bias=attention_bias,
                     packed_seq_params=packed_seq_params,
-                    use_inner_fp8_context=use_inner_fp8_context,
+                    use_inner_quantization_context=use_inner_quantization_context,
                 )
             else:
                 for l_no, layer in enumerate(self.layers):
-                    inner_fp8_context = (
-                        get_fp8_context(self.config, layer.layer_number - 1)
-                        if use_inner_fp8_context
-                        else nullcontext()
-                    )
-                    with self.offload_context, inner_fp8_context:
+                    # Get appropriate inner quantization context
+                    if use_inner_quantization_context:
+                        if self.config.fp8:
+                            inner_quantization_context = get_fp8_context(
+                                self.config, layer.layer_number - 1
+                            )
+                        elif self.config.fp4:
+                            inner_quantization_context = get_fp4_context(
+                                self.config, layer.layer_number - 1
+                            )
+                        else:
+                            inner_quantization_context = nullcontext()
+                    else:
+                        inner_quantization_context = nullcontext()
+
+                    with self.offload_context, inner_quantization_context:
                         hidden_states, context = layer(
                             hidden_states=hidden_states,
                             attention_mask=attention_mask,
@@ -600,6 +759,7 @@ class TransformerBlock(MegatronModule):
                             rotary_pos_emb=rotary_pos_emb,
                             rotary_pos_cos=rotary_pos_cos,
                             rotary_pos_sin=rotary_pos_sin,
+                            rotary_pos_cos_sin=rotary_pos_cos_sin,
                             attention_bias=attention_bias,
                             inference_context=inference_context,
                             packed_seq_params=packed_seq_params,
@@ -661,12 +821,19 @@ class TransformerBlock(MegatronModule):
         elif isinstance(self.config.moe_layer_freq, list):
             non_homogeneous_layers = True
 
+        if isinstance(self.config.linear_attention_freq, int):
+            if self.config.linear_attention_freq > 1:
+                non_homogeneous_layers = True
+        elif isinstance(self.config.linear_attention_freq, list):
+            non_homogeneous_layers = True
+
         if self.config.heterogeneous_block_specs:
             non_homogeneous_layers = True
 
         singleton_local_shards = (metadata or {}).get('singleton_local_shards', False)
         if singleton_local_shards:
-            if not non_homogeneous_layers:
+            if metadata is not None and metadata.get('non_homogeneous_layers') is False:
+                # non_homogeneous_layers=False was set explicitly - emit an override warning
                 logger.warning(
                     'non_homogeneous_layers=False is deprecated.'
                     ' Setting non_homogeneous_layers=True.'
@@ -704,7 +871,11 @@ class TransformerBlock(MegatronModule):
             if not module is self.layers:
                 sharded_state_dict.update(
                     sharded_state_dict_default(
-                        module, f'{prefix}{name}.', sharded_offsets, metadata
+                        module,
+                        f'{prefix}{name}.',
+                        sharded_offsets,
+                        metadata,
+                        tp_group=self.tp_group,
                     )
                 )
 

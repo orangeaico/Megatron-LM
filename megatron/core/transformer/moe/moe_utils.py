@@ -1,12 +1,21 @@
-# Copyright (c) 2024, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
+import functools
 import math
+from dataclasses import dataclass
 from typing import List, Optional, Union
 
 import torch
 
 from megatron.core import parallel_state
+from megatron.core.fp4_utils import get_fp4_align_size
+from megatron.core.fp8_utils import get_fp8_align_size
 from megatron.core.process_groups_config import ProcessGroupCollection
+from megatron.core.tensor_parallel import get_cuda_rng_tracker, get_expert_parallel_rng_tracker_name
+from megatron.core.transformer.cuda_graphs import is_graph_capturing
+from megatron.core.transformer.enums import CudaGraphScope
+from megatron.core.transformer.transformer_config import TransformerConfig
+from megatron.core.utils import internal_api
 
 try:
     import transformer_engine as te  # pylint: disable=unused-import
@@ -42,7 +51,8 @@ def switch_load_balancing_loss_func(
     fused: bool = False,
 ):
     """Calculate the auxiliary loss for load balancing.
-    Refer to the Switch Transformer (https://arxiv.org/abs/2101.03961) for details.
+    Refer to the Switch Transformer (https://arxiv.org/abs/2101.03961)
+    and Global Load Balancing Loss(https://arxiv.org/abs/2501.11873) for details.
 
     ### Detailed explanation of the auxiliary loss #######
 
@@ -72,10 +82,10 @@ def switch_load_balancing_loss_func(
         T is the total number of tokens in the global batch B
 
     Note:
-    To calculate the auxiliary loss at different levels (micro-batch or each sequence):
+    To calculate the auxiliary loss at different levels (micro-batch or global batch):
     - probs: Should always be from the local batch being processed
     - tokens_per_expert: Should represent token counts at the desired level
-      (either micro-batch or each sequence)
+      (either micro-batch or global batch)
     - total_num_tokens: Should match the total token count at the same level as tokens_per_expert
 
     #########################################################
@@ -94,7 +104,7 @@ def switch_load_balancing_loss_func(
     """
     if fused:
         if not HAVE_TE or fused_moe_aux_loss is None:
-            raise ValueError("fused_moe_aux_loss is not available. Please install TE >= 2.6.0.")
+            raise ValueError("fused_moe_aux_loss is not available. Please install TE >= 2.7.0.")
         return fused_moe_aux_loss(
             probs=probs,
             tokens_per_expert=tokens_per_expert,
@@ -165,7 +175,7 @@ def get_capacity(num_tokens: int, num_experts: int, capacity_factor: float, min_
 class MoEAuxLossAutoScaler(torch.autograd.Function):
     """An AutoScaler that triggers the backward pass and scales the grad for auxiliary loss."""
 
-    main_loss_backward_scale: torch.Tensor = None
+    main_loss_backward_scale: Optional[torch.Tensor] = None
 
     @staticmethod
     def forward(ctx, output: torch.Tensor, aux_loss: torch.Tensor):
@@ -306,8 +316,8 @@ def unpermute(
     permuted_tokens: torch.Tensor,
     sorted_indices: torch.Tensor,
     restore_shape: torch.Size,
-    probs: torch.Tensor = None,
-    routing_map: torch.Tensor = None,
+    probs: Optional[torch.Tensor] = None,
+    routing_map: Optional[torch.Tensor] = None,
     fused: bool = False,
     drop_and_pad: bool = False,
 ):
@@ -375,8 +385,20 @@ def unpermute(
     output_tokens = torch.zeros(
         restore_shape, dtype=permuted_tokens.dtype, device=permuted_tokens.device
     )
-    # Scatter add the permuted_input back to the original positions
-    output_tokens.scatter_add_(0, sorted_indices.unsqueeze(1).expand(-1, hidden), permuted_tokens)
+    if torch.are_deterministic_algorithms_enabled():
+        # Use index_add which is deterministic when deterministic algorithms are enabled
+        # and is CUDA graph compatible
+        output_tokens = torch.zeros(
+            restore_shape, dtype=permuted_tokens.dtype, device=permuted_tokens.device
+        )
+        # index_add is deterministic when torch.use_deterministic_algorithms(True) is set
+        # and is CUDA graph compatible unlike scatter_add
+        output_tokens.index_add_(0, sorted_indices, permuted_tokens)
+    else:
+        # Scatter add the permuted_input back to the original positions
+        output_tokens.scatter_add_(
+            0, sorted_indices.unsqueeze(1).expand(-1, hidden), permuted_tokens
+        )
     return output_tokens.to(dtype=input_dtype)
 
 
@@ -588,9 +610,21 @@ def topk_routing_with_score_function(
     if scaling_factor:
         probs = probs * scaling_factor
 
-    # TODO Try using element-wise operations instead of scatter?
-    routing_probs = torch.zeros_like(logits).scatter(1, top_indices, probs)
-    routing_map = torch.zeros_like(logits).int().scatter(1, top_indices, 1).bool()
+    if torch.are_deterministic_algorithms_enabled():
+        # build [num_tokens, num_experts] from [num_tokens, topk]
+        routing_probs = torch.zeros_like(logits)
+        rows = torch.arange(num_tokens, device=logits.device).unsqueeze(1)
+        routing_probs.index_put_((rows, top_indices), probs, accumulate=False)
+
+        routing_map = torch.zeros_like(logits, dtype=logits.dtype)
+        routing_map.index_put_(
+            (rows, top_indices), torch.ones_like(probs, dtype=routing_map.dtype), accumulate=False
+        )
+        routing_map = routing_map.bool()
+    else:
+        # TODO Try using element-wise operations instead of scatter?
+        routing_probs = torch.zeros_like(logits).scatter(1, top_indices, probs)
+        routing_map = torch.zeros_like(logits).int().scatter(1, top_indices, 1).bool()
 
     return routing_probs, routing_map
 
@@ -666,14 +700,20 @@ def apply_router_token_dropping(
     )
 
     # Create capacity mask based on drop policy
-    if drop_policy == "probs":
-        _, capacity_indices = torch.topk(routing_probs, k=expert_capacity, dim=0, sorted=False)
-        capacity_mask = torch.zeros_like(routing_probs).scatter(0, capacity_indices, 1).bool()
-    elif drop_policy == "position":
-        _, capacity_indices = torch.topk(routing_map.int(), k=expert_capacity, dim=0, sorted=False)
-        capacity_mask = torch.zeros_like(routing_probs).scatter(0, capacity_indices, 1).bool()
+    if expert_capacity > num_tokens:
+        # No need to drop tokens if capacity exceeds the number of tokens
+        capacity_mask = torch.ones_like(routing_probs).bool()
     else:
-        raise ValueError(f"Invalid drop_policy: {drop_policy}")
+        if drop_policy == "probs":
+            _, capacity_indices = torch.topk(routing_probs, k=expert_capacity, dim=0, sorted=False)
+            capacity_mask = torch.zeros_like(routing_probs).scatter(0, capacity_indices, 1).bool()
+        elif drop_policy == "position":
+            _, capacity_indices = torch.topk(
+                routing_map.int(), k=expert_capacity, dim=0, sorted=False
+            )
+            capacity_mask = torch.zeros_like(routing_probs).scatter(0, capacity_indices, 1).bool()
+        else:
+            raise ValueError(f"Invalid drop_policy: {drop_policy}")
 
     # Apply capacity constraints
     if pad_to_capacity:
@@ -692,8 +732,9 @@ def save_to_aux_losses_tracker(
     loss: torch.Tensor,
     layer_number: int,
     num_layers: int,
-    reduce_group: torch.distributed.ProcessGroup = None,
-    avg_group: torch.distributed.ProcessGroup = None,
+    reduce_group: Optional[torch.distributed.ProcessGroup] = None,
+    avg_group: Optional[torch.distributed.ProcessGroup] = None,
+    reduce_group_has_dp: bool = False,
 ):
     """Save the auxiliary loss for logging.
     Args:
@@ -702,7 +743,10 @@ def save_to_aux_losses_tracker(
         layer_number (int): Layer index of the loss.
         num_layers (int): The number of total layers.
         reduce_group (torch.distributed.ProcessGroup): The group for reducing the loss.
-        mean_group (torch.distributed.ProcessGroup): The group for averaging the loss.
+        avg_group (torch.distributed.ProcessGroup): The group for averaging the loss.
+        reduce_group_has_dp (bool): Whether the reduce group has data parallel ranks.
+            Set this to True if the reduce group has data parallel ranks. This flag is used to
+            ensure the correct reduction in aux loss tracking.
     """
     # Skip aux loss logging if layer_number is None.
     if layer_number is None:
@@ -715,6 +759,7 @@ def save_to_aux_losses_tracker(
     tracker[name]["values"][layer_number - 1] += loss.detach()  # Aggregate the loss for the layer.
     tracker[name]["reduce_group"] = reduce_group
     tracker[name]["avg_group"] = avg_group
+    tracker[name]["reduce_group_has_dp"] = reduce_group_has_dp
 
 
 def clear_aux_losses_tracker():
@@ -724,31 +769,42 @@ def clear_aux_losses_tracker():
         tracker[name]["values"].zero_()
 
 
-def reduce_aux_losses_tracker_across_ranks(track_names: Optional[List[str]] = None):
+def reduce_aux_losses_tracker_across_ranks(
+    track_names: Optional[List[str]] = None, pg_collection: Optional[ProcessGroupCollection] = None
+):
     """Collect and reduce the auxiliary losses across ranks."""
     tracker = get_moe_layer_wise_logging_tracker()
     if track_names is None:
         track_names = tracker.keys()
+
+    if pg_collection is None:
+        # Use parallel_state groups
+        pp_group = parallel_state.get_pipeline_model_parallel_group()
+        dp_group = parallel_state.get_data_parallel_group(
+            with_context_parallel=False, partial_data_parallel=False
+        )
+    else:
+        pp_group = pg_collection.pp
+        dp_group = pg_collection.dp
+
     for name in track_names:
         values = tracker[name]["values"]
         # TODO(Hepteract): delete the usage of the global parallel_state.
         # Collect aux losses across PP.
-        torch.distributed.all_reduce(
-            values, group=parallel_state.get_pipeline_model_parallel_group()
-        )
+        torch.distributed.all_reduce(values, group=pp_group)
         # Reduce aux losses across ranks.
         if tracker[name].get('reduce_group') is not None:
             torch.distributed.all_reduce(values, group=tracker[name].get('reduce_group'))
+            # Need to conduct reduction across data parallel ranks. When the reduce_group
+            # does not have 'dp' attribute, do it manually.
+            if not tracker[name].get('reduce_group_has_dp', False):
+                torch.distributed.all_reduce(
+                    values, group=dp_group, op=torch.distributed.ReduceOp.AVG
+                )
         if tracker[name].get('avg_group') is not None:
             torch.distributed.all_reduce(
                 values, group=tracker[name]['avg_group'], op=torch.distributed.ReduceOp.AVG
             )
-        # This ensures proper loss averaging across all ranks including CP ranks
-        torch.distributed.all_reduce(
-            values,
-            group=parallel_state.get_data_parallel_group(with_context_parallel=True),
-            op=torch.distributed.ReduceOp.AVG,
-        )
 
 
 def track_moe_metrics(
@@ -763,6 +819,7 @@ def track_moe_metrics(
     num_layers: Optional[int] = None,
     moe_layer_freq: Optional[Union[int, List[int]]] = None,
     mtp_num_layers: Optional[int] = None,
+    pg_collection: Optional[ProcessGroupCollection] = None,
 ):
     """Track the MoE metrics for logging."""
     # Aux loss logging
@@ -776,7 +833,8 @@ def track_moe_metrics(
                     tracker[key]["values"] = torch.zeros(num_layers, device="cuda")
                     tracker[key]["reduce_group"] = None
                     tracker[key]["avg_group"] = None
-    reduce_aux_losses_tracker_across_ranks(track_names)
+                    tracker[key]["reduce_group_has_dp"] = False
+    reduce_aux_losses_tracker_across_ranks(track_names, pg_collection=pg_collection)
 
     # Get number of MoE layers
     if moe_layer_freq is None:
@@ -871,6 +929,7 @@ def get_moe_layer_wise_logging_tracker():
     return _MOE_LAYER_WISE_LOGGING_TRACKER
 
 
+@internal_api
 class RandomSTE(torch.autograd.Function):
     """
     Straight-Through Estimator(STE) function that returns random values
@@ -879,21 +938,13 @@ class RandomSTE(torch.autograd.Function):
     This is used to generate random logits of router for load-balanced benchmark.
     """
 
-    generator = None
-
     @staticmethod
     def forward(ctx, logits):
         """
         Forward pass returns random logits with rank-specific seed.
         """
-        if RandomSTE.generator is None:
-            global_rank = torch.distributed.get_rank()
-            base_seed = 42
-            seed = base_seed + global_rank
-            RandomSTE.generator = torch.Generator(device=logits.device)
-            RandomSTE.generator.manual_seed(seed)
-
-        random_logits = logits.clone().normal_(generator=RandomSTE.generator)
+        with get_cuda_rng_tracker().fork(get_expert_parallel_rng_tracker_name()):
+            random_logits = logits.clone().normal_()
         return random_logits
 
     @staticmethod
@@ -917,11 +968,13 @@ class RouterGatingLinearFunction(torch.autograd.Function):
     """
 
     @staticmethod
-    def forward(ctx, inp: torch.Tensor, weight: torch.Tensor, router_dtype: torch.dtype):
+    def forward(
+        ctx, inp: torch.Tensor, weight: torch.Tensor, bias: torch.Tensor, router_dtype: torch.dtype
+    ):
         """
         Forward pass of the RouterGatingLinearFunction function.
         """
-        ctx.save_for_backward(inp, weight)
+        ctx.save_for_backward(inp, weight, bias)
         ctx.router_dtype = router_dtype
         ctx.input_dtype = inp.dtype
         ctx.weight_dtype = weight.dtype
@@ -929,10 +982,14 @@ class RouterGatingLinearFunction(torch.autograd.Function):
         inp = inp.view(-1, inp_shape[-1])
 
         if te_general_gemm is not None and router_dtype != torch.float64:
-            output = te_general_gemm(weight, inp, router_dtype, layout="TN")
+            output = te_general_gemm(weight, inp, router_dtype, layout="TN", bias=bias)
             output = output[0]
-        else:
+        elif bias is None:
             output = torch.mm(inp.to(router_dtype), weight.to(router_dtype).t())
+        else:
+            output = torch.addmm(
+                bias.to(router_dtype), inp.to(router_dtype), weight.to(router_dtype).t()
+            )
 
         output = output.view(*inp_shape[:-1], -1)
         return output
@@ -942,7 +999,7 @@ class RouterGatingLinearFunction(torch.autograd.Function):
         """
         Backward pass of the RouterGatingLinearFunction function.
         """
-        inp, weight = ctx.saved_tensors
+        inp, weight, bias = ctx.saved_tensors
         inp_shape = inp.shape
         grad_shape = grad_output.shape
         inp = inp.view(-1, inp_shape[-1])
@@ -961,17 +1018,29 @@ class RouterGatingLinearFunction(torch.autograd.Function):
             grad_input = torch.mm(grad_output, weight.to(ctx.router_dtype)).to(ctx.input_dtype)
             grad_weight = torch.mm(grad_output.t(), inp.to(ctx.router_dtype)).to(ctx.weight_dtype)
 
+        grad_bias = grad_output.sum(dim=0).to(ctx.weight_dtype) if bias is not None else None
         grad_input = grad_input.view(*inp_shape)
-        return grad_input, grad_weight, None
+        return grad_input, grad_weight, grad_bias, None
 
 
-def router_gating_linear(inp: torch.Tensor, weight: torch.Tensor, router_dtype: torch.dtype):
+def router_gating_linear(
+    inp: torch.Tensor, weight: torch.Tensor, bias: torch.Tensor, router_dtype: torch.dtype
+):
     """
     Customized linear layer for router gating.
     This linear layer accepts bfloat16 input and weight, and can return output with router_dtype.
     It can reduce the memory usage by avoiding saving the intermediate high precision tensors.
     """
-    return RouterGatingLinearFunction.apply(inp, weight, router_dtype)
+    return RouterGatingLinearFunction.apply(inp, weight, bias, router_dtype)
+
+
+def get_align_size_for_quantization(config: TransformerConfig):
+    """Get the alignment size for quantization."""
+    if config.fp8:
+        return get_fp8_align_size(config.fp8_recipe)
+    elif config.fp4:
+        return get_fp4_align_size(config.fp4_recipe)
+    return 16
 
 
 # TODO(Hepteract): delete the usage of the global parallel_state.
@@ -990,4 +1059,233 @@ def get_default_pg_collection():
     pg_collection.expt_dp = parallel_state.get_expert_data_parallel_group()
     pg_collection.tp_ep = parallel_state.get_expert_tensor_and_model_parallel_group()
     pg_collection.tp_cp = parallel_state.get_tensor_and_context_parallel_group()
+    pg_collection.tp_dp_cp = parallel_state.get_tensor_and_data_parallel_group(
+        with_context_parallel=True
+    )
     return pg_collection
+
+
+class MoECudaGraphPartialCaptureSignal(Exception):
+    """
+    Used to early-return from a MoE layer forward pass in CUDA graph capture.
+    This signal is raised when we are partially capturing the CUDA graph of the MoE layer,
+    and the related intermediate tensors are recorded in self.kwargs.
+    Call self.get_early_return_outputs() to collect the CUDA graph outputs.
+    """
+
+    def __init__(self, moe_layer, return_step: str, **kwargs):
+        self.moe_layer = moe_layer
+        self.return_step = return_step
+        self.kwargs = kwargs
+
+    def get_early_return_outputs(
+        self, hidden_states: torch.Tensor, shared_expert_output: torch.Tensor
+    ):
+        """
+        Get the CUDA graph early return outputs for the MoE layer, including the intermediate
+        tensors and the intermediate attributes of the token dispatcher.
+
+        The returned output tensors are in the order of:
+        - routed experts path outputs
+          - hidden states, probs, and routing map for capturing router
+          - hidden states and probs for capturing router and preprocess
+        - intermediate attributes of the token dispatcher (if capturing the preprocess step)
+        - shared expert path output (if exists)
+        """
+        if self.return_step == "route":
+            # Capturing the router step returns three intermediate tensors:
+            # hidden states, routing probabilities, and routing map.
+            outputs = [hidden_states, self.kwargs['probs'], self.kwargs['routing_map']]
+        elif self.return_step == "preprocess":
+            # Capturing the preprocess step returns two intermediate tensors:
+            # hidden states and routing probabilities.
+            # It also returns the intermediate attributes of the token dispatcher, recorded in
+            # "token_dispatcher.cudagraph_attrs".
+            outputs = [self.kwargs['hidden_states'], self.kwargs['probs']]
+            valid_cudagraph_attrs = []
+            for attr_name in self.moe_layer.token_dispatcher.cudagraph_attrs:
+                hier_attr_name = attr_name.split('.')
+                attr = self.moe_layer.token_dispatcher
+                for name in hier_attr_name:
+                    attr = getattr(attr, name, None)
+                    if attr is None:
+                        break
+                if isinstance(attr, torch.Tensor):
+                    outputs.append(attr)
+                    valid_cudagraph_attrs.append(attr_name)
+            if self.moe_layer.token_dispatcher.valid_cudagraph_attrs is None:
+                self.moe_layer.token_dispatcher.valid_cudagraph_attrs = valid_cudagraph_attrs
+            else:
+                assert (
+                    self.moe_layer.token_dispatcher.valid_cudagraph_attrs == valid_cudagraph_attrs
+                ), (
+                    "valid_cudagraph_attrs mismatch: "
+                    f"{self.moe_layer.token_dispatcher.valid_cudagraph_attrs} != "
+                    f"{valid_cudagraph_attrs}"
+                )
+        # Also return the shared expert output, if it is not None.
+        if shared_expert_output is not None:
+            outputs.append(shared_expert_output)
+        return outputs
+
+
+@internal_api
+@dataclass
+class MoECudaGraphTensorStore:
+    """Storage for tensors used in CUDA graph replay for MoE layers.
+
+    This dataclass stores intermediate tensors computed during CUDA graph replay
+    that need to be resumed from the end of the CUDA graph scope to skip redundant computations.
+
+    Attributes:
+        hidden_states (Optional[torch.Tensor]): The hidden states output from the CUDA graph replay.
+        probs (Optional[torch.Tensor]): The routing probabilities for each token-expert pair.
+        routing_map (Optional[torch.Tensor]): The sparse mapping indicating which experts
+            were selected for each token. Used to skip the normal router step.
+        shared_expert_output (Optional[torch.Tensor]): The output from shared experts
+            computation. Used to skip the normal shared expert computation step.
+    """
+
+    hidden_states: Optional[torch.Tensor] = None
+    probs: Optional[torch.Tensor] = None
+    routing_map: Optional[torch.Tensor] = None
+    shared_expert_output: Optional[torch.Tensor] = None
+
+    def is_empty(self) -> bool:
+        """Check if the store has any non-None tensors.
+
+        Returns:
+            bool: True if all fields are None, False otherwise.
+        """
+        return all(
+            getattr(self, field_name) is None
+            for field_name in ['hidden_states', 'probs', 'routing_map', 'shared_expert_output']
+        )
+
+    def set(self, **kwargs):
+        """Set the tensors in the store from keyword arguments."""
+        for field_name, value in kwargs.items():
+            assert field_name in [
+                'hidden_states',
+                'probs',
+                'routing_map',
+                'shared_expert_output',
+            ], f"Invalid field name: {field_name}"
+            if value is not None:
+                assert isinstance(
+                    value, torch.Tensor
+                ), f"Value must be a torch.Tensor, got {type(value)} for field {field_name}"
+                setattr(self, field_name, value)
+
+    def clear(self):
+        """Reset all stored tensors to None."""
+        for field_name in ['hidden_states', 'probs', 'routing_map', 'shared_expert_output']:
+            setattr(self, field_name, None)
+
+
+def maybe_skip_or_early_return_by_cudagraph(step_condition):
+    """
+    Decorator to skip certain codepaths in the MoE layer forward pass in CUDA graph replay,
+    or early return from the MoE layer forward pass in CUDA graph capture.
+
+    Args:
+        step_condition: The step condition to check. Can be "shared_experts_compute", "route",
+        or "preprocess". If "shared_experts_compute", the shared experts computation will be
+        skipped in replay if it is in the CUDA graph scope. If "route" or "preprocess", the
+        router or preprocess will be skipped in replay if it is in the CUDA graph scope, or
+        early return from the MoE layer forward pass if it is in CUDA graph capturing mode.
+
+    Returns:
+        A decorator function that wraps the MoE layer forward pass.
+    """
+
+    def maybe_raise_signal(moe_layer, **kwargs):
+        """
+        Check if the MoE layer should early return for CUDA graph capture.
+        If so, raise a MoECudaGraphPartialCaptureSignal.
+        """
+        if (
+            moe_layer.config.cuda_graph_impl == "transformer_engine"
+            and moe_layer.training
+            and is_graph_capturing()
+        ):
+            if (
+                step_condition == "route"
+                and CudaGraphScope.moe_router in moe_layer.config.cuda_graph_scope
+                and CudaGraphScope.moe_preprocess not in moe_layer.config.cuda_graph_scope
+            ):
+                raise MoECudaGraphPartialCaptureSignal(moe_layer, "route", **kwargs)
+            elif (
+                step_condition == "preprocess"
+                and CudaGraphScope.moe_preprocess in moe_layer.config.cuda_graph_scope
+            ):
+                raise MoECudaGraphPartialCaptureSignal(moe_layer, "preprocess", **kwargs)
+
+    def decorator(func):
+
+        @functools.wraps(func)
+        def wrapped_func(moe_layer, *args, **kwargs):
+            """
+            Check if we should skip executing the original function based on the current
+            step condition and the tensor store status. If the tensor can be found in the store,
+            it indicates that it is already computed by the CUDA graph replay, so we can skip it.
+            Otherwise, we execute the original function and check if we should raise a signal to
+            early return in CUDA graph capture.
+            """
+            # The non-cudagraph codepath just calls the original function.
+            if not is_graph_capturing() and moe_layer.cudagraph_tensor_store.is_empty():
+                return func(moe_layer, *args, **kwargs)
+
+            assert (
+                not is_graph_capturing() or moe_layer.cudagraph_tensor_store.is_empty()
+            ), "cudagraph_tensor_store cannot be used when it is capturing cuda graph."
+            if step_condition == "shared_experts_compute":
+                if moe_layer.cudagraph_tensor_store.shared_expert_output is None:
+                    # Don't skip the shared expert computation.
+                    shared_expert_output = func(moe_layer, *args, **kwargs)
+                else:
+                    # Skip the shared expert computation and get value from store.
+                    shared_expert_output = moe_layer.cudagraph_tensor_store.shared_expert_output
+                return shared_expert_output
+            elif step_condition == "route":
+                if moe_layer.cudagraph_tensor_store.probs is None:
+                    # Don't skip the router.
+                    assert (
+                        moe_layer.cudagraph_tensor_store.routing_map is None
+                    ), "routing_map must be None if probs is None"
+                    probs, routing_map = func(moe_layer, *args, **kwargs)
+
+                    # Maybe early return after the router.
+                    maybe_raise_signal(moe_layer, probs=probs, routing_map=routing_map)
+                else:
+                    # Skip the router and get value from store.
+                    probs, routing_map = (
+                        moe_layer.cudagraph_tensor_store.probs,
+                        moe_layer.cudagraph_tensor_store.routing_map,
+                    )
+                return probs, routing_map
+            elif step_condition == "preprocess":
+                if (
+                    moe_layer.cudagraph_tensor_store.is_empty()
+                    or moe_layer.cudagraph_tensor_store.routing_map is not None
+                ):
+                    # Don't skip the preprocess.
+                    hidden_states, probs = func(moe_layer, *args, **kwargs)
+
+                    # Maybe early return after the preprocess.
+                    maybe_raise_signal(moe_layer, hidden_states=hidden_states, probs=probs)
+                else:
+                    # Skip the preprocess and get value from store.
+                    assert (
+                        moe_layer.cudagraph_tensor_store.hidden_states is not None
+                        and moe_layer.cudagraph_tensor_store.probs is not None
+                    ), "hidden_states and probs must be given in moe_preprocess cudagraph replay"
+                    hidden_states, probs = (
+                        moe_layer.cudagraph_tensor_store.hidden_states,
+                        moe_layer.cudagraph_tensor_store.probs,
+                    )
+                return hidden_states, probs
+
+        return wrapped_func
+
+    return decorator

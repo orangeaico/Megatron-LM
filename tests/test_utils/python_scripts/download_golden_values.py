@@ -1,3 +1,5 @@
+# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+
 import logging
 import os
 import pathlib
@@ -55,8 +57,8 @@ def main(pipeline_id: int, only_failing: bool):
         for functional_pipeline_job in functional_pipeline_jobs:
             job = project.jobs.get(functional_pipeline_job.id)
             logger.info("Starting with job %s", job.name)
-            if only_failing and job.status != "failed":
-                logger.info("Job %s is not failing. Skipping.", job.name)
+            if only_failing and job.status == "success":
+                logger.info("Job %s is successful. Skipping.", job.name)
                 continue
 
             try:
@@ -66,37 +68,52 @@ def main(pipeline_id: int, only_failing: bool):
                 zip = zipfile.ZipFile(file_name)
                 zip.extractall("tmp")
                 logger.info("Downloaded artifacts of job %s", job.name)
-            except Exception:
+            except Exception as e:
+                logger.error("Failed to download artifacts of job %s due to %s", job.name, e)
                 continue
 
             os.unlink(file_name)
             restart_dir = os.listdir(pathlib.Path("tmp") / "results" / "iteration=0")[-1]
-            golden_values_source = (
-                pathlib.Path(ASSETS_DIR)
-                / f"{restart_dir}"
-                / "assets"
-                / "basic"
-                / f"{job.name.replace('_', '-').lower()}-{environment.replace('_', '-')}"
-                / f"golden_values_{environment}.json"
-            )
-            golden_values_target = (
-                pathlib.Path("tests")
-                / "functional_tests"
-                / 'test_cases'
-                / job.stage
-                / job.name
-                / f"golden_values_{environment}.json"
+            golden_values_sources = list(
+                (
+                    pathlib.Path(ASSETS_DIR)
+                    / f"{restart_dir}"
+                    / "assets"
+                    / "basic"
+                    / f"{job.name.replace('_', '-').lower()}-{environment.replace('_', '-')}"
+                ).glob("g*.json")
             )
 
-            if golden_values_source.exists():
-                pathlib.Path(golden_values_target.parent).mkdir(parents=True, exist_ok=True)
+            if len(golden_values_sources) < 1:
                 logger.info(
-                    "Move artifacts from %s to %s", golden_values_source, golden_values_target
+                    "Golden values for %s does not exist. Skip.", str(golden_values_sources)
+                )
+                continue
+
+            for golden_values_source in golden_values_sources:
+                golden_values_source_name = golden_values_source.name
+                golden_values_source_name = golden_values_source_name.replace(
+                    "generations", "golden_values"
                 )
 
-                shutil.move(golden_values_source, golden_values_target)
-            else:
-                logger.info("Golden values for %s does not exist. Skip.", str(golden_values_source))
+                golden_values_target = (
+                    pathlib.Path("tests")
+                    / "functional_tests"
+                    / 'test_cases'
+                    / job.stage
+                    / job.name
+                    / golden_values_source_name
+                )
+
+                if golden_values_source.exists():
+                    pathlib.Path(golden_values_target.parent).mkdir(parents=True, exist_ok=True)
+                    logger.info(
+                        "Move artifacts from %s to %s", golden_values_source, golden_values_target
+                    )
+
+                    shutil.move(golden_values_source, golden_values_target)
+                else:
+                    logger.info("Golden values for %s does not exist. Skip.", str(golden_values_source))
 
             shutil.rmtree("tmp")
 

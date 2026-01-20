@@ -466,9 +466,18 @@ class PersistentAsyncCaller(AsyncCaller):
                                        to get aligned with the training rank's logging level
 
         """
+        # Set logger.
         logger = logging.getLogger(__name__)
         logger.setLevel(log_level)
         logger.info(f"PersistentAsyncCaller: persistent ckpt worker for {rank} has started")
+
+        # Set CUDA device to appropriate local_rank to ensure allocations / CUDA contexts
+        # in this new process are on the right device, and device 0 on the node does not
+        # take on undue memory burden from other devices on node (default behavior without
+        # this line).
+        torch.cuda.set_device(rank % torch.cuda.device_count())
+
+        # Start busy loop waiting for and executing checkpoint saves.
         while True:
             item = queue.get()
             if isinstance(item, str) and item == 'DONE':
@@ -564,6 +573,9 @@ class AsyncCallsQueue:
         Returns:
             List[int]: list of indices (as returned by `schedule_async_request`)
                 of async calls that have been successfully finalized.
+        Raises:
+            CheckpointException: if any rank(s) raised an exception during checkpoint
+                writing, the exceptions are wrapped and raised on all ranks.
         """
         call_idx_finalized = []
         while self.async_calls:

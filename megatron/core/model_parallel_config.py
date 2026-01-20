@@ -1,5 +1,6 @@
-# Copyright (c) 2023, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
+import warnings
 from dataclasses import dataclass
 from typing import Callable, ContextManager, Optional
 
@@ -50,6 +51,22 @@ class ModelParallelConfig:
        groups of two levels, so the first value of the list indicates the group size of the a2a
        communication type, and the second value indicates the group size of the p2p communication
        type.
+    """
+
+    max_seqlen_per_dp_cp_rank: Optional[int] = None
+    """
+    Maximum sequence length per DPxCP rank. This is the maximum sequence length each rank
+    can handle without overflowing the memory. Typically, a good starting point is to set this
+    to maximum sequence length / context parallel size.
+    This is used to calculate the number and length of sub-samples assigned to 
+    each rank when using hybrid_context_parallel.
+    """
+
+    hybrid_context_parallel: bool = False
+    """
+    If true, enables hybrid context parallel. This is used to balance the workload of 
+    each CP rank when we use packed samples with variable sequence lengths.
+    Please set max_seqlen_per_dp_cp_rank when using hybrid_context_parallel.
     """
 
     expert_model_parallel_size: int = 1
@@ -245,6 +262,19 @@ class ModelParallelConfig:
     delay_wgrad_compute: bool = False
     """Delay the weight gradient computation to improve batch-level communication overlapping"""
 
+    ep_overlap_early_attn_memory_release: bool = False
+    """Enable early memory release of attention activations during EP overlap.
+    EP overlap can increase peak memory usage when the overlapped forward module allocates 
+    more memory than what is freed by the backward module. This flag addresses this by 
+    reordering the attention backward pass to occur earlier in the schedule.
+    Specifically:
+    - Without this flag: attn_bwd executes after moe_combine_fwd
+    - With this flag: attn_bwd executes before mlp_fwd
+    The earlier execution releases attention activations sooner, reducing peak memory.
+    Note: This may impact performance as moe_combine_fwd and moe_dispatch_bwd become 
+    exposed (not overlapped with other computation).
+    """
+
     ###################
     # Pipeline Parallel
     ###################
@@ -315,6 +345,10 @@ class ModelParallelConfig:
        rank 1 |   0 1 2 0 1 2 3 4 3 4
     """
 
+    mtp_standalone: bool = False
+    """This will be set automatically according to the pipeline layout, 
+    and will be set to True if MTP is in a separate vpp stage."""
+
     ###################
     # CPU Offloading
     ###################
@@ -334,7 +368,7 @@ class ModelParallelConfig:
     cpu_offloading_activations: bool = True
     """If True, offloads the activations to CPU."""
 
-    cpu_offloading_weights: bool = True
+    cpu_offloading_weights: bool = False
     """If True, offloads the weights to CPU."""
 
     cpu_offloading_double_buffering: bool = False
@@ -356,7 +390,7 @@ class ModelParallelConfig:
         """
         if self.sequence_parallel:
             if self.tensor_model_parallel_size <= 1:
-                raise ValueError("Can not use sequence paralllelism without tensor parallelism")
+                raise ValueError("Cannot use sequence parallelism without tensor parallelism")
 
         if self.expert_tensor_parallel_size is None:
             self.expert_tensor_parallel_size = self.tensor_model_parallel_size
