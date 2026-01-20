@@ -127,7 +127,7 @@ MODEL_ARGS=(
     --rotary-percent 1.0
     --rotary-seq-len-interpolation-factor 1
     --use-rope-scaling
-    --rope-scaling-factor 2
+    --rope-scaling-factor 4
     --swiglu
     --norm-epsilon 1e-06
     --init-method-std 0.02  
