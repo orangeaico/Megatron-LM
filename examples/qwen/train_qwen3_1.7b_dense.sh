@@ -18,7 +18,7 @@ ENABLE_PROFILING=0
 ENABLE_NSYS_PROFILING=0
 
 # CRITICAL - DOUBLE CHECK THIS VALUE
-TRAINING_MODE="sft" # set from mock, cpt, sft or distillation
+TRAINING_MODE="cpt" # set from mock, cpt, sft or distillation
 
 MODEL_NAME="qwen3_1.7b"
 
@@ -31,18 +31,18 @@ TOKENIZER_ARG="$BASE_DIR/mega-models/Qwen3-1.7B" # Path to tokenizer model, or "
 echo "Training mode: $TRAINING_MODE"
 
 if [[ "$TRAINING_MODE" == "cpt" ]]; then
-    TRAIN_DATA_PATH="$BASE_DIR/data/cpt/memmap_xarray_8192_overlap5_combined/megatron_indexed/train_text_document"
-    VALID_DATA_PATH="$BASE_DIR/data/cpt/memmap_xarray_8192_overlap5_combined/megatron_indexed/val_text_document"
+    TRAIN_DATA_PATH="$BASE_DIR/data/sft/pretraining/xarray_ctx4096_diff_16k_combined_text_document"
+    VALID_DATA_PATH="$BASE_DIR/data/sft/pretraining/xarray_validation_ctx4096_text_document"
     TEST_DATA_PATH=$VALID_DATA_PATH
 
 elif [[ "$TRAINING_MODE" == "sft" ]]; then
-    TRAIN_DATA_PATH="$BASE_DIR/data/sft/train_loc_xarray_264_samples/LocFileFuncLine_train.jsonl"
-    VALID_DATA_PATH="$BASE_DIR/data/sft/train_loc_xarray_264_samples/LocFileFuncLine_val.jsonl"
+    TRAIN_DATA_PATH="$BASE_DIR/data/sft/swe_mirror/training_traj_sft_480b_30b_combined_hard_23_nov.jsonl"
+    VALID_DATA_PATH="$BASE_DIR/data/sft/swe_mirror/validation_traj_sft_480b_30b_combined_hard_23_nov.jsonl"
     TEST_DATA_PATH=$VALID_DATA_PATH 
 
 elif [[ "$TRAINING_MODE" == "distillation" ]]; then
-    TRAIN_DATA_PATH="$BASE_DIR/data/distillation_data"
-    VALID_DATA_PATH="$BASE_DIR/data/distillation_data"
+    TRAIN_DATA_PATH="$BASE_DIR/data/distillation/qwen_480b_swe_bench/"
+    VALID_DATA_PATH="$BASE_DIR/data/distillation/qwen_480b_swe_bench_excluded/"
     TEST_DATA_PATH=$VALID_DATA_PATH
 
 elif [[ "$TRAINING_MODE" == "mock" ]]; then
@@ -97,7 +97,7 @@ GLOBAL_BATCH_SIZE=8
 NUM_LAYERS=28  
 DTYPE="bf16"
 SEQ_LENGTH=16384 # 65000
-MAX_POSITION_EMBEDDINGS=40960 # 65000
+MAX_POSITION_EMBEDDINGS=40960 # 40960
 
 DISTRIBUTED_ARGS=(
     --nproc_per_node $GPUS_PER_NODE
@@ -136,13 +136,13 @@ MODEL_ARGS=(
 TRAINING_ARGS=(
     --micro-batch-size $MICRO_BATCH_SIZE
     --global-batch-size $GLOBAL_BATCH_SIZE
-    --train-samples 440
-    --lr-decay-samples 440
+    --train-samples 948
+    --lr-decay-samples 948
 
     # Learning rate args
-    --lr-warmup-samples 0
-    --lr 5.0e-5
-    --min-lr 5.0e-6 # 1.0e-7
+    --lr-warmup-samples 48
+    --lr 1.0e-5 # 5.0e-5
+    --min-lr 3.0e-6 # 5.0e-6
     # --decoupled-lr 8.0e-4  # Adjusted for smaller model
     # --decoupled-min-lr 8.0e-5  # Adjusted for smaller model
     --lr-decay-style cosine
@@ -183,6 +183,10 @@ TRAINING_ARGS=(
     --grad-reduce-in-bf16
     --exp-avg-dtype fp16
     --exp-avg-sq-dtype fp16
+    # --optimizer-cpu-offload
+    # --optimizer-offload-fraction 1.0
+    # --overlap-cpu-optimizer-d2h-h2d
+    # --use-torch-optimizer-for-cpu-offload
 )
 
 # Conditional arguments based on DTYPE (FP8)
@@ -230,6 +234,8 @@ elif [[ "$TRAINING_MODE" == "cpt" ]]; then
         "--tokenizer-model $TOKENIZER_ARG"               
         "--num-workers 1"
         "--no-create-attention-mask-in-dataloader"
+        # "--trsft"
+        # "--trsft-alpha 0.05"
         # "--reset-position-ids"
         # "--reset-attention-mask"
         # "--eod-mask-loss"        
@@ -247,7 +253,10 @@ elif [[ "$TRAINING_MODE" == "sft" ]]; then
         "--sft"
         "--num-workers 1"
         "--no-create-attention-mask-in-dataloader"
-        # "--variable-seq-lengths"
+        "--trsft"
+        "--trsft-alpha 0.05"
+        # "--weighted-loss"
+        # "--variable-seq-lengths"                
         # "--moe-token-dispatcher-type alltoall" # This needs to be set for variable seq lengths
 
         # "--reset-position-ids"
@@ -263,10 +272,11 @@ elif [[ "$TRAINING_MODE" == "distillation" ]]; then
         "--tokenizer-type HuggingFaceTokenizer" 
         "--tokenizer-model $TOKENIZER_ARG"                
         "--sft"
-        "--num-workers 1"         
+        "--num-workers 1"
+        "--no-create-attention-mask-in-dataloader"         
         "--distillation-loss"
-        "--distillation-temperature 3.0"
-        "--distillation-loss-alpha 0.5"      
+        "--distillation-temperature 1.0"
+        "--distillation-loss-alpha 0"      
     )
 else
     echo "Training mode should be one of mock, cpt, sft or distillation. Invalid training mode: $TRAINING_MODE"
@@ -284,13 +294,13 @@ CHECKPOINT_ARGS=(
     --no-save-rng
     --no-load-rng
     --no-load-optim
-    --save-interval 110
+    --save-interval 69
     --exit-on-missing-checkpoint
 )
 
 EVAL_AND_LOGGING_ARGS=(
-    --eval-iters 3
-    --eval-interval 30
+    --eval-iters 1
+    --eval-interval 69
     # --full-validation
     --log-interval 1
     --log-throughput
