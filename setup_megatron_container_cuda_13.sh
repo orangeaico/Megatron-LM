@@ -1,17 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Always use your CUDA 12.9 ptxas (needed for sm_120)
-export TRITON_PTXAS_PATH=/usr/local/cuda/bin/ptxas
-
-# Install Triton 3.3.x if not already
-python - <<'PY' || pip install --no-deps --force-reinstall "triton==3.3.*"
-import importlib.metadata as m
-v = m.version("triton")
-assert v.split(".")[0:2] >= ["3","3"]
-print("triton ok:", v)
-PY
-
 # Install CCE if missing
 python - <<'PY' || pip install --no-deps "cut-cross-entropy @ git+https://github.com/apple/ml-cross-entropy.git"
 import importlib
@@ -79,37 +68,10 @@ for relative_path, replacements in TARGET_FILES.items():
         print(f"No updates required for {target_file}")
 PY
 
-# Install Transformers if missing
-python - <<'PY' || pip install -U "transformers"
-import importlib
-import transformers  # noqa
-try:
-    from transformers import __version__ as v
-except Exception:
-    v = "unknown"
-print("transformers ok:", v)
-PY
-
-# Clear old JIT caches (optional)
-rm -rf ~/.cache/torch/inductor ~/.triton || true
-
-unset PIP_CONSTRAINT
-pip install --upgrade --no-cache-dir   "dill<0.3.9,>=0.3.0"   "datasets>=2.20.0"   "fsspec>=2024.6.1"   "huggingface_hub>=0.24.0"   "pyarrow>=12"
-pip install jsonlines
-pip install simpy
-pip install --no-deps accelerate
-
 if [ -n "${SETUP_FA3-}" ]; then
   # Install flash_attn_3
   pip install --no-index --no-deps \
-    "https://huggingface.co/datasets/himanshu-livup/wheels/resolve/main/flash_attn_3-3.0.0b1-cp39-abi3-linux_x86_64_cuda_12.whl"
-
-  # Install transformer_engine wheel
-  pip uninstall -y transformer_engine transformer-engine || true
-  PIP_CONSTRAINT=/dev/null pip install --no-index --no-deps \
-    "https://huggingface.co/datasets/himanshu-livup/wheels/resolve/main/transformer_engine-2.9.0.dev0+4d14578-cp312-cp312-linux_x86_64.whl"
-
-  PIP_CONSTRAINT=/dev/null pip install -U onnxscript==0.5.2 onnx_ir==0.1.9 ml_dtypes==0.5.3
+    "https://huggingface.co/datasets/himanshu-livup/wheels/resolve/main/flash_attn_3-3.0.0b1-cp39-abi3-linux_x86_64_cuda_13.whl"
 
   # Patch transformer_engine to use flash_attn_interface
   python - <<'PY'
