@@ -3468,7 +3468,7 @@ def build_train_valid_test_data_iterators(build_train_valid_test_datasets_provid
         elif valid_dataloaders[0] is not None:
             valid_data_iterators = _get_iterator(dl_type, valid_dataloaders[0])
         else:
-            args.eval_iters = len(valid_dataloaders[0])
+            valid_data_iterators = None
 
     if args.multiple_validation_sets:
         if valid_dataloaders[0] is None:
