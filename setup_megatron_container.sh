@@ -99,42 +99,6 @@ print(f"[patch] Patched {n} line(s) in {FILEPATH}")
 PY
 
 python - <<'PY'
-from pathlib import Path
-
-path = Path("/usr/local/lib/python3.12/dist-packages/transformer_engine/pytorch/attention/dot_product_attention/context_parallel.py")
-
-text = path.read_text()
-
-old = """
-    if section in ["lower-triangle", "upper-triangle"]:
-        if use_flash_attn_3 or (fa_utils.v2_3_plus and not fa_utils.v2_7_0_plus):
-            fa_forward_kwargs["window_size"] = (-1, -1)
-        elif fa_utils.v2_7_0_plus:
-            fa_forward_kwargs["window_size_left"] = -1
-            fa_forward_kwargs["window_size_right"] = -1
-"""
-
-new = """
-    if section in ["lower-triangle", "upper-triangle"]:
-        if use_flash_attn_3:
-            fa_forward_kwargs.pop("window_size", None)
-            fa_forward_kwargs["window_size_left"] = -1
-            fa_forward_kwargs["window_size_right"] = -1
-        elif fa_utils.v2_7_0_plus:
-            fa_forward_kwargs["window_size_left"] = -1
-            fa_forward_kwargs["window_size_right"] = -1
-        else:
-            fa_forward_kwargs["window_size"] = (-1, -1)
-"""
-
-if old not in text:
-    raise RuntimeError("Patch target not found — file content did not match expected block.")
-
-path.write_text(text.replace(old, new))
-print("✅ Patch applied successfully to:", path)
-PY
-
-python - <<'PY'
 import transformer_engine as te
 print("TE:", getattr(te,"__version__","n/a"))
 import transformer_engine.pytorch as te_pt
