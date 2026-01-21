@@ -3469,21 +3469,6 @@ def build_train_valid_test_data_iterators(build_train_valid_test_datasets_provid
             valid_data_iterators = _get_iterator(dl_type, valid_dataloaders[0])
         else:
             valid_data_iterators = None
-
-    if args.multiple_validation_sets:
-        if valid_dataloaders[0] is None:
-            valid_data_iterators = [None] * len(valid_dataloaders)
-        else:
-            valid_dl_type = "cyclic" if args.full_validation else dl_type
-            print(
-                f"[VALID DATA LOADER LENGTHS] "
-                ", ".join(f"{idx}: {len(dl)}" for idx, dl in enumerate(valid_dataloaders))
-            )
-            valid_data_iterators = [
-                _get_iterator(valid_dl_type, dl) for dl in valid_dataloaders
-            ]
-    elif valid_dataloaders and len(valid_dataloaders) > 0 and valid_dataloaders[0] is not None:
-        valid_data_iterators = _get_iterator(dl_type, valid_dataloaders[0])
     else:
         valid_data_iterators = None
 
