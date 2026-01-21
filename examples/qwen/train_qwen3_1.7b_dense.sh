@@ -18,7 +18,7 @@ ENABLE_PROFILING=0
 ENABLE_NSYS_PROFILING=0
 
 # CRITICAL - DOUBLE CHECK THIS VALUE
-TRAINING_MODE="cpt" # set from mock, cpt, sft or distillation
+TRAINING_MODE="sft" # set from mock, cpt, sft or distillation
 
 MODEL_NAME="qwen3_1.7b"
 
@@ -162,6 +162,7 @@ TRAINING_ARGS=(
     # Computation optimisation and recomputation args
     --transformer-impl transformer_engine
     --enable-experimental
+    # --attention-backend flash
     --use-flash-attn
     --fused-linear-cross-entropy
     # --cross-entropy-loss-fusion
