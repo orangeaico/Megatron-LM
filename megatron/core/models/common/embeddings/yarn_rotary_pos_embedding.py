@@ -63,6 +63,7 @@ class YarnRotaryEmbedding(RotaryEmbedding):
         correction_range_round_to_int: bool = True,
         cp_group: Optional[torch.distributed.ProcessGroup] = None,
     ):
+        print (f"YarnEmbedding kv channels: {kv_channels}, rotary_percent: {rotary_percent}, rotary_interleaved: {rotary_interleaved}, seq_len_interpolation_factor: {seq_len_interpolation_factor}, rotary_base: {rotary_base}, use_cpu_initialization: {use_cpu_initialization}, scaling_factor: {scaling_factor}, original_max_position_embeddings: {original_max_position_embeddings}, beta_fast: {beta_fast}, beta_slow: {beta_slow}, mscale: {mscale}, mscale_all_dim: {mscale_all_dim}, correction_range_round_to_int: {correction_range_round_to_int}, cp_group: {cp_group}")
         self.dim = kv_channels
         self.rotary_base = rotary_base
         self.scaling_factor = scaling_factor

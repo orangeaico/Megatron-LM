@@ -122,12 +122,14 @@ MODEL_ARGS=(
     --max-position-embeddings $MAX_POSITION_EMBEDDINGS
     --untie-embeddings-and-output-weights
     --make-vocab-size-divisible-by 1187
-    --position-embedding-type rope
+    --position-embedding-type yarn #rope
     --rotary-base 1000000  # Same as Qwen3 rope_theta
     --rotary-percent 1.0
     --rotary-seq-len-interpolation-factor 1
-    --use-rope-scaling
-    --rope-scaling-factor 4
+    # --use-rope-scaling
+    # --rope-scaling-factor 4
+    --yarn-rotary-scaling-factor 4.0
+    --yarn-original-max-position-embeddings 40960
     --swiglu
     --norm-epsilon 1e-06
     --init-method-std 0.02  

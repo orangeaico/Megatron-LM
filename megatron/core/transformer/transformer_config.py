@@ -891,6 +891,25 @@ class TransformerConfig(ModelParallelConfig):
 
     # TRSFT alpha used to compute the gradient scaling factor.
     trsft_alpha: float = 0.1
+
+    # ---------------- YARN config ----------------
+
+    # Scaling factor for YARN
+    yarn_rotary_scaling_factor: float = 2.0
+
+    # Original max position embeddings for YARN 
+    yarn_original_max_position_embeddings: int = 40960
+
+    yarn_beta_fast: float = 32.0
+
+    yarn_beta_slow: float = 1.0
+
+    yarn_mscale: float = 1.0
+
+    yarn_mscale_all_dim: float = 0.0
+
+    yarn_correction_range_round_to_int: bool = True
+
     #####################################
     # Fine-grained Activation Offloading
     #####################################

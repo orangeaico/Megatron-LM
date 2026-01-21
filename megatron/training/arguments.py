@@ -1802,8 +1802,12 @@ def _add_network_size_args(parser):
                        help='Maximum number of position embeddings to use. '
                        'This is the size of position embedding.')
     group.add_argument('--position-embedding-type', type=str, default='learned_absolute',
-                        choices=['learned_absolute', 'rope', 'mrope', 'relative', 'none'],
+                        choices=['learned_absolute', 'rope', 'mrope', 'relative', 'none', 'yarn'],
                         help='Position embedding type.')
+    group.add_argument('--yarn-rotary-scaling-factor', type=float, default=2.0,                        
+                        help='Scaling factor for YARN position embeddings.')
+    group.add_argument('--yarn-original-max-position-embeddings', type=int, default=40960,                        
+                        help='Original max position embeddings of the model before Yarn scaling')
     group.add_argument('--relative-attention-num-buckets', type=int, default=32,
                         help='Number of buckets for relative position embeddings.')
     group.add_argument('--relative-attention-max-distance', type=int, default=128,
