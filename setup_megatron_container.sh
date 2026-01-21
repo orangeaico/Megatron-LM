@@ -106,3 +106,5 @@ print("TE PyTorch ok ->", te_pt.__file__)
 PY
 
 fi
+
+pip install transformers
