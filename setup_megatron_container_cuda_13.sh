@@ -71,7 +71,7 @@ PY
 if [ -n "${SETUP_FA3-}" ]; then
   # Install flash_attn_3
   pip install --no-index --no-deps \
-    "https://huggingface.co/datasets/himanshu-livup/wheels/resolve/main/flash_attn_3-3.0.0b1-cp39-abi3-linux_x86_64_cuda_13.whl"
+    "https://huggingface.co/datasets/himanshu-livup/wheels/resolve/main/flash_attn_3-3.0.0b1+cu13-cp39-abi3-linux_x86_64_cuda_13.whl"
 
   # Patch transformer_engine to use flash_attn_interface
   python - <<'PY'

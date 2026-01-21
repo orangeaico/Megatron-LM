@@ -102,7 +102,7 @@ pip install --no-deps accelerate
 if [ -n "${SETUP_FA3-}" ]; then
   # Install flash_attn_3
   pip install --no-index --no-deps \
-    "https://huggingface.co/datasets/himanshu-livup/wheels/resolve/main/flash_attn_3-3.0.0b1-cp39-abi3-linux_x86_64_cuda_12.whl"
+    "https://huggingface.co/datasets/himanshu-livup/wheels/resolve/main/flash_attn_3-3.0.0b1+cu12-cp39-abi3-linux_x86_64.whl"
 
   # Install transformer_engine wheel
   pip uninstall -y transformer_engine transformer-engine || true
