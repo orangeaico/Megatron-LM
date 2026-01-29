@@ -183,12 +183,12 @@ def process_example_with_tags(tokenizer, conversation_list: List[Dict[str, Any]]
     return input_ids, labels, loss_mask
 
 
-def extract_trajectory_query(traj_file: str) -> List[Dict[str, str]]:
-    """Extract messages from trajectory file using history field."""
+def extract_trajectory_query(traj_file: str, history_field: str = 'history') -> List[Dict[str, str]]:
+    """Extract messages from trajectory file using specified history field."""
     with open(traj_file, 'r') as f:
         data = json.load(f)
-    
-    history = data.get('history', [])
+
+    history = data.get(history_field, [])
     if not history:
         raise ValueError(f"No history found in {traj_file}")
     
@@ -263,7 +263,13 @@ def main():
         help='Comma-separated list of loss mask processors to use (e.g., "StrReplaceEditorProcessor,CommandGtProcessor"). '
              'Use "all" to enable all available processors. Default is None (no processors applied).'
     )
-    
+    parser.add_argument(
+        '--history-field',
+        type=str,
+        default='history',
+        help='Name of the field to extract messages from in trajectory files (default: history)'
+    )
+
     args = parser.parse_args()
     
     # Validate that at least one processing mode is selected
@@ -377,7 +383,7 @@ def main():
             
             try:
                 # Extract query from trajectory
-                messages = extract_trajectory_query(traj_file)
+                messages = extract_trajectory_query(traj_file, args.history_field)
                 
                 # Count tokens for filtering
                 token_count = count_tokens(tokenizer, messages)
