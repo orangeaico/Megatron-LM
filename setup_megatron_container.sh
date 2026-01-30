@@ -145,4 +145,4 @@ PY
 
 fi
 
-pip install transformers
+pip install transformers==4.56.1
