@@ -35,7 +35,7 @@ if [[ "$TRAINING_MODE" == "cpt" ]]; then
     TEST_DATA_PATH=$VALID_DATA_PATH
 
 elif [[ "$TRAINING_MODE" == "sft" ]]; then
-    TRAIN_DATA_PATH="$BASE_DIR/data/sft/openhands/training_traj_sft_480b_30b_635.jsonl"
+    TRAIN_DATA_PATH="$BASE_DIR/data/sft/openhands/training_traj_sft_480b_30b_372_480b_only.jsonl"
     VALID_DATA_PATH="$BASE_DIR/data/sft/openhands/validation_traj_sft_480b_30b_combined_24.jsonl"
     TEST_DATA_PATH=$VALID_DATA_PATH 
 
@@ -155,13 +155,13 @@ MOE_ARGS=(
 TRAINING_ARGS=(
     --micro-batch-size $MICRO_BATCH_SIZE
     --global-batch-size $GLOBAL_BATCH_SIZE
-    --train-samples 2560
-    --lr-decay-samples 2560
+    --train-samples 2256
+    --lr-decay-samples 2256
 
     # Learning rate args
-    --lr-warmup-samples 240
-    --lr 5.0e-6 # 5.0e-5
-    --min-lr 1.0e-6 # 5.0e-6
+    --lr-warmup-samples 160
+    --lr 1.0e-5 # 5.0e-5
+    # --min-lr 1.0e-6 # 5.0e-6
     # --decoupled-lr 8.0e-4  # Adjusted for smaller model
     # --decoupled-min-lr 8.0e-5  # Adjusted for smaller model
     --lr-decay-style cosine
@@ -172,7 +172,7 @@ TRAINING_ARGS=(
     --attention-dropout 0.0
     --hidden-dropout 0.0
     --clip-grad 1.0
-    --weight-decay 0.0
+    --weight-decay 0.01
  
     # Memory cleanup args
     --manual-gc
@@ -273,8 +273,8 @@ elif [[ "$TRAINING_MODE" == "sft" ]]; then
         "--sft"
         "--num-workers 1"
         "--no-create-attention-mask-in-dataloader"        
-        "--trsft"
-        "--trsft-alpha 0.05"
+        # "--trsft"
+        # "--trsft-alpha 0.05"
         # "--weighted-loss"
         "--variable-seq-lengths"
         # "--moe-token-dispatcher-type alltoall" # This needs to be set for variable seq lengths
@@ -314,7 +314,7 @@ CHECKPOINT_ARGS=(
     --no-save-rng
     --no-load-rng
     --no-load-optim
-    --save-interval 80
+    --save-interval 94
     --exit-on-missing-checkpoint
     # --ckpt-convert-format torch_dist
     # --ckpt-convert-save /workspace/data/himanshu/output/Qwen3-Coder-30B-A3B-Instruct/conversion/qwen3_30b_a3b_torch_dist/
@@ -322,7 +322,7 @@ CHECKPOINT_ARGS=(
 
 EVAL_AND_LOGGING_ARGS=(
     --eval-iters 3
-    --eval-interval 40
+    --eval-interval 47
     # --full-validation
     --log-interval 1
     --log-throughput
