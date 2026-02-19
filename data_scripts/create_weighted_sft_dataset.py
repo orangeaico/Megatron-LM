@@ -24,7 +24,7 @@ TAG_LOSS_MASK_VALUES = {
     "loss_mask": 0,
     "low_value_mask": 0.5,
     "medium_value_mask": 1,
-    "high_value_mask": 2,
+    "high_value_mask": 3,
     "default": 1,
 }
 
@@ -260,7 +260,7 @@ def main():
         '--loss-mask-processors',
         type=str,
         default=None,
-        help='Comma-separated list of loss mask processors to use (e.g., "StrReplaceEditorProcessor,CommandGtProcessor"). '
+        help='Comma-separated list of loss mask processors to use (e.g., "StrReplaceEditorProcessor,CommandGtProcessor,DiffProcessor"). '
              'Use "all" to enable all available processors. Default is None (no processors applied).'
     )
     parser.add_argument(

@@ -41,6 +41,14 @@ EMOJI_CORRUPTION_MAP = {
     # 'âĸ': '⚠️',   # Warning sign
 }
 
+# Keywords used to identify source file paths in str_replace actions.
+# DiffProcessor only processes str_replace actions on files whose paths
+# contain at least one of these keywords. Add new keywords here to expand coverage.
+SOURCE_FILE_KEYWORDS = [
+    'xarray',
+]
+
+
 def apply_unicode_corrections(text: str) -> str:
     """Apply Unicode corruption corrections to text.
     
@@ -1047,7 +1055,7 @@ class DiffProcessor(LossMaskProcessor):
     
     def __init__(self):
         super().__init__()
-        self.mask_value = 2  # Set mask value to 2 for this processor
+        self.mask_value = 3  # Set mask value to 2 for this processor
     
     def _extract_parameter(self, content: str, param_name: str) -> Optional[str]:
         """Extract parameter value from XML content."""
@@ -1187,40 +1195,64 @@ class DiffProcessor(LossMaskProcessor):
         # Return the absolute position in content
         return search_from + block_pos
     
-    def process(self, tokenizer, token_ids: List[int], msg_dict: Dict[str, Any], 
+    def _is_source_file(self, content: str) -> bool:
+        """Check if the path parameter refers to a source file.
+
+        Extracts the path parameter from the XML content, splits it on '/'
+        and checks whether any component is an exact match for a keyword in
+        SOURCE_FILE_KEYWORDS.
+
+        Returns:
+            True if any path component exactly matches a source file keyword,
+            False otherwise.
+        """
+        path = self._extract_parameter(content, 'path')
+        if path is None:
+            return False
+        path_parts = set(path.strip().split('/'))
+        return any(keyword in path_parts for keyword in SOURCE_FILE_KEYWORDS)
+
+    def process(self, tokenizer, token_ids: List[int], msg_dict: Dict[str, Any],
                 assistant_turn: int) -> List[int]:
         """
         Process str_replace commands and return indices of diff tokens to mask.
-        
+
         Args:
             tokenizer: The tokenizer instance
             token_ids: List of token IDs for the message
             msg_dict: Dictionary containing 'role' and 'content' fields
             assistant_turn: The turn number for assistant messages
-            
+
         Returns:
             List of token indices that should be masked (diff tokens)
         """
         # Skip non-assistant messages
         if msg_dict.get("role") != "assistant":
             return []
-        
+
         content = msg_dict.get("content", "")
-        
+
         # Check if content contains str_replace_editor function call
         if '<function=str_replace_editor>' not in content:
             return []
-        
+
         # Check if it's a str_replace command
         is_str_replace = False
-        
+
         if self._check_command_type(content, 'str_replace'):
             is_str_replace = True
         elif '<parameter=old_str>' in content:
             is_str_replace = True
-        
+
         if not is_str_replace:
             return []
+
+        # Only process str_replace actions on source files
+        if not self._is_source_file(content):
+            return []
+        if DEBUG_MODE:
+            source_path = self._extract_parameter(content, 'path')
+            print(f"DiffProcessor: processing str_replace on source file: {source_path.strip() if source_path else 'unknown'}")
         
         # Extract old_str and new_str
         old_str = self._extract_parameter(content, 'old_str')
