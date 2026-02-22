@@ -35,8 +35,8 @@ if [[ "$TRAINING_MODE" == "cpt" ]]; then
     TEST_DATA_PATH=$VALID_DATA_PATH
 
 elif [[ "$TRAINING_MODE" == "sft" ]]; then
-    TRAIN_DATA_PATH="$BASE_DIR/data/sft/openhands/training_traj_sft_480b_30b_372_480b_only.jsonl"
-    VALID_DATA_PATH="$BASE_DIR/data/sft/openhands/validation_traj_sft_480b_30b_combined_24.jsonl"
+    TRAIN_DATA_PATH="$BASE_DIR/data/sft/critical_actions_19_feb/training_traj_critical_actions.jsonl"
+    VALID_DATA_PATH="$BASE_DIR/data/sft/validation_set_480b/validation_set_pr_mirror_sft_loss_mask.jsonl"
     TEST_DATA_PATH=$VALID_DATA_PATH 
 
 elif [[ "$TRAINING_MODE" == "distillation" ]]; then
@@ -155,8 +155,8 @@ MOE_ARGS=(
 TRAINING_ARGS=(
     --micro-batch-size $MICRO_BATCH_SIZE
     --global-batch-size $GLOBAL_BATCH_SIZE
-    --train-samples 2256
-    --lr-decay-samples 2256
+    --train-samples 2688
+    --lr-decay-samples 2688
 
     # Learning rate args
     --lr-warmup-samples 160
@@ -275,7 +275,7 @@ elif [[ "$TRAINING_MODE" == "sft" ]]; then
         "--no-create-attention-mask-in-dataloader"        
         # "--trsft"
         # "--trsft-alpha 0.05"
-        # "--weighted-loss"
+        "--weighted-loss"
         "--variable-seq-lengths"
         # "--moe-token-dispatcher-type alltoall" # This needs to be set for variable seq lengths
 
@@ -314,7 +314,7 @@ CHECKPOINT_ARGS=(
     --no-save-rng
     --no-load-rng
     --no-load-optim
-    --save-interval 94
+    --save-interval 112
     --exit-on-missing-checkpoint
     # --ckpt-convert-format torch_dist
     # --ckpt-convert-save /workspace/data/himanshu/output/Qwen3-Coder-30B-A3B-Instruct/conversion/qwen3_30b_a3b_torch_dist/
@@ -322,7 +322,7 @@ CHECKPOINT_ARGS=(
 
 EVAL_AND_LOGGING_ARGS=(
     --eval-iters 3
-    --eval-interval 47
+    --eval-interval 56
     # --full-validation
     --log-interval 1
     --log-throughput
