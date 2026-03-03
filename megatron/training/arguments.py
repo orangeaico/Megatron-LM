@@ -1323,12 +1323,12 @@ def validate_args(args, defaults={}):
             assert os.getenv("NVTE_CPU_OFFLOAD_V1", "0") == "1", \
                 "For fine-grained activation offloading with TE >= 2.10.0, NVTE_CPU_OFFLOAD_V1 should be set to 1 to avoid offloading weights."
 
-    if args.mtp_num_layers:
-        assert not args.use_legacy_models, "The legacy Megatron models does not support Multi-Token Prediction (MTP)."
-        assert args.position_embedding_type == "rope" or args.position_embedding_type == "none", (
-            f"Multi-Token Prediction (MTP) is not supported with {args.position_embedding_type} position embedding type."
-            + f"The supported position embedding types are rope and none."
-        )
+    # if args.mtp_num_layers:
+    #     assert not args.use_legacy_models, "The legacy Megatron models does not support Multi-Token Prediction (MTP)."
+    #     assert args.position_embedding_type == "rope" or args.position_embedding_type == "none", (
+    #         f"Multi-Token Prediction (MTP) is not supported with {args.position_embedding_type} position embedding type."
+    #         + f"The supported position embedding types are rope and none."
+    #     )
 
     if args.cpu_offloading_num_layers > 0:
         args.cpu_offloading = True

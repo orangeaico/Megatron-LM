@@ -197,6 +197,10 @@ def forward_step(data_iterator, model: GPTModel, return_schedule_plan: bool = Fa
         tokens, labels, loss_mask, attention_mask, position_ids, packed_seq_params, teacher_data = get_batch(
             data_iterator, vp_stage
         )
+        if (args.position_embedding_type == "mrope"
+            and position_ids is not None
+            and position_ids.dim() == 2):   # [batch, seq]
+            position_ids = position_ids.unsqueeze(0).expand(3, -1, -1).contiguous()  # [3, batch, seq]
     timers('batch-generator').stop()
 
     with stimer, mem_phase("FORWARD", do_barrier=True), nvtx_range("FORWARD"):

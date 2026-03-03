@@ -350,8 +350,12 @@ class MultimodalRotaryEmbedding(nn.Module):
 
         # shape (seq_length, bs, 1, 2 * dim)
         emb = emb[..., None, :].transpose(0, 1).contiguous()
-        if cp_group is None:
-            cp_group = self.cp_group
+        # remove implicit fallback to self.cp_group for non-packed path
+        # current:
+        # if cp_group is None:
+        #     cp_group = self.cp_group
+        if cp_group is not None and cp_group.size() > 1:
+            emb = get_pos_emb_on_this_cp_rank(emb, 0, cp_group)
         if cp_group is not None and cp_group.size() > 1:
             # slice rotary_pos_emb along sequence dimension and select the parition of the current
             # CP rank
