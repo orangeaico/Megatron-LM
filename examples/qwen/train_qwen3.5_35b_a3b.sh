@@ -16,12 +16,12 @@ ENABLE_NSYS_PROFILING=${ENABLE_NSYS_PROFILING:-0}
 # User-editable section
 # -----------------------------------------------------------------------------
 TRAINING_MODE="sft"    # mock | cpt | sft
-MODEL_NAME="Qwen3.5-35B-A3B-RandInit-TextOnly"
+MODEL_NAME="Qwen3.5-35B-A3B"
 TIMESTAMP=$(date +"%Y_%m_%d_%H_%M_%S")
 
 BASE_DIR="${BASE_DIR:-/workspace/data}"
-TOKENIZER_DIR="$BASE_DIR/mega-models/Qwen3-1.7B"   # HF snapshot dir with tokenizer.json etc.
-LOAD_CHECKPOINT_PATH="${LOAD_CHECKPOINT_PATH:-$BASE_DIR/mega-models/Qwen3.5-35B-A3B_torch_tp2_ep2}"
+TOKENIZER_DIR="$BASE_DIR/mega-models/Qwen3.5-35B-A3B_torch_tp2_ep8"   # HF snapshot dir with tokenizer.json etc.
+LOAD_CHECKPOINT_PATH="${LOAD_CHECKPOINT_PATH:-$BASE_DIR/mega-models/Qwen3.5-35B-A3B_torch_tp2_ep8}"
 
 # Data paths
 if [[ "$TRAINING_MODE" == "cpt" ]]; then
@@ -86,7 +86,7 @@ fi
 # Parallelism (must satisfy: world_size = TP * PP * CP * EP * DP)
 TP_SIZE=2
 CP_SIZE=4
-EP_SIZE=2
+EP_SIZE=8
 PP_SIZE=1
 EXPERT_TP_SIZE=1
 
