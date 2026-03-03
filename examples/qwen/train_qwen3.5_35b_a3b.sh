@@ -60,7 +60,7 @@ echo "Out: $BASE_OUTPUT_DIR"
 # -----------------------------------------------------------------------------
 # Distributed setup
 # -----------------------------------------------------------------------------
-GPUS_PER_NODE=2
+GPUS_PER_NODE=8
 NUM_NODES=1
 MASTER_ADDR=${MASTER_ADDR:-localhost}
 MASTER_PORT=${MASTER_PORT:-6000}
@@ -85,7 +85,7 @@ fi
 # -----------------------------------------------------------------------------
 # Parallelism (must satisfy: world_size = TP * PP * CP * EP * DP)
 TP_SIZE=2
-CP_SIZE=1
+CP_SIZE=4
 EP_SIZE=2
 PP_SIZE=1
 EXPERT_TP_SIZE=1
