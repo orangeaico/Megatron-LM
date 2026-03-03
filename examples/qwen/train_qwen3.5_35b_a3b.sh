@@ -84,9 +84,9 @@ fi
 # Model: Qwen3.5-35B-A3B (text_config) from HF config.json
 # -----------------------------------------------------------------------------
 # Parallelism (must satisfy: world_size = TP * PP * CP * EP * DP)
-TP_SIZE=1
-CP_SIZE=2
-EP_SIZE=1
+TP_SIZE=2
+CP_SIZE=1
+EP_SIZE=2
 PP_SIZE=1
 EXPERT_TP_SIZE=1
 
@@ -255,6 +255,8 @@ TRAINING_ARGS=(
   --ckpt-format torch
   --dist-ckpt-strictness log_all
   --distributed-timeout-minutes 60
+  --ckpt-convert-format torch_dist
+  --ckpt-convert-save /workspace/data/mega-models/Qwen3.5-35B-A3B_torch_dist/
 )
 
 # -----------------------------------------------------------------------------
