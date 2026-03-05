@@ -255,6 +255,7 @@ TRAINING_ARGS=(
   --no-load-optim
   --no-load-rng
   --ckpt-format torch
+  --auto-detect-ckpt-format
   --dist-ckpt-strictness log_all
   --distributed-timeout-minutes 60
   # --ckpt-convert-format torch_dist
