@@ -9,7 +9,7 @@ export PYTORCH_CUDA_ALLOC_CONF=${PYTORCH_CUDA_ALLOC_CONF:-expandable_segments:Tr
 export NVTE_ALLOW_NONDETERMINISTIC_ALGO=${NVTE_ALLOW_NONDETERMINISTIC_ALGO:-1}
 export NCCL_NVLS_ENABLE=${NCCL_NVLS_ENABLE:-0}
 
-ENABLE_PROFILING=${ENABLE_PROFILING:-0}
+ENABLE_PROFILING=${ENABLE_PROFILING:-1}
 ENABLE_NSYS_PROFILING=${ENABLE_NSYS_PROFILING:-0}
 
 # -----------------------------------------------------------------------------
@@ -47,9 +47,10 @@ BASE_OUTPUT_DIR="${BASE_OUTPUT_DIR:-$BASE_DIR/output/$TIMESTAMP}"
 SAVE_CHECKPOINT_PATH="$BASE_OUTPUT_DIR/$MODEL_NAME/checkpoints"
 DATA_CACHE_PATH="$BASE_OUTPUT_DIR/$MODEL_NAME/data_cache"
 TENSORBOARD_LOGS_PATH="$BASE_OUTPUT_DIR/$MODEL_NAME/tensorboard"
+MEMORY_SNAPSHOT_PATH="$BASE_OUTPUT_DIR/$MODEL_NAME/memory_snapshots/memory_snapshot.pickle"
 LOG_DIR_PATH="$BASE_OUTPUT_DIR/$MODEL_NAME/logs"
 
-mkdir -p "$SAVE_CHECKPOINT_PATH" "$DATA_CACHE_PATH" "$TENSORBOARD_LOGS_PATH" "$LOG_DIR_PATH"
+mkdir -p "$SAVE_CHECKPOINT_PATH" "$DATA_CACHE_PATH" "$TENSORBOARD_LOGS_PATH" "$LOG_DIR_PATH" "$(dirname "$MEMORY_SNAPSHOT_PATH")"
 
 echo "Mode: $TRAINING_MODE"
 echo "Tokenizer: $TOKENIZER_DIR"
@@ -84,11 +85,11 @@ fi
 # Model: Qwen3.5-35B-A3B (text_config) from HF config.json
 # -----------------------------------------------------------------------------
 # Parallelism (must satisfy: world_size = TP * PP * CP * EP * DP)
-TP_SIZE=2
+TP_SIZE=1
 CP_SIZE=1
-EP_SIZE=2
+EP_SIZE=8
 PP_SIZE=1
-EXPERT_TP_SIZE=4
+EXPERT_TP_SIZE=1
 
 NUM_LAYERS=80
 HIDDEN_SIZE=2048
@@ -302,15 +303,24 @@ fi
 # -----------------------------------------------------------------------------
 # Optional profiling
 # -----------------------------------------------------------------------------
-LOGGING_ARGS=()
-if [[ "$ENABLE_PROFILING" == "1" ]]; then
-  LOGGING_ARGS+=(
-    --tensorboard-dir "$TENSORBOARD_LOGS_PATH"
+EVAL_AND_LOGGING_ARGS=()
+if [[ "$ENABLE_PROFILING" == 1 ]]; then
+  EVAL_AND_LOGGING_ARGS+=(
+    --profile
+    --profile-step-start 0
+    --profile-step-end 1
+    --profile-ranks 0
+    --use-pytorch-profiler
     --log-timers-to-tensorboard
     --log-validation-ppl-to-tensorboard
     --log-memory-to-tensorboard
+    --record-memory-history
+    --memory-snapshot-path "$MEMORY_SNAPSHOT_PATH"
     --timing-log-level 2
     --logging-level 10
+    --timing-log-option all
+    --tensorboard-dir "$TENSORBOARD_LOGS_PATH"
+    # --dump-model-params-to-pickle
   )
 fi
 
@@ -333,5 +343,5 @@ $NSYS_PROFILE_COMMAND torchrun "${DISTRIBUTED_ARGS[@]}" \
   "${MODEL_PARALLEL_ARGS[@]}" \
   "${TRAINING_ARGS[@]}" \
   "${DATA_ARGS_LIST[@]}" \
-  "${LOGGING_ARGS[@]}"
+  "${EVAL_AND_LOGGING_ARGS[@]}"
 set +x
