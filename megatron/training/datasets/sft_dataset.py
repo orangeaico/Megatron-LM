@@ -97,22 +97,64 @@ class SFTDataset(MegatronDataset):
 
         return hf_tokenizer.eos_token_id
 
-    def _process_example(self, tokenizer, conversation_list: Dict[str, Any]):        
+    @staticmethod
+    def _extract_input_ids(template_output: Union[dict, list, np.ndarray, torch.Tensor]) -> list:
+        """Normalize apply_chat_template output into a Python list of token ids."""
+        if hasattr(template_output, "input_ids"):
+            input_ids = template_output.input_ids
+        elif isinstance(template_output, dict):
+            input_ids = template_output["input_ids"]
+        else:
+            input_ids = template_output
+        if hasattr(input_ids, "tolist"):
+            input_ids = input_ids.tolist()
+        return list(input_ids)
+
+    def _process_example(self, tokenizer, conversation_list: Dict[str, Any]):
         if not isinstance(conversation_list, list):
             raise ValueError(f"The sample must be a list but got {type(conversation_list)}")
 
-        input_ids = []
-        labels = []
-        # Tokenize message-by-message using the chat template so formatting stays consistent
-        for i, m in enumerate(conversation_list):
-            seg_ids = tokenizer.apply_chat_template(
-                [m], tokenize=True, add_generation_prompt=False
-            )['input_ids']
-            input_ids.extend(seg_ids)
-            if m["role"] == "assistant":
-                labels.extend(seg_ids)                
-            else:
-                labels.extend([IGNORE_INDEX] * len(seg_ids))
+        # Normalize roles/content before templating.
+        conversation = []
+        for message in conversation_list:
+            if not isinstance(message, dict):
+                continue
+            role = str(message.get("role", "")).strip().lower()
+            if role == "":
+                continue
+            content = message.get("content", "")
+            if content is None:
+                content = ""
+            conversation.append({"role": role, "content": str(content)})
+
+        if len(conversation) == 0:
+            raise ValueError("The sample has no valid conversation messages.")
+
+        # Tokenize full conversation once.
+        full_out = tokenizer.apply_chat_template(
+            conversation, tokenize=True, add_generation_prompt=False
+        )
+        input_ids = self._extract_input_ids(full_out)
+        labels = [IGNORE_INDEX] * len(input_ids)
+
+        # Compute per-turn token spans from prefix diffs; train only assistant turns.
+        prev_ids = []
+        for i, message in enumerate(conversation):
+            prefix_out = tokenizer.apply_chat_template(
+                conversation[: i + 1], tokenize=True, add_generation_prompt=False
+            )
+            prefix_ids = self._extract_input_ids(prefix_out)
+            if len(prefix_ids) < len(prev_ids):
+                raise ValueError("Chat template tokenization is not monotonic across message prefixes.")
+
+            span_start = len(prev_ids)
+            span_end = len(prefix_ids)
+            if message["role"] == "assistant":
+                labels[span_start:span_end] = prefix_ids[span_start:span_end]
+            prev_ids = prefix_ids
+
+        if len(prev_ids) != len(input_ids):
+            raise ValueError("Prefix tokenization mismatch with full conversation tokenization.")
 
         # Always add EOS between samples, but don’t train on it
         # input_ids = input_ids + [self._get_eos_id(tokenizer)]

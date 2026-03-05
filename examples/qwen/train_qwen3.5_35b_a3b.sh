@@ -85,10 +85,10 @@ fi
 # -----------------------------------------------------------------------------
 # Parallelism (must satisfy: world_size = TP * PP * CP * EP * DP)
 TP_SIZE=2
-CP_SIZE=4
-EP_SIZE=8
+CP_SIZE=1
+EP_SIZE=2
 PP_SIZE=1
-EXPERT_TP_SIZE=1
+EXPERT_TP_SIZE=4
 
 NUM_LAYERS=80
 HIDDEN_SIZE=2048
