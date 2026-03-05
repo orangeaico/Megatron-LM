@@ -195,7 +195,7 @@ MODEL_PARALLEL_ARGS=(
 # Training args (load pretrained weights; do not restore optimizer/RNG)
 # -----------------------------------------------------------------------------
 MICRO_BATCH_SIZE=1
-GLOBAL_BATCH_SIZE=4
+GLOBAL_BATCH_SIZE=8
 
 TRAINING_ARGS=(
   --micro-batch-size $MICRO_BATCH_SIZE
