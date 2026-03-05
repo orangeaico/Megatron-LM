@@ -107,7 +107,7 @@ class SFTDataset(MegatronDataset):
         for i, m in enumerate(conversation_list):
             seg_ids = tokenizer.apply_chat_template(
                 [m], tokenize=True, add_generation_prompt=False
-            )
+            )['input_ids']
             input_ids.extend(seg_ids)
             if m["role"] == "assistant":
                 labels.extend(seg_ids)                
