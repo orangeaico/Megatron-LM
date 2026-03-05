@@ -1502,7 +1502,7 @@ def load_checkpoint(ddp_model, optimizer, opt_param_scheduler, load_arg='load', 
             if tp_group is None and pp_group is None:
                 tp_group = mpu.get_tensor_model_parallel_group()
                 pp_group = mpu.get_pipeline_model_parallel_group()
-            gen_sd_rng_state = get_rng_state(args.ckpt_format, tp_group, pp_group)  # we can load the rng state
+            gen_sd_rng_state = get_rng_state(ckpt_format, tp_group, pp_group)  # we can load the rng state
         else:
             ignore_rng_state = True
             gen_sd_rng_state = None
@@ -1590,8 +1590,11 @@ def load_checkpoint(ddp_model, optimizer, opt_param_scheduler, load_arg='load', 
             if args.finetune and hasattr(model[0], "hide_loss_modules"):
                 for m in model:
                     stack.enter_context(m.hide_loss_modules())
+            # When auto-detecting, we must generate the load template in the detected format.
+            load_gen_args = types.SimpleNamespace(**vars(args))
+            load_gen_args.ckpt_format = ckpt_format
             load_kwargs['sharded_state_dict'] = generate_state_dict(
-                args, model, gen_sd_optim, gen_sd_opt_param_scheduler, gen_sd_rng_state,
+                load_gen_args, model, gen_sd_optim, gen_sd_opt_param_scheduler, gen_sd_rng_state,
                 optim_sd_kwargs=optim_sd_kwargs, model_sd_kwargs=model_sd_kwargs,
                 rerun_state=gen_sd_rerun_state
             )

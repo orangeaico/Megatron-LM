@@ -201,12 +201,12 @@ TRAINING_ARGS=(
   --global-batch-size $GLOBAL_BATCH_SIZE
 
   # pick either train-iters or train-samples; using train-iters is simplest
-  --train-iters ${TRAIN_ITERS:-1000}
+  --train-iters ${TRAIN_ITERS:-10}
 
   --lr ${LR:-1.0e-4}
   --min-lr ${MIN_LR:-1.0e-5}
   --lr-decay-style cosine
-  --lr-warmup-iters ${WARMUP_ITERS:-100}
+  --lr-warmup-iters ${WARMUP_ITERS:-1}
 
   --adam-beta1 0.9
   --adam-beta2 0.95
@@ -248,7 +248,7 @@ TRAINING_ARGS=(
   --eval-iters 5
 
   --save $SAVE_CHECKPOINT_PATH
-  --save-interval 200
+  --save-interval ${SAVE_INTERVAL:-10}
   --load "$LOAD_CHECKPOINT_PATH"
   --no-save-optim
   --no-save-rng
