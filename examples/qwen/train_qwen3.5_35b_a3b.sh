@@ -250,6 +250,8 @@ TRAINING_ARGS=(
   --save $SAVE_CHECKPOINT_PATH
   --save-interval 200
   --load "$LOAD_CHECKPOINT_PATH"
+  --no-save-optim
+  --no-save-rng
   --no-load-optim
   --no-load-rng
   --ckpt-format torch
