@@ -20,8 +20,8 @@ MODEL_NAME="Qwen3.5-35B-A3B"
 TIMESTAMP=$(date +"%Y_%m_%d_%H_%M_%S")
 
 BASE_DIR="${BASE_DIR:-/workspace/data}"
-TOKENIZER_DIR="$BASE_DIR/mega-models/Qwen3.5-35B-A3B_torch_tp2_ep8"   # HF snapshot dir with tokenizer.json etc.
-LOAD_CHECKPOINT_PATH="${LOAD_CHECKPOINT_PATH:-$BASE_DIR/mega-models/Qwen3.5-35B-A3B_torch_tp2_ep8}"
+TOKENIZER_DIR="/workspace/Pai-Megatron-Patch/mega-models/Qwen3.5-35B-A3B-torch_tp2_ep2"   # HF snapshot dir with tokenizer.json etc.
+LOAD_CHECKPOINT_PATH="${LOAD_CHECKPOINT_PATH:-/workspace/Pai-Megatron-Patch/mega-models/Qwen3.5-35B-A3B-torch_tp2_ep2}"
 
 # Data paths
 if [[ "$TRAINING_MODE" == "cpt" ]]; then
