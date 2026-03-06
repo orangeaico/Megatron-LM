@@ -21,7 +21,7 @@ TIMESTAMP=$(date +"%Y_%m_%d_%H_%M_%S")
 
 BASE_DIR="${BASE_DIR:-/workspace/data}"
 TOKENIZER_DIR="$BASE_DIR/mega-models/Qwen3.5-35B-A3B_torch_tp2_ep8"   # HF snapshot dir with tokenizer.json etc.
-LOAD_CHECKPOINT_PATH="${LOAD_CHECKPOINT_PATH:-$BASE_DIR/mega-models/Qwen3.5-35B-A3B_torch_dist/torch_dist}"
+LOAD_CHECKPOINT_PATH="${LOAD_CHECKPOINT_PATH:-$BASE_DIR/mega-models/Qwen3.5-35B-A3B_torch_tp2_ep8}"
 
 # Data paths
 if [[ "$TRAINING_MODE" == "cpt" ]]; then
@@ -85,13 +85,13 @@ fi
 # Model: Qwen3.5-35B-A3B (text_config) from HF config.json
 # -----------------------------------------------------------------------------
 # Parallelism (must satisfy: world_size = TP * PP * CP * EP * DP)
-TP_SIZE=1
+TP_SIZE=2
 CP_SIZE=1
 EP_SIZE=8
 PP_SIZE=1
 EXPERT_TP_SIZE=1
 
-NUM_LAYERS=80
+NUM_LAYERS=40
 HIDDEN_SIZE=2048
 
 # Qwen3.5 full-attn params: heads=16, kv_heads=2, head_dim=256
@@ -255,12 +255,13 @@ TRAINING_ARGS=(
   --no-save-rng
   --no-load-optim
   --no-load-rng
+  # --finetune
   --ckpt-format torch
   --auto-detect-ckpt-format
-  --dist-ckpt-strictness log_all
+  --dist-ckpt-strictness ${DIST_CKPT_STRICTNESS:-raise_all}
   --distributed-timeout-minutes 60
-  # --ckpt-convert-format torch_dist
-  # --ckpt-convert-save /workspace/data/mega-models/Qwen3.5-35B-A3B_torch_dist/
+  --ckpt-convert-format torch_dist
+  --ckpt-convert-save /workspace/data/mega-models/Qwen3.5-35B-A3B_torch_dist/
 )
 
 # -----------------------------------------------------------------------------
