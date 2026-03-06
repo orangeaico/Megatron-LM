@@ -93,6 +93,7 @@ EXPERT_TP_SIZE=1
 
 NUM_LAYERS=40
 HIDDEN_SIZE=2048
+FFN_HIDDEN_SIZE=5120
 
 # Qwen3.5 full-attn params: heads=16, kv_heads=2, head_dim=256
 NUM_HEADS=16
@@ -107,10 +108,15 @@ PADDED_VOCAB_SIZE=248320
 SEQ_LENGTH=${SEQ_LENGTH:-4096}           # practical training length; can raise later
 MAX_POSITION_EMBEDDINGS=262144
 
+# Explicit LA/FA pattern from Qwen3.5 text_config.layer_types:
+# 1=linear_attention, 0=full_attention.
+LINEAR_ATTENTION_FREQ="[1,1,1,0,1,1,1,0,1,1,1,0,1,1,1,0,1,1,1,0,1,1,1,0,1,1,1,0,1,1,1,0,1,1,1,0,1,1,1,0]"
+
 MODEL_ARGS=(
   --use-mcore-models
   --num-layers $NUM_LAYERS
   --hidden-size $HIDDEN_SIZE
+  --ffn-hidden-size $FFN_HIDDEN_SIZE
   --seq-length $SEQ_LENGTH
   --max-position-embeddings $MAX_POSITION_EMBEDDINGS
 
@@ -141,12 +147,11 @@ MODEL_ARGS=(
   --rotary-percent 0.25
 )
 
-# Hybrid attention schedule: linear attention + full attention every 4 layers
-# (Qwen3.5 config uses full_attention_interval=4)
+# Hybrid attention schedule from explicit Qwen3.5 layer_types.
 HYBRID_ATTN_ARGS=(
   --enable-experimental
   --experimental-attention-variant gated_delta_net
-  --linear-attention-freq 4
+  --linear-attention-freq "$LINEAR_ATTENTION_FREQ"
 
   # linear attention params from HF config
   --linear-conv-kernel-dim 4
