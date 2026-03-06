@@ -260,8 +260,8 @@ TRAINING_ARGS=(
   --auto-detect-ckpt-format
   --dist-ckpt-strictness ${DIST_CKPT_STRICTNESS:-raise_all}
   --distributed-timeout-minutes 60
-  --ckpt-convert-format torch_dist
-  --ckpt-convert-save /workspace/data/mega-models/Qwen3.5-35B-A3B_torch_dist/
+  --ckpt-convert-format torch
+  --ckpt-convert-save /workspace/data/mega-models/Qwen3.5-35B-A3B_torch/
 )
 
 # -----------------------------------------------------------------------------

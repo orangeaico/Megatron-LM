@@ -14,7 +14,7 @@ from megatron.core.inference.utils import get_attention_mask
 from megatron.core.models.gpt import GPTModel
 from megatron.core.process_groups_config import ProcessGroupCollection
 from megatron.core.transformer.enums import AttnBackend
-from megatron.core.utils import get_model_config
+from megatron.core.utils import get_attr_wrapped_model, get_model_config
 
 
 # pylint: disable=line-too-long
@@ -96,6 +96,9 @@ class GPTInferenceWrapper(AbstractModelInferenceWrapper):
             .unsqueeze(0)
             .expand_as(prompts_tokens)
         )
+        position_embedding_type = get_attr_wrapped_model(self.model, "position_embedding_type")
+        if position_embedding_type == "mrope":
+            position_ids = position_ids.unsqueeze(0).expand(3, -1, -1).contiguous()
 
         return attention_mask, position_ids
 
@@ -121,7 +124,10 @@ class GPTInferenceWrapper(AbstractModelInferenceWrapper):
         position_ids = inference_input["position_ids"]
         attention_mask = inference_input["attention_mask"]
         tokens2use = tokens[:, context_start_position:context_end_position]
-        positions2use = position_ids[:, context_start_position:context_end_position]
+        if position_ids.dim() == 3:
+            positions2use = position_ids[:, :, context_start_position:context_end_position]
+        else:
+            positions2use = position_ids[:, context_start_position:context_end_position]
         if attention_mask is not None:
             attention_mask2use = attention_mask[
                 ..., context_start_position:context_end_position, :context_end_position

@@ -13,7 +13,7 @@ cd "$MEGATRON_ROOT"
 
 MODEL_NAME="${MODEL_NAME:-Qwen3.5-35B-A3B}"
 BASE_DIR="${BASE_DIR:-/workspace/data}"
-MODEL_PATH="${MODEL_PATH:-$BASE_DIR/mega-models/Qwen3.5-35B-A3B_torch_dist/torch_dist}"
+MODEL_PATH="${MODEL_PATH:-$BASE_DIR/mega-models/Qwen3.5-35B-A3B_torch_tp2_ep8}"
 TOKENIZER_PATH="${TOKENIZER_PATH:-$BASE_DIR/mega-models/Qwen3.5-35B-A3B_torch_tp2_ep8}"
 
 PROMPT=${PROMPT:-"<|im_start|>system
@@ -57,11 +57,6 @@ MOE_SHARED_EXPERT_INTERMEDIATE_SIZE="${MOE_SHARED_EXPERT_INTERMEDIATE_SIZE:-512}
 MOE_ROUTER_TOPK="${MOE_ROUTER_TOPK:-8}"
 
 WORLD_SIZE=$((GPUS_PER_NODE * NUM_NODES))
-MP_PRODUCT=$((TP_SIZE * PP_SIZE * CP_SIZE * EP_SIZE))
-if (( WORLD_SIZE % MP_PRODUCT != 0 )); then
-  echo "ERROR: WORLD_SIZE (${WORLD_SIZE}) must be divisible by TP*PP*CP*EP (${MP_PRODUCT})."
-  exit 1
-fi
 
 if [[ ! -f "$MEGATRON_ROOT/examples/inference/gpt/gpt_static_inference.py" ]]; then
   echo "ERROR: gpt_static_inference.py not found. Set MEGATRON_ROOT or run from Megatron-LM checkout."
