@@ -87,7 +87,7 @@ fi
 # Parallelism (must satisfy: world_size = TP * PP * CP * EP * DP)
 TP_SIZE=2
 CP_SIZE=1
-EP_SIZE=2
+EP_SIZE=8
 PP_SIZE=1
 EXPERT_TP_SIZE=1
 
@@ -265,8 +265,8 @@ TRAINING_ARGS=(
   --auto-detect-ckpt-format
   --dist-ckpt-strictness raise_unexpected
   --distributed-timeout-minutes 60
-  --ckpt-convert-format torch_dist
-  --ckpt-convert-save /workspace/data/mega-models/Qwen3.5-35B-A3B_torch/
+  # --ckpt-convert-format torch_dist
+  # --ckpt-convert-save /workspace/data/mega-models/Qwen3.5-35B-A3B_torch/
 )
 
 # -----------------------------------------------------------------------------
