@@ -61,7 +61,7 @@ echo "Out: $BASE_OUTPUT_DIR"
 # -----------------------------------------------------------------------------
 # Distributed setup
 # -----------------------------------------------------------------------------
-GPUS_PER_NODE=8
+GPUS_PER_NODE=2
 NUM_NODES=1
 MASTER_ADDR=${MASTER_ADDR:-localhost}
 MASTER_PORT=${MASTER_PORT:-6000}
@@ -87,7 +87,7 @@ fi
 # Parallelism (must satisfy: world_size = TP * PP * CP * EP * DP)
 TP_SIZE=2
 CP_SIZE=1
-EP_SIZE=8
+EP_SIZE=2
 PP_SIZE=1
 EXPERT_TP_SIZE=1
 
@@ -262,7 +262,6 @@ TRAINING_ARGS=(
   --no-load-rng
   # --finetune
   --ckpt-format torch_dist
-  --auto-detect-ckpt-format
   --dist-ckpt-strictness raise_unexpected
   --distributed-timeout-minutes 60
   # --ckpt-convert-format torch_dist
