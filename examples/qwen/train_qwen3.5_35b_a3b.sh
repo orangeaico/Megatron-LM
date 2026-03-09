@@ -20,8 +20,8 @@ MODEL_NAME="Qwen3.5-35B-A3B"
 TIMESTAMP=$(date +"%Y_%m_%d_%H_%M_%S")
 
 BASE_DIR="${BASE_DIR:-/workspace/data}"
-TOKENIZER_DIR="/workspace/Pai-Megatron-Patch/mega-models/Qwen3.5-35B-A3B-torch_tp2_ep2"   # HF snapshot dir with tokenizer.json etc.
-LOAD_CHECKPOINT_PATH="${LOAD_CHECKPOINT_PATH:-/workspace/Pai-Megatron-Patch/mega-models/Qwen3.5-35B-A3B-torch_tp2_ep2}"
+TOKENIZER_DIR="${TOKENIZER_DIR:-/workspace/Pai-Megatron-Patch/mega-models/Qwen3.5-35B-A3B-torch_dist}"   # HF snapshot dir with tokenizer.json etc.
+LOAD_CHECKPOINT_PATH="${LOAD_CHECKPOINT_PATH:-/workspace/Pai-Megatron-Patch/mega-models/Qwen3.5-35B-A3B-torch_dist}"
 
 # Data paths
 if [[ "$TRAINING_MODE" == "cpt" ]]; then
@@ -261,11 +261,11 @@ TRAINING_ARGS=(
   --no-load-optim
   --no-load-rng
   # --finetune
-  --ckpt-format torch
+  --ckpt-format torch_dist
   --auto-detect-ckpt-format
   --dist-ckpt-strictness ${DIST_CKPT_STRICTNESS:-raise_all}
   --distributed-timeout-minutes 60
-  --ckpt-convert-format torch
+  --ckpt-convert-format torch_dist
   --ckpt-convert-save /workspace/data/mega-models/Qwen3.5-35B-A3B_torch/
 )
 
