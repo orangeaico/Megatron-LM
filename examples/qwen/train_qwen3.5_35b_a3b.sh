@@ -21,7 +21,7 @@ TIMESTAMP=$(date +"%Y_%m_%d_%H_%M_%S")
 
 BASE_DIR="${BASE_DIR:-/workspace/data}"
 TOKENIZER_DIR="${TOKENIZER_DIR:-/workspace/Pai-Megatron-Patch/mega-models/Qwen3.5-35B-A3B-torch_dist}"   # HF snapshot dir with tokenizer.json etc.
-LOAD_CHECKPOINT_PATH="${LOAD_CHECKPOINT_PATH:-/workspace/Pai-Megatron-Patch/mega-models/Qwen3.5-35B-A3B-torch_dist}"
+LOAD_CHECKPOINT_PATH="${LOAD_CHECKPOINT_PATH:-/workspace/data/mega-models/Qwen3.5-35B-A3B_torch/torch_dist}"
 
 # Data paths
 if [[ "$TRAINING_MODE" == "cpt" ]]; then
@@ -61,7 +61,7 @@ echo "Out: $BASE_OUTPUT_DIR"
 # -----------------------------------------------------------------------------
 # Distributed setup
 # -----------------------------------------------------------------------------
-GPUS_PER_NODE=2
+GPUS_PER_NODE=8
 NUM_NODES=1
 MASTER_ADDR=${MASTER_ADDR:-localhost}
 MASTER_PORT=${MASTER_PORT:-6000}
