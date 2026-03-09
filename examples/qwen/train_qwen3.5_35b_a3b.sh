@@ -159,6 +159,7 @@ HYBRID_ATTN_ARGS=(
   --linear-key-head-dim 128
   --linear-num-value-heads 32
   --linear-value-head-dim 128
+  --mamba-ssm-dtype "${MAMBA_SSM_DTYPE:-fp32}"
 )
 
 # MoE (Qwen3.5: 256 experts, topk=8, moe_intermediate=512, shared=512, aux=0.001)
