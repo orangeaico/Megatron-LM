@@ -20,8 +20,8 @@ MODEL_NAME="Qwen3.5-35B-A3B"
 TIMESTAMP=$(date +"%Y_%m_%d_%H_%M_%S")
 
 BASE_DIR="${BASE_DIR:-/workspace/data}"
-TOKENIZER_DIR="${TOKENIZER_DIR:-/workspace/Pai-Megatron-Patch/mega-models/Qwen3.5-35B-A3B-torch_dist}"   # HF snapshot dir with tokenizer.json etc.
-LOAD_CHECKPOINT_PATH="${LOAD_CHECKPOINT_PATH:-/workspace/Pai-Megatron-Patch/mega-models/Qwen3.5-35B-A3B-torch_dist}"
+TOKENIZER_DIR="${TOKENIZER_DIR:-/workspace/data/megatron_dir/mega-models/Qwen3.5-35B-A3B_torch_dist}"   # HF snapshot dir with tokenizer.json etc.
+LOAD_CHECKPOINT_PATH="${LOAD_CHECKPOINT_PATH:-/workspace/data/megatron_dir/mega-models/Qwen3.5-35B-A3B_torch_dist}"
 
 # Data paths
 if [[ "$TRAINING_MODE" == "cpt" ]]; then
@@ -61,7 +61,7 @@ echo "Out: $BASE_OUTPUT_DIR"
 # -----------------------------------------------------------------------------
 # Distributed setup
 # -----------------------------------------------------------------------------
-GPUS_PER_NODE=2
+GPUS_PER_NODE=8
 NUM_NODES=1
 MASTER_ADDR=${MASTER_ADDR:-localhost}
 MASTER_PORT=${MASTER_PORT:-6000}
@@ -84,10 +84,10 @@ fi
 # -----------------------------------------------------------------------------
 # Model: Qwen3.5-35B-A3B (text_config) from HF config.json
 # -----------------------------------------------------------------------------
-# Parallelism (must satisfy: world_size = TP * PP * CP * EP * DP)
+# Parallelism 
 TP_SIZE=2
 CP_SIZE=1
-EP_SIZE=2
+EP_SIZE=8
 PP_SIZE=1
 EXPERT_TP_SIZE=1
 
