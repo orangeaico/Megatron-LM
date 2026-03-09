@@ -21,7 +21,7 @@ TIMESTAMP=$(date +"%Y_%m_%d_%H_%M_%S")
 
 BASE_DIR="${BASE_DIR:-/workspace/data}"
 TOKENIZER_DIR="${TOKENIZER_DIR:-/workspace/Pai-Megatron-Patch/mega-models/Qwen3.5-35B-A3B-torch_dist}"   # HF snapshot dir with tokenizer.json etc.
-LOAD_CHECKPOINT_PATH="${LOAD_CHECKPOINT_PATH:-/workspace/data/mega-models/Qwen3.5-35B-A3B_torch/torch_dist}"
+LOAD_CHECKPOINT_PATH="${LOAD_CHECKPOINT_PATH:-/workspace/Pai-Megatron-Patch/mega-models/Qwen3.5-35B-A3B-torch_dist}"
 
 # Data paths
 if [[ "$TRAINING_MODE" == "cpt" ]]; then
@@ -206,13 +206,12 @@ TRAINING_ARGS=(
   --micro-batch-size $MICRO_BATCH_SIZE
   --global-batch-size $GLOBAL_BATCH_SIZE
 
-  # pick either train-iters or train-samples; using train-iters is simplest
-  --train-iters ${TRAIN_ITERS:-10}
+  --train-iters 10
 
-  --lr ${LR:-1.0e-4}
-  --min-lr ${MIN_LR:-1.0e-5}
+  --lr 1.0e-4
+  --min-lr 1.0e-5
   --lr-decay-style cosine
-  --lr-warmup-iters ${WARMUP_ITERS:-1}
+  --lr-warmup-iters 1
 
   --adam-beta1 0.9
   --adam-beta2 0.95
@@ -254,7 +253,7 @@ TRAINING_ARGS=(
   --eval-iters 5
 
   --save $SAVE_CHECKPOINT_PATH
-  --save-interval ${SAVE_INTERVAL:-10}
+  --save-interval 10
   --load "$LOAD_CHECKPOINT_PATH"
   --no-save-optim
   --no-save-rng
@@ -276,7 +275,7 @@ DATA_ARGS_LIST=(
   --vocab-size $VOCAB_SIZE
   --data-cache-path "$DATA_CACHE_PATH"
   --no-create-attention-mask-in-dataloader
-  --num-workers ${NUM_WORKERS:-4}
+  --num-workers 4
 )
 
 if [[ "$TRAINING_MODE" == "mock" ]]; then
