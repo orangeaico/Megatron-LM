@@ -470,6 +470,17 @@ def num_floating_point_operations(args, batch_size):
                 ]
             elif isinstance(args.linear_attention_freq, list):
                 linear_attention_pattern = args.linear_attention_freq
+                # MTP layers reuse the last decoder layer spec. If the provided pattern only
+                # covers decoder layers, extend it for MTP layers with the last layer type.
+                if (
+                    mtp_num_layers > 0
+                    and len(linear_attention_pattern) == args.num_layers
+                    and len(linear_attention_pattern) != num_layers
+                ):
+                    last_layer_attention_type = linear_attention_pattern[-1]
+                    linear_attention_pattern = linear_attention_pattern + [
+                        last_layer_attention_type
+                    ] * mtp_num_layers
                 assert len(linear_attention_pattern) == num_layers, (
                     f"Invalid length of linear_attention_pattern: {len(linear_attention_pattern)}, "
                     f"expected {num_layers}, "
