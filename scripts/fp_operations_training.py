@@ -1,4 +1,4 @@
-MODEL = "1.7B"
+MODEL = "30B"
 
 if MODEL == "30B":
     from flops_config_30b import *
