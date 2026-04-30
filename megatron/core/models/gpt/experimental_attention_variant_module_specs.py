@@ -393,6 +393,7 @@ def _get_self_attention_module_spec(
     layer_spec = get_gpt_layer_with_transformer_engine_spec(
         num_experts=config.num_moe_experts,
         moe_grouped_gemm=config.moe_grouped_gemm,
+        moe_expert_backend=config.moe_expert_backend,
         qk_layernorm=config.qk_layernorm,
         multi_latent_attention=config.multi_latent_attention,
         qk_l2_norm=config.qk_l2_norm,
@@ -448,6 +449,7 @@ def _get_moe_module_spec(
         num_experts=config.num_moe_experts,
         moe_grouped_gemm=config.moe_grouped_gemm,
         use_te_activation_func=config.use_te_activation_func,
+        moe_expert_backend=config.moe_expert_backend,
     )
     moe_spec.metainfo["fuse_pre_mlp_layernorm"] = False
     return moe_spec

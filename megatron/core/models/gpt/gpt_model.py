@@ -6,9 +6,10 @@ from typing import Dict, Literal, Optional
 import torch
 from torch import Tensor
 
-from megatron.core import tensor_parallel
+from megatron.core import parallel_state, tensor_parallel
 from megatron.core.config_logger import has_config_logger_enabled, log_config_to_disk
 from megatron.core.dist_checkpointing.mapping import ShardedStateDict
+from megatron.core.fusions.cce_loss import cce_per_token_loss
 from megatron.core.inference.contexts import BaseInferenceContext
 from megatron.core.models.common.embeddings import YarnRotaryEmbedding
 from megatron.core.models.common.embeddings.language_model_embedding import LanguageModelEmbedding
@@ -492,6 +493,8 @@ class GPTModel(LanguageModule):
         loss_mask: Optional[Tensor] = None,
         padding_mask: Optional[Tensor] = None,
         is_spec_decode: Optional[bool] = None,
+        cce_temperature: float = 1.0,
+        cce_shift: Optional[bool] = None,
     ) -> Tensor:
         """Forward function of the GPT Model This function passes the input tensors
         through the embedding layer, and then the decoder and finally into the post
@@ -568,6 +571,8 @@ class GPTModel(LanguageModule):
             extra_block_kwargs=extra_block_kwargs,
             inference_context=inference_context,
             is_spec_decode=is_spec_decode,
+            cce_temperature=cce_temperature,
+            cce_shift=cce_shift,
         )
 
     def _postprocess(
@@ -590,6 +595,8 @@ class GPTModel(LanguageModule):
         extra_block_kwargs=None,
         inference_context=None,
         is_spec_decode=None,
+        cce_temperature=1.0,
+        cce_shift=None,
     ):
         """Postprocesses decoder hidden states to generate logits or compute loss.
 
@@ -655,6 +662,63 @@ class GPTModel(LanguageModule):
                     packed_seq_params=packed_seq_params,
                     scale_logits_fn=self._scale_logits if self.config.use_mup else None,
                 )
+
+        if (
+            labels is not None
+            and self.config.use_linear_cross_entropy
+            and parallel_state.is_pipeline_last_stage()
+        ):
+            if self.config.sequence_parallel:
+                tp_group = self.pg_collection.tp if self.pg_collection is not None else None
+                hidden_states = gather_from_sequence_parallel_region(
+                    hidden_states, group=tp_group
+                )
+
+            if self.share_embeddings_and_output_weights:
+                classifier_weight = self.shared_embedding_or_output_weight()
+            else:
+                classifier_weight = self.output_layer.weight
+
+                batch_size = hidden_states.size(1)
+                hidden_size = hidden_states.size(2)
+                probe = torch.empty(
+                    (1, batch_size, hidden_size),
+                    device=hidden_states.device,
+                    dtype=hidden_states.dtype,
+                )
+                old_embedding_activation_buffer = getattr(
+                    self.output_layer, "embedding_activation_buffer", None
+                )
+                old_grad_output_buffer = getattr(self.output_layer, "grad_output_buffer", None)
+                try:
+                    if hasattr(self.output_layer, "embedding_activation_buffer"):
+                        self.output_layer.embedding_activation_buffer = None
+                    if hasattr(self.output_layer, "grad_output_buffer"):
+                        self.output_layer.grad_output_buffer = None
+                    with torch.no_grad():
+                        self.output_layer(probe, runtime_gather_output=False)
+                finally:
+                    if hasattr(self.output_layer, "embedding_activation_buffer"):
+                        self.output_layer.embedding_activation_buffer = (
+                            old_embedding_activation_buffer
+                        )
+                    if hasattr(self.output_layer, "grad_output_buffer"):
+                        self.output_layer.grad_output_buffer = old_grad_output_buffer
+
+            vocab_size = getattr(self, "padded_vocab_size", None) or getattr(
+                self, "vocab_size", classifier_weight.size(0)
+            )
+            return cce_per_token_loss(
+                embeddings=hidden_states,
+                classifier_weight=classifier_weight,
+                labels=labels,
+                vocab_size=vocab_size,
+                impl=self.config.linear_ce_impl,
+                reduction=self.config.linear_ce_reduction,
+                shift=self.config.linear_ce_shift if cce_shift is None else cce_shift,
+                ignore_index=self.config.linear_ce_ignore_index,
+                temperature=cce_temperature,
+            )
         sequence_parallel_override = False
 
         if in_inference_mode and inference_context.config.materialize_only_last_token_logits:

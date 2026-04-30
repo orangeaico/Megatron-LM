@@ -2713,6 +2713,10 @@ def _add_mixed_precision_args(parser):
     group.add_argument('--fp16-lm-cross-entropy', action='store_true',
                        help='Move the cross entropy unreduced loss calculation'
                        'for lm head to fp16.')
+    group.add_argument('--fused-linear-cross-entropy', action='store_true',
+                       help='Use Apple cut-cross-entropy to compute token losses without '
+                       'materializing logits.',
+                       dest='use_linear_cross_entropy')
     group.add_argument('--reuse-grad-buf-for-mxfp8-param-ag', action='store_true',
                        help='If True, reuse the grad buffer for MXFP8 parameter all-gather.')
 

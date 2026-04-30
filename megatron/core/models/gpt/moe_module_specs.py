@@ -10,6 +10,7 @@ from megatron.core.models.backends import (
     LocalSpecProvider,
 )
 from megatron.core.transformer.mlp import MLPSubmodules
+from megatron.core.transformer.moe.experts import SonicGroupedMLP
 from megatron.core.transformer.moe.moe_layer import MoELayer, MoESubmodules
 from megatron.core.transformer.moe.router import InferenceTopKRouter
 from megatron.core.transformer.moe.shared_experts import SharedExpertMLP
@@ -20,6 +21,7 @@ def get_moe_module_spec(
     use_te: Optional[bool] = True,
     num_experts: Optional[int] = None,
     moe_grouped_gemm: Optional[bool] = False,
+    moe_expert_backend: str = "default",
 ) -> ModuleSpec:
     """Helper function to get module spec for MoE.
 
@@ -30,14 +32,17 @@ def get_moe_module_spec(
         use_te: Whether to use Transformer Engine.
         num_experts: Number of experts.
         moe_grouped_gemm: Whether to use grouped GEMM.
-        moe_use_legacy_grouped_gemm: Whether to use legacy grouped GEMM.
+        moe_expert_backend: Expert compute backend for routed experts.
     """
     if use_te is not None and use_te:
         backend: BackendSpecProvider = TESpecProvider()
     else:
         backend = LocalSpecProvider()
     return get_moe_module_spec_for_backend(
-        backend=backend, num_experts=num_experts, moe_grouped_gemm=moe_grouped_gemm
+        backend=backend,
+        num_experts=num_experts,
+        moe_grouped_gemm=moe_grouped_gemm,
+        moe_expert_backend=moe_expert_backend,
     )
 
 
@@ -46,6 +51,7 @@ def get_moe_module_spec_for_backend(
     num_experts: Optional[int] = None,
     moe_grouped_gemm: Optional[bool] = False,
     use_te_activation_func: bool = False,
+    moe_expert_backend: str = "default",
 ) -> ModuleSpec:
     """Helper function to get module spec for MoE"""
     assert num_experts is not None
@@ -58,7 +64,12 @@ def get_moe_module_spec_for_backend(
         linear_fc1=linear_fc1, linear_fc2=linear_fc2, activation_func=activation_func
     )
 
-    experts = backend.grouped_mlp_modules(moe_grouped_gemm is not None and moe_grouped_gemm)
+    if moe_expert_backend == "sonic":
+        experts = SonicGroupedMLP
+    elif moe_expert_backend == "default":
+        experts = backend.grouped_mlp_modules(moe_grouped_gemm is not None and moe_grouped_gemm)
+    else:
+        raise ValueError(f"Unsupported MoE expert backend: {moe_expert_backend}")
     # shared experts spec
     shared_experts = partial(SharedExpertMLP, submodules=mlp)
 

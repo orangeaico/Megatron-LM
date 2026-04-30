@@ -107,6 +107,36 @@ class SFTTokenizer:
             raise NotImplementedError("unknown SFT prompt format", prompt_format)
 
         self._prompt_format = prompt_format
+        self.chat_template = self._prompt_config.custom_chat_template
+
+    def apply_chat_template(self, conversation, chat_template=None, **kwargs):
+        """Apply the underlying HF chat template for SFT dataset preprocessing."""
+        return self._tokenizer.apply_chat_template(
+            conversation=conversation,
+            chat_template=chat_template or self._prompt_config.custom_chat_template,
+            **kwargs,
+        )
+
+    @staticmethod
+    def _as_token_id_array(tokenized):
+        """Normalize HF/tokenizers chat-template output to a 1-D NumPy token-id array."""
+        if hasattr(tokenized, "input_ids"):
+            return SFTTokenizer._as_token_id_array(tokenized.input_ids)
+        if isinstance(tokenized, dict) and "input_ids" in tokenized:
+            return SFTTokenizer._as_token_id_array(tokenized["input_ids"])
+        if hasattr(tokenized, "ids"):
+            return np.asarray(tokenized.ids, dtype=np.int64)
+        if isinstance(tokenized, np.ndarray):
+            if tokenized.ndim == 2:
+                if tokenized.shape[0] != 1:
+                    raise ValueError(f"Expected a single tokenized sequence, got {tokenized.shape}")
+                tokenized = tokenized[0]
+            return tokenized.astype(np.int64, copy=False)
+        if isinstance(tokenized, (list, tuple)):
+            if len(tokenized) == 1 and not isinstance(tokenized[0], (int, np.integer)):
+                return SFTTokenizer._as_token_id_array(tokenized[0])
+            return np.asarray(tokenized, dtype=np.int64)
+        raise TypeError(f"Unsupported tokenized conversation type: {type(tokenized)}")
 
     def tokenize_conversation(
         self, conversation: List[Dict], return_target: bool, add_generation_prompt: bool
@@ -128,14 +158,16 @@ class SFTTokenizer:
         if not self._prompt_config.has_system_role and conversation[0]["role"] == "system":
             conversation = conversation[1:]
 
-        tokens = self._tokenizer.apply_chat_template(
-            conversation,
-            tokenize=True,
-            add_generation_prompt=add_generation_prompt,
-            return_assistant_token_mask=False,
-            return_tensors="np",
-            chat_template=self._prompt_config.custom_chat_template,
-        )[0]
+        tokens = self._as_token_id_array(
+            self._tokenizer.apply_chat_template(
+                conversation,
+                tokenize=True,
+                add_generation_prompt=add_generation_prompt,
+                return_assistant_token_mask=False,
+                return_tensors="np",
+                chat_template=self._prompt_config.custom_chat_template,
+            )
+        )
 
         if not return_target:
             return tokens
@@ -156,8 +188,10 @@ class SFTTokenizer:
             if turn["role"].lower() == "assistant":
                 assert conversation[turn_idx - 1]["role"].lower() in ("user", "tool")
 
-            turn_tokens = self._tokenizer.apply_chat_template(
-                [turn], tokenize=True, chat_template=self._prompt_config.custom_chat_template
+            turn_tokens = self._as_token_id_array(
+                self._tokenizer.apply_chat_template(
+                    [turn], tokenize=True, chat_template=self._prompt_config.custom_chat_template
+                )
             )
 
             # There should be only one BOS at the very beginning.

@@ -77,6 +77,7 @@ def get_gpt_layer_with_inference_submodules(
     num_experts: Optional[int] = None,
     moe_grouped_gemm: Optional[bool] = False,
     moe_use_legacy_grouped_gemm: Optional[bool] = False,
+    moe_expert_backend: str = "default",
 ) -> TransformerLayerSubmodules:
     """Use these submodules for inference optimized linear layers.
     Args:
@@ -91,6 +92,7 @@ def get_gpt_layer_with_inference_submodules(
         backend=backend,
         num_experts=num_experts,
         moe_grouped_gemm=moe_grouped_gemm,
+        moe_expert_backend=moe_expert_backend,
         use_te_op_fuser=False,
         use_te_activation_func=False,
     )
@@ -183,6 +185,7 @@ def get_gpt_layer_with_transformer_engine_submodules(
     use_kitchen_attention: bool = False,
     kitchen_attention_backend: str = "sdpa",
     mla_down_proj_fusion: bool = False,
+    moe_expert_backend: str = "default",
 ) -> TransformerLayerSubmodules:
     """Use these submodules to use lower-level Transformer Engine modules (required for fp8
     training).
@@ -231,6 +234,7 @@ def get_gpt_layer_with_transformer_engine_submodules(
         moe_grouped_gemm=moe_grouped_gemm,
         use_te_op_fuser=use_te_op_fuser,
         use_te_activation_func=use_te_activation_func,
+        moe_expert_backend=moe_expert_backend,
     )
 
     if multi_latent_attention:
@@ -359,6 +363,7 @@ def get_gpt_layer_local_submodules(
     use_kitchen: bool = False,
     use_kitchen_attention: bool = False,
     kitchen_attention_backend: str = "sdpa",
+    moe_expert_backend: str = "default",
 ) -> TransformerLayerSubmodules:
     """Use these submodules for an implementation using only modules in Megatron-Core.
 
@@ -399,7 +404,10 @@ def get_gpt_layer_local_submodules(
         )
 
     mlp = get_mlp_module_spec_for_backend(
-        backend=backend, num_experts=num_experts, moe_grouped_gemm=moe_grouped_gemm
+        backend=backend,
+        num_experts=num_experts,
+        moe_grouped_gemm=moe_grouped_gemm,
+        moe_expert_backend=moe_expert_backend,
     )
 
     if multi_latent_attention:
@@ -485,6 +493,7 @@ def get_mlp_module_spec(
     moe_grouped_gemm: Optional[bool] = False,
     fp8: Optional[str] = None,  # pylint: disable=unused-argument
     use_te_op_fuser: Optional[bool] = False,
+    moe_expert_backend: str = "default",
 ) -> ModuleSpec:
     """Helper function to get module spec for MLP/MoE"""
     if fp8 is not None:
@@ -507,6 +516,7 @@ def get_mlp_module_spec(
         num_experts=num_experts,
         moe_grouped_gemm=moe_grouped_gemm,
         use_te_op_fuser=use_te_op_fuser,
+        moe_expert_backend=moe_expert_backend,
     )
 
 
@@ -516,6 +526,7 @@ def get_mlp_module_spec_for_backend(
     moe_grouped_gemm: Optional[bool] = False,
     use_te_op_fuser: Optional[bool] = False,
     use_te_activation_func: bool = False,
+    moe_expert_backend: str = "default",
 ) -> ModuleSpec:
     """Helper function to get module spec for MLP/MoE"""
 
@@ -543,6 +554,7 @@ def get_mlp_module_spec_for_backend(
             num_experts=num_experts,
             moe_grouped_gemm=moe_grouped_gemm,
             use_te_activation_func=use_te_activation_func,
+            moe_expert_backend=moe_expert_backend,
         )
 
 
@@ -572,6 +584,7 @@ def get_gpt_decoder_layer_specs(
         moe_layer_spec = get_gpt_layer_with_transformer_engine_spec(
             num_experts=config.num_moe_experts,
             moe_grouped_gemm=config.moe_grouped_gemm,
+            moe_expert_backend=config.moe_expert_backend,
             qk_layernorm=config.qk_layernorm,
             multi_latent_attention=config.multi_latent_attention,
             qk_l2_norm=qk_l2_norm,
@@ -595,6 +608,7 @@ def get_gpt_decoder_layer_specs(
             num_experts=config.num_moe_experts,
             moe_grouped_gemm=config.moe_grouped_gemm,
             moe_use_legacy_grouped_gemm=config.moe_use_legacy_grouped_gemm,
+            moe_expert_backend=config.moe_expert_backend,
         )
     else:
         layer_norm_impl = LNImpl
@@ -612,6 +626,7 @@ def get_gpt_decoder_layer_specs(
         moe_layer_spec = get_gpt_layer_local_spec(
             num_experts=config.num_moe_experts,
             moe_grouped_gemm=config.moe_grouped_gemm,
+            moe_expert_backend=config.moe_expert_backend,
             qk_layernorm=config.qk_layernorm,
             multi_latent_attention=config.multi_latent_attention,
             normalization=normalization,

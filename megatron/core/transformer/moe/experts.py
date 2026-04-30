@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from collections.abc import Callable
 from copy import deepcopy
 from dataclasses import dataclass
@@ -13,7 +14,7 @@ import torch.nn.functional as F
 
 from megatron.core import tensor_parallel
 from megatron.core.activations import squared_relu
-from megatron.core.dist_checkpointing.mapping import ShardedStateDict
+from megatron.core.dist_checkpointing.mapping import ShardedStateDict, ShardedTensorFactory
 from megatron.core.dist_checkpointing.utils import replace_prefix_for_sharding
 from megatron.core.extensions.transformer_engine import HAVE_TE
 from megatron.core.fusions.fused_bias_geglu import quick_gelu, weighted_bias_quick_geglu_impl
@@ -40,6 +41,7 @@ from megatron.core.transformer.utils import (
     sharded_state_dict_default,
 )
 from megatron.core.typed_torch import apply_module, not_none
+from megatron.core.utils import make_tp_sharded_tensor_for_checkpoint
 
 if HAVE_TE:
     from megatron.core.extensions.transformer_engine import Fp8Padding, Fp8Unpadding
@@ -455,6 +457,436 @@ class TEGroupedMLP(MegatronModule):
         """
         self.linear_fc2.backward_dw()
         self.linear_fc1.backward_dw()
+
+
+class SonicGroupedMLP(MegatronModule):
+    """MoE experts backed by SonicMoE local expert kernels.
+
+    This intentionally keeps Megatron's router, token dispatcher, expert
+    parallelism, and combine path unchanged. SonicMoE only replaces the local
+    grouped expert MLP compute after tokens have already been dispatched to this
+    rank's local experts.
+
+    Unlike TEGroupedMLP, this module stores expert weights in a layout that can
+    be viewed as Sonic's [2I_local, H, E] and [H, I_local, E] kernel inputs with
+    stride(0) == 1. It exposes the old per-expert grouped-linear checkpoint
+    layout through state-dict factories. This avoids materializing
+    torch.stack([weight0, ..., weightN]) every forward while keeping checkpoint
+    compatibility with the default grouped expert implementation.
+    """
+
+    def __init__(
+        self,
+        num_local_experts: int,
+        config: TransformerConfig,
+        submodules: Optional[GroupedMLPSubmodules] = None,
+        pg_collection: Optional[ProcessGroupCollection] = None,
+    ):
+        super().__init__(config=config)
+        del submodules
+        self.num_local_experts = num_local_experts
+        self.input_size = self.config.hidden_size
+        self.ep_group = pg_collection.ep
+        self.tp_group = pg_collection.expt_tp
+        self.expert_parallel = self.config.expert_model_parallel_size > 1
+        self.sonic_torch_grouped_backend = os.getenv(
+            "SONIC_MOE_USE_TORCH_GROUPED", "0"
+        ).lower()
+        self._validate_sonic_config()
+
+        ffn_hidden_size = not_none(self.config.moe_ffn_hidden_size)
+        if self.config.gated_linear_unit:
+            ffn_hidden_size *= 2
+
+        tp_size = self.tp_group.size()
+        fc1_output_size = ffn_hidden_size // tp_size
+        fc2_input_size = not_none(self.config.moe_ffn_hidden_size) // tp_size
+
+        self.linear_fc1_weight = torch.nn.Parameter(
+            torch.empty(
+                self.num_local_experts,
+                self.input_size,
+                fc1_output_size,
+                dtype=self.config.params_dtype,
+            )
+        )
+        self.linear_fc2_weight = torch.nn.Parameter(
+            torch.empty(
+                self.num_local_experts,
+                fc2_input_size,
+                self.input_size,
+                dtype=self.config.params_dtype,
+            )
+        )
+
+        not_none(self.config.init_method)(self.linear_fc1_weight)
+        not_none(self.config.output_layer_init_method)(self.linear_fc2_weight)
+
+        for param in self.parameters():
+            setattr(param, "allreduce", not self.expert_parallel)
+        setattr(self.linear_fc1_weight, "partition_dim", 2)
+        setattr(self.linear_fc1_weight, "partition_stride", 1)
+        setattr(self.linear_fc2_weight, "partition_dim", 1)
+        setattr(self.linear_fc2_weight, "partition_stride", 1)
+
+        self._register_load_state_dict_pre_hook(self._merge_legacy_sonic_state_dict_keys)
+
+    def _validate_sonic_config(self):
+        if self.config.add_bias_linear:
+            raise ValueError("SonicGroupedMLP does not support expert bias.")
+        if self.config.fp8 or self.config.fp4:
+            raise ValueError("SonicGroupedMLP v1 supports only BF16/FP16 unquantized experts.")
+        if self.config.moe_latent_size is not None:
+            raise ValueError("SonicGroupedMLP does not support MoE latent projections.")
+        if not self.config.gated_linear_unit:
+            raise ValueError("SonicGroupedMLP requires a gated linear unit activation.")
+        if self.config.activation_func not in (F.silu, F.gelu):
+            raise ValueError("SonicGroupedMLP supports SwiGLU and GeGLU only.")
+        if self.config.hidden_size < 512 or self.config.hidden_size % 64 != 0:
+            raise ValueError("SonicGroupedMLP requires hidden_size >= 512 and divisible by 64.")
+        if self.config.moe_router_topk > 16:
+            raise ValueError("SonicGroupedMLP requires moe_router_topk <= 16.")
+
+        ffn_hidden_size = not_none(self.config.moe_ffn_hidden_size)
+        tp_size = self.tp_group.size()
+        if ffn_hidden_size % tp_size != 0:
+            raise ValueError("moe_ffn_hidden_size must be divisible by expert tensor parallel size.")
+        if (ffn_hidden_size // tp_size) % 64 != 0:
+            raise ValueError(
+                "SonicGroupedMLP requires per-ETP moe_ffn_hidden_size to be divisible by 64."
+            )
+
+    def _sonic_activation_type(self):
+        if self.config.activation_func == F.silu:
+            return "swiglu"
+        if self.config.activation_func == F.gelu:
+            return "geglu"
+        raise ValueError("Unsupported SonicGroupedMLP activation function.")
+
+    def _sonic_weights(self):
+        # Sonic expects [out, in, E] with stride(0) == 1. Contiguous backing
+        # storage [E, in, out] gives that view without a per-forward copy.
+        return (
+            self.linear_fc1_weight.permute(2, 1, 0),
+            self.linear_fc2_weight.permute(2, 1, 0),
+        )
+
+    def _torch_grouped_forward(
+        self,
+        permuted_local_hidden_states: torch.Tensor,
+        tokens_per_expert: torch.Tensor,
+        permuted_probs: torch.Tensor,
+    ):
+        """Grouped-mm fallback that avoids QuACK autotuning on dynamic EP token offsets."""
+        if self.sonic_torch_grouped_backend in ("1", "true", "loop"):
+            return self._torch_loop_forward(
+                permuted_local_hidden_states, tokens_per_expert, permuted_probs
+            )
+        if not hasattr(torch, "_grouped_mm"):
+            raise RuntimeError("SonicGroupedMLP torch grouped fallback requires torch._grouped_mm.")
+
+        device = permuted_local_hidden_states.device
+        tokens_per_expert = tokens_per_expert.to(device=device, dtype=torch.int32)
+        offsets = torch.cumsum(tokens_per_expert, dim=0)
+
+        fc1_output = torch._grouped_mm(
+            permuted_local_hidden_states, self.linear_fc1_weight, offsets
+        )
+        x_glu, x_linear = torch.chunk(fc1_output, 2, dim=-1)
+        if (val := self.config.activation_func_clamp_value) is not None:
+            x_glu = x_glu.clamp(min=None, max=val)
+            x_linear = x_linear.clamp(min=-val, max=val)
+        intermediate = self.config.activation_func(x_glu) * (
+            x_linear + self.config.glu_linear_offset
+        )
+        probs = permuted_probs.view(-1, 1)
+        if probs.dtype != intermediate.dtype:
+            probs = probs.to(intermediate.dtype)
+        intermediate = (intermediate * probs).to(intermediate.dtype)
+
+        output = torch._grouped_mm(intermediate, self.linear_fc2_weight, offsets)
+        return output, None
+
+    def _torch_loop_forward(
+        self,
+        permuted_local_hidden_states: torch.Tensor,
+        tokens_per_expert: torch.Tensor,
+        permuted_probs: torch.Tensor,
+    ):
+        """Portable grouped expert fallback using one GEMM pair per non-empty local expert."""
+        if tokens_per_expert.device.type == "cpu":
+            tokens_per_expert_list = tokens_per_expert.tolist()
+        else:
+            tokens_per_expert_list = tokens_per_expert.cpu().tolist()
+
+        hidden_chunks = torch.split(permuted_local_hidden_states, tokens_per_expert_list)
+        prob_chunks = torch.split(permuted_probs.view(-1, 1), tokens_per_expert_list)
+        output_chunks = []
+        zero_terms = []
+
+        for expert_idx, (hidden, probs) in enumerate(zip(hidden_chunks, prob_chunks)):
+            if hidden.numel() == 0:
+                zero_terms.append(
+                    self.linear_fc1_weight[expert_idx].view(-1)[0] * 0
+                    + self.linear_fc2_weight[expert_idx].view(-1)[0] * 0
+                )
+                continue
+            fc1_output = torch.matmul(hidden, self.linear_fc1_weight[expert_idx])
+            x_glu, x_linear = torch.chunk(fc1_output, 2, dim=-1)
+            if (val := self.config.activation_func_clamp_value) is not None:
+                x_glu = x_glu.clamp(min=None, max=val)
+                x_linear = x_linear.clamp(min=-val, max=val)
+            intermediate = self.config.activation_func(x_glu) * (
+                x_linear + self.config.glu_linear_offset
+            )
+            if probs.dtype != intermediate.dtype:
+                probs = probs.to(intermediate.dtype)
+            intermediate = (intermediate * probs).to(intermediate.dtype)
+            output_chunks.append(torch.matmul(intermediate, self.linear_fc2_weight[expert_idx]))
+
+        zero = sum(zero_terms) if zero_terms else None
+        if not output_chunks:
+            output = permuted_local_hidden_states.new_empty(permuted_local_hidden_states.shape)
+            return (output + zero) if zero is not None else output, None
+        output = torch.cat(output_chunks, dim=0)
+        return (output + zero) if zero is not None else output, None
+
+    def _zero_token_forward(self, hidden_states: torch.Tensor, probs: torch.Tensor):
+        output = hidden_states.new_empty(hidden_states.shape)
+        zero = self.linear_fc1_weight.sum() * 0 + self.linear_fc2_weight.sum() * 0
+        return output + zero, None
+
+    def forward(
+        self,
+        permuted_local_hidden_states: torch.Tensor,
+        tokens_per_expert: torch.Tensor,
+        permuted_probs: torch.Tensor,
+    ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
+        """Forward pass for SonicMoE local experts."""
+        if permuted_local_hidden_states.dtype not in (torch.bfloat16, torch.float16):
+            raise ValueError("SonicGroupedMLP supports BF16/FP16 activations only.")
+        if permuted_local_hidden_states.device.type != "cuda":
+            raise ValueError("SonicGroupedMLP requires CUDA tensors.")
+
+        if self.config.moe_apply_probs_on_input:
+            assert (
+                self.config.moe_router_topk == 1
+            ), "`moe_apply_probs_on_input` only works with `moe_router_topk`=1."
+            original_dtype = permuted_local_hidden_states.dtype
+            permuted_local_hidden_states = (
+                permuted_probs.unsqueeze(-1) * permuted_local_hidden_states
+            ).to(original_dtype)
+            permuted_probs = torch.ones_like(permuted_probs)
+
+        if permuted_local_hidden_states.nelement() == 0:
+            return self._zero_token_forward(permuted_local_hidden_states, permuted_probs)
+
+        if self.sonic_torch_grouped_backend not in ("0", "false", "sonic", ""):
+            return self._torch_grouped_forward(
+                permuted_local_hidden_states, tokens_per_expert, permuted_probs
+            )
+
+        try:
+            from sonicmoe.enums import ActivationType as SonicActivationType
+            from sonicmoe.functional import _DownProjection, _UpProjection
+        except Exception as exc:
+            raise ImportError(
+                "SonicGroupedMLP requires the sonic-moe package. Install it in the "
+                "training container, for example with `pip install 'sonic-moe[cu13]'`."
+            ) from exc
+
+        device = permuted_local_hidden_states.device
+        num_tokens = permuted_local_hidden_states.size(0)
+        tokens_per_expert = tokens_per_expert.to(device=device, dtype=torch.int32)
+        real_probs = permuted_probs.view(num_tokens, 1)
+        if real_probs.dtype != torch.float32:
+            real_probs = real_probs.float()
+
+        w1, w2 = self._sonic_weights()
+        expert_frequency_offset = torch.empty(
+            self.num_local_experts + 1, device=device, dtype=torch.int32
+        )
+        expert_frequency_offset[0].zero_()
+        torch.cumsum(tokens_per_expert, dim=0, out=expert_frequency_offset[1:])
+
+        x_gather_idx = torch.arange(num_tokens, device=device, dtype=torch.int32)
+        identity_indices = x_gather_idx
+        token_offsets = torch.arange(num_tokens + 1, device=device, dtype=torch.int32)
+
+        activation_type = SonicActivationType(self._sonic_activation_type())
+        a, h = _UpProjection.apply(
+            permuted_local_hidden_states,
+            w1,
+            None,
+            expert_frequency_offset,
+            num_tokens,
+            1,
+            x_gather_idx,
+            identity_indices,
+            identity_indices,
+            token_offsets,
+            False,
+            activation_type,
+            not torch.is_grad_enabled(),
+            True,
+        )
+
+        output = _DownProjection.apply(
+            a,
+            h,
+            w2,
+            None,
+            real_probs,
+            expert_frequency_offset,
+            num_tokens,
+            1,
+            identity_indices,
+            identity_indices,
+            identity_indices,
+            token_offsets,
+            False,
+            activation_type,
+        )
+        return output, None
+
+    def backward_dw(self):
+        """Compatibility hook for overlapped MoE schedules."""
+        pass
+
+    def _merge_legacy_sonic_state_dict_keys(
+        self,
+        state_dict,
+        prefix,
+        local_metadata,
+        strict,
+        missing_keys,
+        unexpected_keys,
+        error_msgs,
+    ):
+        del local_metadata, strict, missing_keys, unexpected_keys, error_msgs
+        fc1_key = f"{prefix}linear_fc1_weight"
+        fc2_key = f"{prefix}linear_fc2_weight"
+        if fc1_key not in state_dict:
+            legacy_fc1_keys = [
+                f"{prefix}linear_fc1.weight{i}" for i in range(self.num_local_experts)
+            ]
+            if all(k in state_dict for k in legacy_fc1_keys):
+                state_dict[fc1_key] = torch.stack(
+                    [state_dict.pop(k).transpose(0, 1) for k in legacy_fc1_keys], dim=0
+                ).contiguous()
+        if fc2_key not in state_dict:
+            legacy_fc2_keys = [
+                f"{prefix}linear_fc2.weight{i}" for i in range(self.num_local_experts)
+            ]
+            if all(k in state_dict for k in legacy_fc2_keys):
+                state_dict[fc2_key] = torch.stack(
+                    [state_dict.pop(k).transpose(0, 1) for k in legacy_fc2_keys], dim=0
+                ).contiguous()
+
+    def _save_to_state_dict(self, destination, prefix, keep_vars):
+        for local_idx in range(self.num_local_experts):
+            fc1_weight = self.linear_fc1_weight[local_idx].transpose(0, 1)
+            fc2_weight = self.linear_fc2_weight[local_idx].transpose(0, 1)
+            if not keep_vars:
+                fc1_weight = fc1_weight.detach()
+                fc2_weight = fc2_weight.detach()
+            destination[f"{prefix}linear_fc1.weight{local_idx}"] = fc1_weight
+            destination[f"{prefix}linear_fc2.weight{local_idx}"] = fc2_weight
+
+    def _packed_expert_weight_factory(
+        self,
+        base_key: str,
+        weight: torch.nn.Parameter,
+        per_expert_prefix: str,
+        tp_axis: int,
+        expert_axis: int,
+        transpose_expert_weight: bool,
+        split_glu: bool,
+        sharded_offsets: tuple,
+        metadata: Optional[dict],
+    ) -> ShardedTensorFactory:
+        metadata = ensure_metadata_has_dp_cp_group(metadata)
+        num_global_experts = self.ep_group.size() * self.num_local_experts
+        local_expert_indices_offset = self.ep_group.rank() * self.num_local_experts
+        ep_axis = len(sharded_offsets)
+
+        def build_fn(key: str, tensor: torch.Tensor, replica_id, flattened_range):
+            del key, replica_id
+            if flattened_range is not None:
+                if tensor.numel() != weight.numel():
+                    raise ValueError(
+                        "SonicGroupedMLP packed expert factory received a flat optimizer "
+                        "range that does not cover the full packed parameter."
+                    )
+                tensor = tensor.view_as(weight)
+            sharded_tensors = {}
+            for local_idx in range(self.num_local_experts):
+                global_idx = local_expert_indices_offset + local_idx
+                expert_weight = tensor.select(expert_axis, local_idx)
+                if transpose_expert_weight:
+                    expert_weight = expert_weight.transpose(0, 1)
+                expert_key = f"{per_expert_prefix}weight{local_idx}"
+                expert_offsets = (
+                    *sharded_offsets,
+                    (ep_axis, global_idx, num_global_experts),
+                )
+                sharded_tensor = make_tp_sharded_tensor_for_checkpoint(
+                    expert_weight,
+                    expert_key,
+                    tp_axis=tp_axis,
+                    prepend_offsets=expert_offsets,
+                    tp_group=self.tp_group,
+                    dp_cp_group=metadata["dp_cp_group"],
+                )
+                if split_glu:
+                    sharded_tensor = apply_swiglu_sharded_factory(
+                        sharded_tensor, expert_offsets
+                    ).build()
+                sharded_tensors[f"weight{local_idx}"] = sharded_tensor
+            return sharded_tensors
+
+        def merge_fn(sub_state_dict):
+            expert_weights = []
+            for local_idx in range(self.num_local_experts):
+                expert_weight = sub_state_dict[f"weight{local_idx}"]
+                if isinstance(expert_weight, (list, tuple)):
+                    expert_weight = torch.cat(expert_weight, dim=0)
+                if transpose_expert_weight:
+                    expert_weight = expert_weight.transpose(0, 1)
+                expert_weights.append(expert_weight)
+            return torch.stack(expert_weights, dim=expert_axis).contiguous()
+
+        replica_id = (0, self.tp_group.rank(), self.ep_group.rank())
+        return ShardedTensorFactory(base_key, weight, build_fn, merge_fn, replica_id=replica_id)
+
+    def sharded_state_dict(
+        self, prefix: str = '', sharded_offsets: tuple = (), metadata: Optional[dict] = None
+    ) -> ShardedStateDict:
+        """Expose packed Sonic runtime weights as legacy per-expert grouped weights."""
+        return {
+            f"{prefix}linear_fc1_weight": self._packed_expert_weight_factory(
+                f"{prefix}linear_fc1_weight",
+                self.linear_fc1_weight,
+                f"{prefix}linear_fc1.",
+                tp_axis=0,
+                expert_axis=0,
+                transpose_expert_weight=True,
+                split_glu=True,
+                sharded_offsets=sharded_offsets,
+                metadata=metadata,
+            ),
+            f"{prefix}linear_fc2_weight": self._packed_expert_weight_factory(
+                f"{prefix}linear_fc2_weight",
+                self.linear_fc2_weight,
+                f"{prefix}linear_fc2.",
+                tp_axis=1,
+                expert_axis=0,
+                transpose_expert_weight=True,
+                split_glu=False,
+                sharded_offsets=sharded_offsets,
+                metadata=metadata,
+            ),
+        }
 
 
 class InferenceGroupedMLP(TEGroupedMLP):

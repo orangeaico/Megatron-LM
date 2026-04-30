@@ -731,6 +731,12 @@ class TransformerConfig(ModelParallelConfig):
     GEMM feature introduced since CUTLASS 2.8 (https://github.com/fanshiqing/grouped_gemm).
     """
 
+    moe_expert_backend: Literal['default', 'sonic'] = "default"
+    """Expert compute backend for MoE routed experts.
+    Use 'default' for Megatron's standard expert implementation and 'sonic' for SonicMoE
+    local expert kernels.
+    """
+
     moe_aux_loss_coeff: Union[float, List[float]] = 0.0
     """Scaling coefficient for the aux loss. A starting value of 1e-2 is recommended.
     If a list of load balancing types is provided for `moe_router_load_balancing_type`,
@@ -1000,6 +1006,21 @@ class TransformerConfig(ModelParallelConfig):
     )
     """Transformer implementation to use.
     Options are 'transformer_engine' for Transformer Engine and 'local' for MCore."""
+
+    use_linear_cross_entropy: bool = False
+    """Use cut-cross-entropy to compute token losses without materializing logits."""
+
+    linear_ce_impl: str = "torch_compile"
+    """CCE implementation selector."""
+
+    linear_ce_reduction: str = "none"
+    """CCE reduction mode."""
+
+    linear_ce_shift: bool = False
+    """Whether CCE should apply the causal next-token shift internally."""
+
+    linear_ce_ignore_index: int = -100
+    """Ignore index passed through to CCE."""
 
     #####################################
     # Fine-grained Activation Offloading
@@ -1854,6 +1875,41 @@ class TransformerConfig(ModelParallelConfig):
                 "score functions. Please set --moe-router-score-function to 'sigmoid' or "
                 "'sqrtsoftplus', or unset --moe-router-enable-expert-bias."
             )
+
+        if self.moe_expert_backend == "sonic":
+            if self.num_moe_experts is None:
+                raise ValueError("--moe-expert-backend=sonic requires num_moe_experts.")
+            if self.transformer_impl == "inference_optimized":
+                raise ValueError("Sonic MoE expert backend is a training expert backend.")
+            if self.fp8 or self.fp4:
+                raise ValueError("Sonic MoE expert backend v1 supports only BF16/FP16 experts.")
+            if self.add_bias_linear:
+                raise ValueError("Sonic MoE expert backend does not support expert bias.")
+            if self.moe_latent_size is not None:
+                raise ValueError("Sonic MoE expert backend does not support moe_latent_size.")
+            if not self.gated_linear_unit or self.activation_func not in (F.silu, F.gelu):
+                raise ValueError("Sonic MoE expert backend supports SwiGLU and GeGLU only.")
+            if self.hidden_size < 512 or self.hidden_size % 64 != 0:
+                raise ValueError(
+                    "Sonic MoE expert backend requires hidden_size >= 512 and divisible by 64."
+                )
+            if self.moe_router_topk > 16:
+                raise ValueError("Sonic MoE expert backend requires moe_router_topk <= 16.")
+            if self.overlap_moe_expert_parallel_comm or self.delay_wgrad_compute:
+                raise ValueError(
+                    "Sonic MoE expert backend does not yet support overlapped MoE expert "
+                    "parallel communication or delayed expert wgrad."
+                )
+            expert_tp_size = self.expert_tensor_parallel_size or self.tensor_model_parallel_size
+            if self.moe_ffn_hidden_size % expert_tp_size != 0:
+                raise ValueError(
+                    "Sonic MoE expert backend requires moe_ffn_hidden_size divisible by "
+                    "expert tensor parallel size."
+                )
+            if (self.moe_ffn_hidden_size // expert_tp_size) % 64 != 0:
+                raise ValueError(
+                    "Sonic MoE expert backend requires per-ETP moe_ffn_hidden_size divisible by 64."
+                )
 
         if self.num_moe_experts and self.fp8:
             # TE version below 1.7.0 will raise Error when handle zeros tokens for expert

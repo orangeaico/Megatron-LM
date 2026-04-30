@@ -1,7 +1,5 @@
 # Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 
-import atexit, json
-from collections import Counter
 from typing import Any, Dict, Optional
 
 import numpy as np
@@ -45,7 +43,13 @@ class SFTLowLevelDataset:
         return len(self.dataset)
 
     def __getitem__(self, idx: int) -> list:
-        return self.dataset[idx]["messages"]
+        if "conversations" in self.dataset[idx]:
+            return self.dataset[idx]["conversations"]
+        if "messages" in self.dataset[idx]:
+            return self.dataset[idx]["messages"]
+        raise ValueError(
+            f"The sample must have 'conversations' or 'messages' but got {self.dataset[idx]}"
+        )
 
 
 class SFTDataset(MegatronDataset):
@@ -73,120 +77,82 @@ class SFTDataset(MegatronDataset):
     def __len__(self) -> int:
         return self.num_samples
 
-    def _split_conversations(self, merged_conversations):
-        split_conversations = []
-        current = []
-        for msg in merged_conversations:
-            # Whenever we see a new system message, start a new conversation
-            if msg["role"] == "system":
-                if current:  # If previously accumulating a conversation, then store it
-                    split_conversations.append(current)
-                current = [msg]  # Then start the new conversation
+    @staticmethod
+    def _as_token_ids(tokenized):
+        if hasattr(tokenized, "input_ids"):
+            return SFTDataset._as_token_ids(tokenized.input_ids)
+        if hasattr(tokenized, "ids"):
+            return list(tokenized.ids)
+        if isinstance(tokenized, np.ndarray):
+            if tokenized.ndim == 2:
+                if tokenized.shape[0] != 1:
+                    raise ValueError(f"Expected one tokenized sequence, got {tokenized.shape}")
+                tokenized = tokenized[0]
+            return tokenized.astype(np.int64, copy=False).tolist()
+        if isinstance(tokenized, (list, tuple)):
+            if len(tokenized) == 1 and not isinstance(tokenized[0], (int, np.integer)):
+                return SFTDataset._as_token_ids(tokenized[0])
+            return list(tokenized)
+        raise TypeError(f"Unsupported tokenized message type: {type(tokenized)}")
+
+    def _process_example(self, tokenizer, conversation: list) -> tuple[list[int], list[int]]:
+        if not isinstance(conversation, list):
+            raise ValueError(f"The sample must be a list but got {type(conversation)}")
+
+        input_ids = []
+        labels = []
+        for message in conversation:
+            seg_ids = self._as_token_ids(
+                tokenizer.apply_chat_template(
+                    [message],
+                    tokenize=True,
+                    add_generation_prompt=False,
+                )
+            )
+            input_ids.extend(seg_ids)
+            if message["role"].lower() == "assistant":
+                labels.extend(seg_ids)
             else:
-                current.append(msg) # Continue accumulating the current conversation
-        if current:  # Store any remaining conversation
-            split_conversations.append(current)
-        return split_conversations
+                labels.extend([IGNORE_INDEX] * len(seg_ids))
+
+        assert len(input_ids) == len(labels)
+        return input_ids, labels
 
     def __getitem__(self, idx: int) -> Dict[str, Any]:
 
         tokenizer = self.config.tokenizer
-        pack_length = self.config.sequence_length
-
-        merged_conversations = self.dataset[int(self.indices[idx % len(self.indices)])]
-        split_conversations = self._split_conversations(merged_conversations)
-
-        def extend_with_padding(tokens, targets, positions, pad_len):
-            tokens.extend([pad] * pad_len)
-            targets.extend([pad] * pad_len)
-            positions.extend(range(positions[-1]+1, positions[-1]+1+pad_len))
-
-        pack_tokens = []
-        pack_targets = []
-        pack_positions = []
-        cu_seqlens = [0]
-        eod = tokenizer.eod
+        max_seq_len = self.config.sequence_length
         pad = tokenizer.pad
-        # TODO(duncan): Track number of convs dropped and/or truncated and amount of end-padding
-        for conversation in split_conversations:
 
-            tokens, targets = tokenizer.tokenize_conversation(
-                conversation, return_target=True, add_generation_prompt=False
-            )
+        conversation = self.dataset[int(self.indices[idx % len(self.indices)])]
+        tokens, labels = self._process_example(tokenizer, conversation)
+        labels = labels[1:] + [IGNORE_INDEX]
 
-            tokens_list = tokens.tolist()
-            targets_list = targets.tolist()
+        if len(tokens) > max_seq_len:
+            tokens = tokens[:max_seq_len]
+            labels = labels[:max_seq_len]
 
+        padding_len = max_seq_len - len(tokens)
+        tokens = tokens + [pad] * padding_len
+        labels = labels + [IGNORE_INDEX] * padding_len
 
-            pack_tokens.extend(tokens_list)
-            pack_targets.extend(targets_list)
+        input_ids = torch.tensor(tokens, dtype=torch.int64)
+        labels = torch.tensor(labels, dtype=torch.int64)
+        position_ids = torch.arange(max_seq_len, dtype=torch.int64)
 
-            assert not self.config.reset_position_ids
-            pack_positions.extend(range(len(tokens_list)))
+        loss_mask = torch.ones(max_seq_len, dtype=torch.float32)
+        loss_mask[labels == pad] = 0.0
+        loss_mask[labels == IGNORE_INDEX] = 0.0
 
-            if self.config.context_parallel_size > 1:
-                pad_granularity = self.config.context_parallel_size * 2
-                mod_token_count = len(pack_tokens) % pad_granularity
-                if mod_token_count != 0:
-                    pad_len = pad_granularity - mod_token_count
-                    extend_with_padding(pack_tokens, pack_targets, pack_positions, pad_len)
-
-            # TODO(duncan): Consider also padding to multiple of number of tokens here. This might
-            # be needed for efficiency (and potentially set via command-line argument).
-
-            cu_seqlens.append(len(pack_tokens))
-
-            # Handle any necessary truncation
-            if len(pack_tokens) >= pack_length + 1:  # +1 here to account for later alignment
-                # Truncate on the right
-                max_body = pack_length
-                pack_tokens = pack_tokens[:max_body]
-                pack_targets = pack_targets[:max_body]
-                pack_tokens.append(pad)
-                pack_targets.append(pad)
-                pack_positions = pack_positions[:pack_length+1]
-                # Note len({pack_tokens, pack_targets, pack_positions}) should be pack_length + 1
-                cu_seqlens[-1] = len(pack_tokens) - 1
-                break
-
-        # Handle any necessary padding
-        if len(pack_tokens) < pack_length + 1:  # +1 here to account for later alignment
-            pad_len = pack_length + 1 - len(pack_tokens)
-            extend_with_padding(pack_tokens, pack_targets, pack_positions, pad_len)
-            # Note len({pack_tokens, pack_targets, pack_positions}) should be pack_length + 1
-            cu_seqlens[-1] = len(pack_tokens) - 1
-
-        assert len(pack_tokens) == pack_length + 1
-        assert len(pack_targets) == pack_length + 1
-        assert len(pack_positions) == pack_length + 1
-
-        # Align and convert to tensors
-        input_ids    = torch.tensor(pack_tokens[:-1],  dtype=torch.int64)
-        labels       = torch.tensor(pack_targets[1:], dtype=torch.int64)
-        position_ids = torch.tensor(pack_positions[:-1], dtype=torch.int64)
-
-        # Loss mask.
-        loss_mask = torch.ones(pack_length, dtype=torch.float32)
-        loss_mask[labels == pad] = 0.0  # Mask paddings
-        loss_mask[labels == IGNORE_INDEX] = 0.0  # mask prompts
-
-        # TODO(duncan): Optionally create an attention mask
-        assert not self.config.create_attention_mask and not self.config.reset_attention_mask
-        # attention_mask = None
-
-        assert len(cu_seqlens) >= 2
-        cu_seqlens = torch.tensor(cu_seqlens, dtype=torch.int32)
-        # Calculating max_seqlen here, rather than incrementally above, because of possible
-        # effects of truncation and padding
-        adjacent_diffs = cu_seqlens[1:] - cu_seqlens[:-1]
-        max_seqlen = adjacent_diffs.max()  # max_seqlen is a 0-D tensor
-
-        return {
+        ret = {
             'tokens': input_ids,
             'labels': labels,
-            # 'attention_mask': attention_mask,  # PyTorch collate cannot handle NoneType
             'loss_mask': loss_mask,
             'position_ids': position_ids,
-            'cu_seqlens': cu_seqlens,
-            'max_seqlen': max_seqlen,
         }
+
+        if self.config.create_attention_mask:
+            attention_mask = torch.tril(torch.ones((max_seq_len, max_seq_len))).unsqueeze(0)
+            ret['attention_mask'] = attention_mask < 0.5
+
+        return ret
