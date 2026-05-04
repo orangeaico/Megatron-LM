@@ -60,9 +60,10 @@ class ExpertsInterface(Protocol):
     def forward(
         self,
         dispatched_input: torch.Tensor,
-        tokens_per_expert: torch.Tensor,
+        tokens_per_expert: torch.Tensor | None,
         permuted_probs: torch.Tensor,
         /,
+        routing_map: torch.Tensor | None = None,
     ) -> tuple[torch.Tensor, torch.Tensor | None]:
         """Forward pass of the experts layer."""
         ...
@@ -586,8 +587,8 @@ class MoELayer(BaseMoELayer):
                         and hasattr(routed_experts, "forward_from_routing")
                         and routed_experts.can_use_routed_forward()
                     ):
-                        output, mlp_bias = routed_experts.forward_from_routing(
-                            hidden_states, routing_map, probs
+                        output, mlp_bias = routed_experts(
+                            hidden_states, None, probs, routing_map=routing_map
                         )
                         assert (
                             mlp_bias is None

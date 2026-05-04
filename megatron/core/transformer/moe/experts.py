@@ -688,10 +688,15 @@ class SonicGroupedMLP(MegatronModule):
     def forward(
         self,
         permuted_local_hidden_states: torch.Tensor,
-        tokens_per_expert: torch.Tensor,
+        tokens_per_expert: Optional[torch.Tensor],
         permuted_probs: torch.Tensor,
+        routing_map: Optional[torch.Tensor] = None,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         """Forward pass for SonicMoE local experts."""
+        if routing_map is not None:
+            return self.forward_from_routing(
+                permuted_local_hidden_states, routing_map, permuted_probs
+            )
         if permuted_local_hidden_states.dtype not in (torch.bfloat16, torch.float16):
             raise ValueError("SonicGroupedMLP supports BF16/FP16 activations only.")
         if permuted_local_hidden_states.device.type != "cuda":
