@@ -2,11 +2,12 @@
 from __future__ import annotations
 
 import logging
+import os
 from collections.abc import Callable
 from copy import deepcopy
 from dataclasses import dataclass
 from math import ceil
-from typing import Optional, Protocol, Tuple
+from typing import Any, Optional, Protocol, Tuple
 
 import torch
 import torch.nn.functional as F
@@ -63,6 +64,99 @@ from megatron.core.inference.moe import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+_SONIC_MOE_TIMING_DISABLED_VALUES = {"0", "false", "no", "off"}
+_SONIC_MOE_TIMING_EVENTS: dict[str, list[tuple[torch.cuda.Event, torch.cuda.Event]]] = {
+    "forward": [],
+    "backward": [],
+}
+
+
+def _sonic_moe_timing_enabled() -> bool:
+    value = os.environ.get("SONIC_MOE_LOG_TIMING", "1").lower()
+    if value in _SONIC_MOE_TIMING_DISABLED_VALUES:
+        return False
+    return torch.cuda.is_available()
+
+
+def _sonic_moe_timing_start() -> tuple[torch.cuda.Event, torch.cuda.Event] | None:
+    if not _sonic_moe_timing_enabled():
+        return None
+    if torch.cuda.is_current_stream_capturing():
+        return None
+    start_event = torch.cuda.Event(enable_timing=True)
+    end_event = torch.cuda.Event(enable_timing=True)
+    start_event.record()
+    return start_event, end_event
+
+
+def _sonic_moe_timing_stop(
+    kind: str,
+    event_pair: tuple[torch.cuda.Event, torch.cuda.Event] | None,
+) -> None:
+    if event_pair is None:
+        return
+    _, end_event = event_pair
+    end_event.record()
+    _SONIC_MOE_TIMING_EVENTS[kind].append(event_pair)
+
+
+def _sonic_moe_timing_elapsed_ms(kind: str) -> tuple[float, int]:
+    events = _SONIC_MOE_TIMING_EVENTS[kind]
+    elapsed_ms = 0.0
+    for start_event, end_event in events:
+        end_event.synchronize()
+        elapsed_ms += start_event.elapsed_time(end_event)
+    count = len(events)
+    events.clear()
+    return elapsed_ms, count
+
+
+def pop_sonic_moe_timing_stats() -> dict[str, float] | None:
+    """Return and reset local SonicMoE timing stats since the last call.
+
+    CUDA events are recorded around each SonicGroupedMLP forward and module
+    backward. They are synchronized only when the training logger flushes, so
+    this avoids adding a device sync to every MoE layer.
+    """
+    if not _sonic_moe_timing_enabled():
+        return None
+
+    forward_ms, forward_calls = _sonic_moe_timing_elapsed_ms("forward")
+    backward_ms, backward_calls = _sonic_moe_timing_elapsed_ms("backward")
+
+    device = torch.device("cuda", torch.cuda.current_device())
+    stats = torch.tensor(
+        [forward_ms, backward_ms, forward_calls, backward_calls],
+        device=device,
+        dtype=torch.float64,
+    )
+    if torch.distributed.is_available() and torch.distributed.is_initialized():
+        torch.distributed.all_reduce(stats, op=torch.distributed.ReduceOp.MAX)
+    if stats[2].item() == 0 and stats[3].item() == 0:
+        return None
+
+    return {
+        "forward_ms": float(stats[0].item()),
+        "backward_ms": float(stats[1].item()),
+        "total_ms": float((stats[0] + stats[1]).item()),
+        "forward_calls": float(stats[2].item()),
+        "backward_calls": float(stats[3].item()),
+    }
+
+
+class _SonicMoETimingContext:
+    def __init__(self, kind: str):
+        self.kind = kind
+        self.event_pair: tuple[torch.cuda.Event, torch.cuda.Event] | None = None
+
+    def __enter__(self) -> None:
+        self.event_pair = _sonic_moe_timing_start()
+
+    def __exit__(self, exc_type: Any, exc: Any, traceback: Any) -> None:
+        del exc_type, exc, traceback
+        _sonic_moe_timing_stop(self.kind, self.event_pair)
 
 
 class GroupedLinearFc1Interface(Protocol):
@@ -526,7 +620,22 @@ class SonicGroupedMLP(MegatronModule):
         setattr(self.linear_fc2_weight, "partition_stride", 1)
 
         self._logged_routed_forward = False
+        self._sonic_backward_timing_events: list[
+            tuple[torch.cuda.Event, torch.cuda.Event] | None
+        ] = []
+        self.register_full_backward_pre_hook(self._sonic_backward_timing_pre_hook)
+        self.register_full_backward_hook(self._sonic_backward_timing_hook)
         self._register_load_state_dict_pre_hook(self._merge_legacy_sonic_state_dict_keys)
+
+    def _sonic_backward_timing_pre_hook(self, module, grad_output) -> None:
+        del module, grad_output
+        self._sonic_backward_timing_events.append(_sonic_moe_timing_start())
+
+    def _sonic_backward_timing_hook(self, module, grad_input, grad_output) -> None:
+        del module, grad_input, grad_output
+        if not self._sonic_backward_timing_events:
+            return
+        _sonic_moe_timing_stop("backward", self._sonic_backward_timing_events.pop())
 
     @staticmethod
     def _interleave_glu_weight(weight: torch.Tensor) -> torch.Tensor:
@@ -693,89 +802,90 @@ class SonicGroupedMLP(MegatronModule):
         routing_map: Optional[torch.Tensor] = None,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         """Forward pass for SonicMoE local experts."""
-        if routing_map is not None:
-            return self.forward_from_routing(
-                permuted_local_hidden_states, routing_map, permuted_probs
+        with _SonicMoETimingContext("forward"):
+            if routing_map is not None:
+                return self.forward_from_routing(
+                    permuted_local_hidden_states, routing_map, permuted_probs
+                )
+            if permuted_local_hidden_states.dtype not in (torch.bfloat16, torch.float16):
+                raise ValueError("SonicGroupedMLP supports BF16/FP16 activations only.")
+            if permuted_local_hidden_states.device.type != "cuda":
+                raise ValueError("SonicGroupedMLP requires CUDA tensors.")
+
+            if self.config.moe_apply_probs_on_input:
+                assert (
+                    self.config.moe_router_topk == 1
+                ), "`moe_apply_probs_on_input` only works with `moe_router_topk`=1."
+                original_dtype = permuted_local_hidden_states.dtype
+                permuted_local_hidden_states = (
+                    permuted_probs.unsqueeze(-1) * permuted_local_hidden_states
+                ).to(original_dtype)
+                permuted_probs = torch.ones_like(permuted_probs)
+
+            if permuted_local_hidden_states.nelement() == 0:
+                return self._zero_token_forward(permuted_local_hidden_states, permuted_probs)
+
+            w1, w2 = self._sonic_weights()
+            try:
+                from sonicmoe.enums import ActivationType as SonicActivationType
+                from sonicmoe.functional import _DownProjection, _UpProjection
+            except Exception as exc:
+                raise ImportError(
+                    "SonicGroupedMLP requires the sonic-moe package. Install it in the "
+                    "training container, for example with `pip install 'sonic-moe[cu13]'`."
+                ) from exc
+
+            device = permuted_local_hidden_states.device
+            num_tokens = permuted_local_hidden_states.size(0)
+            tokens_per_expert = tokens_per_expert.to(device=device, dtype=torch.int32)
+            real_probs = permuted_probs.view(num_tokens, 1)
+            if real_probs.dtype != torch.float32:
+                real_probs = real_probs.float()
+
+            expert_frequency_offset = torch.empty(
+                self.num_local_experts + 1, device=device, dtype=torch.int32
             )
-        if permuted_local_hidden_states.dtype not in (torch.bfloat16, torch.float16):
-            raise ValueError("SonicGroupedMLP supports BF16/FP16 activations only.")
-        if permuted_local_hidden_states.device.type != "cuda":
-            raise ValueError("SonicGroupedMLP requires CUDA tensors.")
+            expert_frequency_offset[0].zero_()
+            torch.cumsum(tokens_per_expert, dim=0, out=expert_frequency_offset[1:])
 
-        if self.config.moe_apply_probs_on_input:
-            assert (
-                self.config.moe_router_topk == 1
-            ), "`moe_apply_probs_on_input` only works with `moe_router_topk`=1."
-            original_dtype = permuted_local_hidden_states.dtype
-            permuted_local_hidden_states = (
-                permuted_probs.unsqueeze(-1) * permuted_local_hidden_states
-            ).to(original_dtype)
-            permuted_probs = torch.ones_like(permuted_probs)
+            identity_indices = torch.arange(num_tokens, device=device, dtype=torch.int32)
+            token_offsets = torch.arange(num_tokens + 1, device=device, dtype=torch.int32)
+            activation_type = SonicActivationType(self._sonic_activation_type())
 
-        if permuted_local_hidden_states.nelement() == 0:
-            return self._zero_token_forward(permuted_local_hidden_states, permuted_probs)
+            a, h = _UpProjection.apply(
+                permuted_local_hidden_states,
+                w1,
+                None,
+                expert_frequency_offset,
+                num_tokens,
+                1,
+                identity_indices,
+                identity_indices,
+                identity_indices,
+                token_offsets,
+                False,
+                activation_type,
+                not torch.is_grad_enabled(),
+                False,
+            )
 
-        w1, w2 = self._sonic_weights()
-        try:
-            from sonicmoe.enums import ActivationType as SonicActivationType
-            from sonicmoe.functional import _DownProjection, _UpProjection
-        except Exception as exc:
-            raise ImportError(
-                "SonicGroupedMLP requires the sonic-moe package. Install it in the "
-                "training container, for example with `pip install 'sonic-moe[cu13]'`."
-            ) from exc
-
-        device = permuted_local_hidden_states.device
-        num_tokens = permuted_local_hidden_states.size(0)
-        tokens_per_expert = tokens_per_expert.to(device=device, dtype=torch.int32)
-        real_probs = permuted_probs.view(num_tokens, 1)
-        if real_probs.dtype != torch.float32:
-            real_probs = real_probs.float()
-
-        expert_frequency_offset = torch.empty(
-            self.num_local_experts + 1, device=device, dtype=torch.int32
-        )
-        expert_frequency_offset[0].zero_()
-        torch.cumsum(tokens_per_expert, dim=0, out=expert_frequency_offset[1:])
-
-        identity_indices = torch.arange(num_tokens, device=device, dtype=torch.int32)
-        token_offsets = torch.arange(num_tokens + 1, device=device, dtype=torch.int32)
-        activation_type = SonicActivationType(self._sonic_activation_type())
-
-        a, h = _UpProjection.apply(
-            permuted_local_hidden_states,
-            w1,
-            None,
-            expert_frequency_offset,
-            num_tokens,
-            1,
-            identity_indices,
-            identity_indices,
-            identity_indices,
-            token_offsets,
-            False,
-            activation_type,
-            not torch.is_grad_enabled(),
-            False,
-        )
-
-        output = _DownProjection.apply(
-            a,
-            h,
-            w2,
-            None,
-            real_probs,
-            expert_frequency_offset,
-            num_tokens,
-            1,
-            identity_indices,
-            identity_indices,
-            identity_indices,
-            token_offsets,
-            False,
-            activation_type,
-        )
-        return output, None
+            output = _DownProjection.apply(
+                a,
+                h,
+                w2,
+                None,
+                real_probs,
+                expert_frequency_offset,
+                num_tokens,
+                1,
+                identity_indices,
+                identity_indices,
+                identity_indices,
+                token_offsets,
+                False,
+                activation_type,
+            )
+            return output, None
 
     def backward_dw(self):
         """Compatibility hook for overlapped MoE schedules."""

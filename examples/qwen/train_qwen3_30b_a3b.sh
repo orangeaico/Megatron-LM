@@ -79,7 +79,7 @@ mkdir -p "$LOG_DIR_PATH"
 mkdir -p "$CONVERSION_DIR_PATH"
 
 # Distributed training setup
-GPUS_PER_NODE=2
+GPUS_PER_NODE=1
 NUM_NODES=1
 MASTER_ADDR=${MASTER_ADDR:-localhost}
 MASTER_PORT=${MASTER_PORT:-6000}
@@ -92,15 +92,16 @@ PRETRAIN_SCRIPT_PATH="pretrain_gpt.py"
 # Fixed model and training parameters for Qwen3-1.7B
 TP_SIZE=1
 CP_SIZE=1
-EP_SIZE=2
+EP_SIZE=1
 EXPERT_TP_SIZE=1
 PP_SIZE=1
 LAYERS_PER_VP=1
 MICRO_BATCH_SIZE=1 
 GLOBAL_BATCH_SIZE=8
-NUM_LAYERS=2
+NUM_LAYERS=4
 DTYPE="bf16"
-SEQ_LENGTH=16000
+SEQ_LENGTH=${SEQ_LENGTH:-16000}
+MOE_EXPERT_BACKEND=${MOE_EXPERT_BACKEND:-sonic}
 MAX_POSITION_EMBEDDINGS=262144 
 
 DISTRIBUTED_ARGS=(
@@ -276,7 +277,6 @@ elif [[ "$TRAINING_MODE" == "sft" ]]; then
         "--sft"
         "--num-workers 1"
         "--no-create-attention-mask-in-dataloader"
-        "--moe-expert-backend sonic"
         # "--trsft"
         # "--trsft-alpha 0.05"
         # "--weighted-loss"
@@ -305,6 +305,10 @@ elif [[ "$TRAINING_MODE" == "distillation" ]]; then
 else
     echo "Training mode should be one of mock, cpt, sft or distillation. Invalid training mode: $TRAINING_MODE"
     exit 1
+fi
+
+if [[ -n "$MOE_EXPERT_BACKEND" ]]; then
+    DATA_ARGS_LIST+=("--moe-expert-backend $MOE_EXPERT_BACKEND")
 fi
 
 CHECKPOINT_ARGS=(
