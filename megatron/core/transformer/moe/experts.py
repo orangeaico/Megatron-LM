@@ -525,6 +525,7 @@ class SonicGroupedMLP(MegatronModule):
         setattr(self.linear_fc2_weight, "partition_dim", 1)
         setattr(self.linear_fc2_weight, "partition_stride", 1)
 
+        self._logged_routed_forward = False
         self._register_load_state_dict_pre_hook(self._merge_legacy_sonic_state_dict_keys)
 
     @staticmethod
@@ -599,6 +600,90 @@ class SonicGroupedMLP(MegatronModule):
         output = hidden_states.new_empty(hidden_states.shape)
         zero = self.linear_fc1_weight.sum() * 0 + self.linear_fc2_weight.sum() * 0
         return output + zero, None
+
+    def can_use_routed_forward(self) -> bool:
+        """Return whether Sonic can own local gather/aggregate for this rank."""
+        return self.ep_group.size() == 1 and self.tp_group.size() == 1
+
+    def forward_from_routing(
+        self,
+        hidden_states: torch.Tensor,
+        routing_map: torch.Tensor,
+        probs: torch.Tensor,
+    ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
+        """Forward using Sonic's routing-aware local expert path.
+
+        This bypasses Megatron's local token permutation and lets Sonic gather
+        tokens inside the up-projection GEMM and aggregate down-projection
+        results back to token order.
+        """
+        if not self.can_use_routed_forward():
+            raise RuntimeError(
+                "SonicGroupedMLP routed forward currently supports only EP=1 and "
+                "expert TP=1. Use the standard Sonic forward path for distributed modes."
+            )
+        if hidden_states.dtype not in (torch.bfloat16, torch.float16):
+            raise ValueError("SonicGroupedMLP supports BF16/FP16 activations only.")
+        if hidden_states.device.type != "cuda":
+            raise ValueError("SonicGroupedMLP requires CUDA tensors.")
+        if self.config.moe_apply_probs_on_input:
+            raise ValueError(
+                "SonicGroupedMLP routed forward does not support moe_apply_probs_on_input."
+            )
+        if not self._logged_routed_forward:
+            logger.info(
+                "SonicGroupedMLP using routed SonicMoE path; Megatron local expert "
+                "permutation/combine is bypassed for this rank."
+            )
+            self._logged_routed_forward = True
+
+        original_shape = hidden_states.shape
+        hidden_states = hidden_states.reshape(-1, original_shape[-1])
+        routing_map = routing_map.reshape(hidden_states.size(0), -1)
+        probs = probs.reshape(hidden_states.size(0), -1)
+
+        if routing_map.dtype != torch.bool:
+            routing_map = routing_map.bool()
+        if hidden_states.nelement() == 0 or routing_map.numel() == 0:
+            output = hidden_states.new_empty(hidden_states.shape)
+            zero = self.linear_fc1_weight.sum() * 0 + self.linear_fc2_weight.sum() * 0
+            return (output + zero).view(original_shape), None
+
+        try:
+            from sonicmoe.enums import ActivationType as SonicActivationType
+            from sonicmoe.functional import moe_general_routing_inputs
+        except Exception as exc:
+            raise ImportError(
+                "SonicGroupedMLP requires the sonic-moe package. Install it in the "
+                "training container, for example with `pip install 'sonic-moe[cu13]'`."
+            ) from exc
+
+        token_expert_indices = routing_map.nonzero(as_tuple=False)
+        if token_expert_indices.numel() == 0:
+            output = hidden_states.new_empty(hidden_states.shape)
+            zero = self.linear_fc1_weight.sum() * 0 + self.linear_fc2_weight.sum() * 0
+            return (output + zero).view(original_shape), None
+        token_indices = token_expert_indices[:, 0].to(torch.int32)
+        expert_indices = token_expert_indices[:, 1].to(torch.int32)
+        router_scores = probs[routing_map]
+
+        w1, w2 = self._sonic_weights()
+        output, _ = moe_general_routing_inputs(
+            hidden_states,
+            router_scores,
+            token_indices,
+            expert_indices,
+            w1,
+            None,
+            w2,
+            None,
+            self.num_local_experts,
+            torch.cuda.current_stream().cuda_stream,
+            SonicActivationType(self._sonic_activation_type()),
+            not torch.is_grad_enabled(),
+            False,
+        )
+        return output.view(original_shape), None
 
     def forward(
         self,

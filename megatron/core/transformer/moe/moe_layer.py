@@ -577,6 +577,25 @@ class MoELayer(BaseMoELayer):
                 if "route" in self.fwd_execution_map:
                     shared_expert_output = self.shared_experts_compute(hidden_states)
                     probs, routing_map = self.route(hidden_states, padding_mask)
+                    routed_experts = apply_module(self.experts)
+                    if (
+                        intermediate_tensors is None
+                        and self.config.moe_latent_size is None
+                        and not self.shared_expert_overlap
+                        and not self.config.overlap_dispatch_backward_with_experts_wgrad
+                        and hasattr(routed_experts, "forward_from_routing")
+                        and routed_experts.can_use_routed_forward()
+                    ):
+                        output, mlp_bias = routed_experts.forward_from_routing(
+                            hidden_states, routing_map, probs
+                        )
+                        assert (
+                            mlp_bias is None
+                        ), f"mlp_bias is not supported for {type(self.token_dispatcher)}"
+                        if shared_expert_output is not None:
+                            output = output + shared_expert_output
+                        return output, mlp_bias
+
                     hidden_states, probs = self.preprocess(hidden_states, probs, routing_map)
 
                     if intermediate_tensors is not None:
