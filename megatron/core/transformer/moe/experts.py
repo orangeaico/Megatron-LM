@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import logging
-import os
 from collections.abc import Callable
 from copy import deepcopy
 from dataclasses import dataclass
@@ -489,9 +488,6 @@ class SonicGroupedMLP(MegatronModule):
         self.ep_group = pg_collection.ep
         self.tp_group = pg_collection.expt_tp
         self.expert_parallel = self.config.expert_model_parallel_size > 1
-        self.sonic_torch_grouped_backend = os.getenv(
-            "SONIC_MOE_USE_TORCH_GROUPED", "0"
-        ).lower()
         self._validate_sonic_config()
 
         ffn_hidden_size = not_none(self.config.moe_ffn_hidden_size)
@@ -531,6 +527,30 @@ class SonicGroupedMLP(MegatronModule):
 
         self._register_load_state_dict_pre_hook(self._merge_legacy_sonic_state_dict_keys)
 
+    @staticmethod
+    def _interleave_glu_weight(weight: torch.Tensor) -> torch.Tensor:
+        """Convert [gate..., up...] GLU columns to Sonic [gate0, up0, ...] columns."""
+        *prefix, two_intermediate = weight.shape
+        intermediate = two_intermediate // 2
+        return (
+            weight.reshape(*prefix, 2, intermediate)
+            .transpose(-1, -2)
+            .reshape(*prefix, two_intermediate)
+            .contiguous()
+        )
+
+    @staticmethod
+    def _deinterleave_glu_weight(weight: torch.Tensor) -> torch.Tensor:
+        """Convert Sonic [gate0, up0, ...] GLU columns to [gate..., up...] columns."""
+        *prefix, two_intermediate = weight.shape
+        intermediate = two_intermediate // 2
+        return (
+            weight.reshape(*prefix, intermediate, 2)
+            .transpose(-1, -2)
+            .reshape(*prefix, two_intermediate)
+            .contiguous()
+        )
+
     def _validate_sonic_config(self):
         if self.config.add_bias_linear:
             raise ValueError("SonicGroupedMLP does not support expert bias.")
@@ -566,90 +586,14 @@ class SonicGroupedMLP(MegatronModule):
     def _sonic_weights(self):
         # Sonic expects [out, in, E] with stride(0) == 1. Contiguous backing
         # storage [E, in, out] gives that view without a per-forward copy.
+        # linear_fc1_weight is stored in Sonic's interleaved GLU order.
         return (
             self.linear_fc1_weight.permute(2, 1, 0),
             self.linear_fc2_weight.permute(2, 1, 0),
         )
 
-    def _torch_grouped_forward(
-        self,
-        permuted_local_hidden_states: torch.Tensor,
-        tokens_per_expert: torch.Tensor,
-        permuted_probs: torch.Tensor,
-    ):
-        """Grouped-mm fallback that avoids QuACK autotuning on dynamic EP token offsets."""
-        if self.sonic_torch_grouped_backend in ("1", "true", "loop"):
-            return self._torch_loop_forward(
-                permuted_local_hidden_states, tokens_per_expert, permuted_probs
-            )
-        if not hasattr(torch, "_grouped_mm"):
-            raise RuntimeError("SonicGroupedMLP torch grouped fallback requires torch._grouped_mm.")
-
-        device = permuted_local_hidden_states.device
-        tokens_per_expert = tokens_per_expert.to(device=device, dtype=torch.int32)
-        offsets = torch.cumsum(tokens_per_expert, dim=0)
-
-        fc1_output = torch._grouped_mm(
-            permuted_local_hidden_states, self.linear_fc1_weight, offsets
-        )
-        x_glu, x_linear = torch.chunk(fc1_output, 2, dim=-1)
-        if (val := self.config.activation_func_clamp_value) is not None:
-            x_glu = x_glu.clamp(min=None, max=val)
-            x_linear = x_linear.clamp(min=-val, max=val)
-        intermediate = self.config.activation_func(x_glu) * (
-            x_linear + self.config.glu_linear_offset
-        )
-        probs = permuted_probs.view(-1, 1)
-        if probs.dtype != intermediate.dtype:
-            probs = probs.to(intermediate.dtype)
-        intermediate = (intermediate * probs).to(intermediate.dtype)
-
-        output = torch._grouped_mm(intermediate, self.linear_fc2_weight, offsets)
-        return output, None
-
-    def _torch_loop_forward(
-        self,
-        permuted_local_hidden_states: torch.Tensor,
-        tokens_per_expert: torch.Tensor,
-        permuted_probs: torch.Tensor,
-    ):
-        """Portable grouped expert fallback using one GEMM pair per non-empty local expert."""
-        if tokens_per_expert.device.type == "cpu":
-            tokens_per_expert_list = tokens_per_expert.tolist()
-        else:
-            tokens_per_expert_list = tokens_per_expert.cpu().tolist()
-
-        hidden_chunks = torch.split(permuted_local_hidden_states, tokens_per_expert_list)
-        prob_chunks = torch.split(permuted_probs.view(-1, 1), tokens_per_expert_list)
-        output_chunks = []
-        zero_terms = []
-
-        for expert_idx, (hidden, probs) in enumerate(zip(hidden_chunks, prob_chunks)):
-            if hidden.numel() == 0:
-                zero_terms.append(
-                    self.linear_fc1_weight[expert_idx].view(-1)[0] * 0
-                    + self.linear_fc2_weight[expert_idx].view(-1)[0] * 0
-                )
-                continue
-            fc1_output = torch.matmul(hidden, self.linear_fc1_weight[expert_idx])
-            x_glu, x_linear = torch.chunk(fc1_output, 2, dim=-1)
-            if (val := self.config.activation_func_clamp_value) is not None:
-                x_glu = x_glu.clamp(min=None, max=val)
-                x_linear = x_linear.clamp(min=-val, max=val)
-            intermediate = self.config.activation_func(x_glu) * (
-                x_linear + self.config.glu_linear_offset
-            )
-            if probs.dtype != intermediate.dtype:
-                probs = probs.to(intermediate.dtype)
-            intermediate = (intermediate * probs).to(intermediate.dtype)
-            output_chunks.append(torch.matmul(intermediate, self.linear_fc2_weight[expert_idx]))
-
-        zero = sum(zero_terms) if zero_terms else None
-        if not output_chunks:
-            output = permuted_local_hidden_states.new_empty(permuted_local_hidden_states.shape)
-            return (output + zero) if zero is not None else output, None
-        output = torch.cat(output_chunks, dim=0)
-        return (output + zero) if zero is not None else output, None
+    def _legacy_fc1_weight(self):
+        return self._deinterleave_glu_weight(self.linear_fc1_weight)
 
     def _zero_token_forward(self, hidden_states: torch.Tensor, probs: torch.Tensor):
         output = hidden_states.new_empty(hidden_states.shape)
@@ -681,11 +625,7 @@ class SonicGroupedMLP(MegatronModule):
         if permuted_local_hidden_states.nelement() == 0:
             return self._zero_token_forward(permuted_local_hidden_states, permuted_probs)
 
-        if self.sonic_torch_grouped_backend not in ("0", "false", "sonic", ""):
-            return self._torch_grouped_forward(
-                permuted_local_hidden_states, tokens_per_expert, permuted_probs
-            )
-
+        w1, w2 = self._sonic_weights()
         try:
             from sonicmoe.enums import ActivationType as SonicActivationType
             from sonicmoe.functional import _DownProjection, _UpProjection
@@ -702,18 +642,16 @@ class SonicGroupedMLP(MegatronModule):
         if real_probs.dtype != torch.float32:
             real_probs = real_probs.float()
 
-        w1, w2 = self._sonic_weights()
         expert_frequency_offset = torch.empty(
             self.num_local_experts + 1, device=device, dtype=torch.int32
         )
         expert_frequency_offset[0].zero_()
         torch.cumsum(tokens_per_expert, dim=0, out=expert_frequency_offset[1:])
 
-        x_gather_idx = torch.arange(num_tokens, device=device, dtype=torch.int32)
-        identity_indices = x_gather_idx
+        identity_indices = torch.arange(num_tokens, device=device, dtype=torch.int32)
         token_offsets = torch.arange(num_tokens + 1, device=device, dtype=torch.int32)
-
         activation_type = SonicActivationType(self._sonic_activation_type())
+
         a, h = _UpProjection.apply(
             permuted_local_hidden_states,
             w1,
@@ -721,14 +659,14 @@ class SonicGroupedMLP(MegatronModule):
             expert_frequency_offset,
             num_tokens,
             1,
-            x_gather_idx,
+            identity_indices,
             identity_indices,
             identity_indices,
             token_offsets,
             False,
             activation_type,
             not torch.is_grad_enabled(),
-            True,
+            False,
         )
 
         output = _DownProjection.apply(
@@ -771,9 +709,10 @@ class SonicGroupedMLP(MegatronModule):
                 f"{prefix}linear_fc1.weight{i}" for i in range(self.num_local_experts)
             ]
             if all(k in state_dict for k in legacy_fc1_keys):
-                state_dict[fc1_key] = torch.stack(
+                legacy_fc1_weight = torch.stack(
                     [state_dict.pop(k).transpose(0, 1) for k in legacy_fc1_keys], dim=0
                 ).contiguous()
+                state_dict[fc1_key] = self._interleave_glu_weight(legacy_fc1_weight)
         if fc2_key not in state_dict:
             legacy_fc2_keys = [
                 f"{prefix}linear_fc2.weight{i}" for i in range(self.num_local_experts)
@@ -785,7 +724,9 @@ class SonicGroupedMLP(MegatronModule):
 
     def _save_to_state_dict(self, destination, prefix, keep_vars):
         for local_idx in range(self.num_local_experts):
-            fc1_weight = self.linear_fc1_weight[local_idx].transpose(0, 1)
+            fc1_weight = self._deinterleave_glu_weight(
+                self.linear_fc1_weight[local_idx]
+            ).transpose(0, 1)
             fc2_weight = self.linear_fc2_weight[local_idx].transpose(0, 1)
             if not keep_vars:
                 fc1_weight = fc1_weight.detach()
@@ -823,6 +764,8 @@ class SonicGroupedMLP(MegatronModule):
             for local_idx in range(self.num_local_experts):
                 global_idx = local_expert_indices_offset + local_idx
                 expert_weight = tensor.select(expert_axis, local_idx)
+                if split_glu:
+                    expert_weight = self._deinterleave_glu_weight(expert_weight)
                 if transpose_expert_weight:
                     expert_weight = expert_weight.transpose(0, 1)
                 expert_key = f"{per_expert_prefix}weight{local_idx}"
@@ -853,6 +796,8 @@ class SonicGroupedMLP(MegatronModule):
                     expert_weight = torch.cat(expert_weight, dim=0)
                 if transpose_expert_weight:
                     expert_weight = expert_weight.transpose(0, 1)
+                if split_glu:
+                    expert_weight = self._interleave_glu_weight(expert_weight)
                 expert_weights.append(expert_weight)
             return torch.stack(expert_weights, dim=expert_axis).contiguous()
 
