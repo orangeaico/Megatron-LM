@@ -71,10 +71,15 @@ _SONIC_MOE_TIMING_EVENTS: dict[str, list[tuple[torch.cuda.Event, torch.cuda.Even
     "forward": [],
     "backward": [],
 }
+_BASELINE_MOE_TIMING_EVENTS: dict[str, list[tuple[torch.cuda.Event, torch.cuda.Event]]] = {
+    "forward": [],
+    "backward": [],
+}
 
 
 def _sonic_moe_timing_enabled() -> bool:
-    value = os.environ.get("SONIC_MOE_LOG_TIMING", "1").lower()
+    value = os.environ.get("MOE_EXPERT_LOG_TIMING", os.environ.get("SONIC_MOE_LOG_TIMING", "1"))
+    value = value.lower()
     if value in _SONIC_MOE_TIMING_DISABLED_VALUES:
         return False
     return torch.cuda.is_available()
@@ -95,15 +100,33 @@ def _sonic_moe_timing_stop(
     kind: str,
     event_pair: tuple[torch.cuda.Event, torch.cuda.Event] | None,
 ) -> None:
+    _moe_expert_timing_stop(_SONIC_MOE_TIMING_EVENTS, kind, event_pair)
+
+
+def _baseline_moe_timing_stop(
+    kind: str,
+    event_pair: tuple[torch.cuda.Event, torch.cuda.Event] | None,
+) -> None:
+    _moe_expert_timing_stop(_BASELINE_MOE_TIMING_EVENTS, kind, event_pair)
+
+
+def _moe_expert_timing_stop(
+    events: dict[str, list[tuple[torch.cuda.Event, torch.cuda.Event]]],
+    kind: str,
+    event_pair: tuple[torch.cuda.Event, torch.cuda.Event] | None,
+) -> None:
     if event_pair is None:
         return
     _, end_event = event_pair
     end_event.record()
-    _SONIC_MOE_TIMING_EVENTS[kind].append(event_pair)
+    events[kind].append(event_pair)
 
 
-def _sonic_moe_timing_elapsed_ms(kind: str) -> tuple[float, int]:
-    events = _SONIC_MOE_TIMING_EVENTS[kind]
+def _moe_expert_timing_elapsed_ms(
+    events_by_kind: dict[str, list[tuple[torch.cuda.Event, torch.cuda.Event]]],
+    kind: str,
+) -> tuple[float, int]:
+    events = events_by_kind[kind]
     elapsed_ms = 0.0
     for start_event, end_event in events:
         end_event.synchronize()
@@ -113,18 +136,14 @@ def _sonic_moe_timing_elapsed_ms(kind: str) -> tuple[float, int]:
     return elapsed_ms, count
 
 
-def pop_sonic_moe_timing_stats() -> dict[str, float] | None:
-    """Return and reset local SonicMoE timing stats since the last call.
-
-    CUDA events are recorded around each SonicGroupedMLP forward and module
-    backward. They are synchronized only when the training logger flushes, so
-    this avoids adding a device sync to every MoE layer.
-    """
+def _pop_moe_expert_timing_stats(
+    events_by_kind: dict[str, list[tuple[torch.cuda.Event, torch.cuda.Event]]],
+) -> dict[str, float] | None:
     if not _sonic_moe_timing_enabled():
         return None
 
-    forward_ms, forward_calls = _sonic_moe_timing_elapsed_ms("forward")
-    backward_ms, backward_calls = _sonic_moe_timing_elapsed_ms("backward")
+    forward_ms, forward_calls = _moe_expert_timing_elapsed_ms(events_by_kind, "forward")
+    backward_ms, backward_calls = _moe_expert_timing_elapsed_ms(events_by_kind, "backward")
 
     device = torch.device("cuda", torch.cuda.current_device())
     stats = torch.tensor(
@@ -146,6 +165,21 @@ def pop_sonic_moe_timing_stats() -> dict[str, float] | None:
     }
 
 
+def pop_sonic_moe_timing_stats() -> dict[str, float] | None:
+    """Return and reset local SonicMoE timing stats since the last call.
+
+    CUDA events are recorded around each SonicGroupedMLP forward and module
+    backward. They are synchronized only when the training logger flushes, so
+    this avoids adding a device sync to every MoE layer.
+    """
+    return _pop_moe_expert_timing_stats(_SONIC_MOE_TIMING_EVENTS)
+
+
+def pop_baseline_moe_timing_stats() -> dict[str, float] | None:
+    """Return and reset local baseline/default MoE expert timing stats."""
+    return _pop_moe_expert_timing_stats(_BASELINE_MOE_TIMING_EVENTS)
+
+
 class _SonicMoETimingContext:
     def __init__(self, kind: str):
         self.kind = kind
@@ -157,6 +191,19 @@ class _SonicMoETimingContext:
     def __exit__(self, exc_type: Any, exc: Any, traceback: Any) -> None:
         del exc_type, exc, traceback
         _sonic_moe_timing_stop(self.kind, self.event_pair)
+
+
+class _BaselineMoETimingContext:
+    def __init__(self, kind: str):
+        self.kind = kind
+        self.event_pair: tuple[torch.cuda.Event, torch.cuda.Event] | None = None
+
+    def __enter__(self) -> None:
+        self.event_pair = _sonic_moe_timing_start()
+
+    def __exit__(self, exc_type: Any, exc: Any, traceback: Any) -> None:
+        del exc_type, exc, traceback
+        _baseline_moe_timing_stop(self.kind, self.event_pair)
 
 
 class GroupedLinearFc1Interface(Protocol):
@@ -342,6 +389,22 @@ class TEGroupedMLP(MegatronModule):
             self.quantization_padding = Fp8Padding(self.num_local_experts)
             self.quantization_unpadding = Fp8Unpadding(self.num_local_experts)
 
+        self._baseline_backward_timing_events: list[
+            tuple[torch.cuda.Event, torch.cuda.Event] | None
+        ] = []
+        self.register_full_backward_pre_hook(self._baseline_backward_timing_pre_hook)
+        self.register_full_backward_hook(self._baseline_backward_timing_hook)
+
+    def _baseline_backward_timing_pre_hook(self, module, grad_output) -> None:
+        del module, grad_output
+        self._baseline_backward_timing_events.append(_sonic_moe_timing_start())
+
+    def _baseline_backward_timing_hook(self, module, grad_input, grad_output) -> None:
+        del module, grad_input, grad_output
+        if not self._baseline_backward_timing_events:
+            return
+        _baseline_moe_timing_stop("backward", self._baseline_backward_timing_events.pop())
+
     @staticmethod
     def _apply_bias(intermediate_parallel, bias_parallel, tokens_per_expert, permuted_probs):
         if bias_parallel is None:
@@ -436,69 +499,70 @@ class TEGroupedMLP(MegatronModule):
         Return:
             output (torch.Tensor): The output of the local experts.
         """
-        tokens_per_expert: list[int] = tokens_per_expert.tolist()
-        if self.config.fp8 or self.config.fp4:
-            actual_tokens_per_expert = tokens_per_expert
-            permuted_local_hidden_states, tokens_per_expert = self.quantization_padding(
-                permuted_local_hidden_states, tokens_per_expert
-            )
-            permuted_probs, _ = self.quantization_padding(
-                permuted_probs.unsqueeze(-1), actual_tokens_per_expert
-            )
-        else:
-            permuted_probs = permuted_probs.unsqueeze(-1)
-
-        if self.config.moe_apply_probs_on_input:
-            assert (
-                self.config.moe_router_topk == 1
-            ), "`moe_apply_probs_on_input` only works with `moe_router_topk`=1."
-            original_dtype = permuted_local_hidden_states.dtype
-            permuted_local_hidden_states = permuted_probs * permuted_local_hidden_states
-            permuted_local_hidden_states = permuted_local_hidden_states.to(original_dtype)
-            # Probs already applied, so reset to 1.
-            permuted_probs = torch.ones_like(permuted_probs)
-
-        with off_interface(
-            self.offload_expert_fc1, permuted_local_hidden_states, "expert_fc1"
-        ) as permuted_local_hidden_states:
-            fc1_output, bias_parallel = apply_module(self.linear_fc1)(
-                permuted_local_hidden_states, tokens_per_expert
-            )
-        if self.offload_expert_fc1:
-            fc1_output = off_interface.group_commit(
-                fc1_output,
-                name="expert_fc1",
-                forced_released_tensors=[permuted_local_hidden_states],
-            )
-
-        if self.activation_recompute:
-            self.activation_checkpoint = tensor_parallel.CheckpointWithoutOutput()
-            with off_interface(self.offload_moe_act, fc1_output, "moe_act") as fc1_output:
-                bias_act_output = self.activation_checkpoint.checkpoint(
-                    self.bias_act_func, fc1_output, bias_parallel, permuted_probs
+        with _BaselineMoETimingContext("forward"):
+            tokens_per_expert: list[int] = tokens_per_expert.tolist()
+            if self.config.fp8 or self.config.fp4:
+                actual_tokens_per_expert = tokens_per_expert
+                permuted_local_hidden_states, tokens_per_expert = self.quantization_padding(
+                    permuted_local_hidden_states, tokens_per_expert
                 )
-        else:
-            with off_interface(self.offload_moe_act, fc1_output, "moe_act") as fc1_output:
-                bias_act_output = self.bias_act_func(fc1_output, bias_parallel, permuted_probs)
-        output, output_bias = apply_module(self.linear_fc2)(bias_act_output, tokens_per_expert)
-        if self.activation_recompute:
-            self.activation_checkpoint.discard_output_and_register_recompute(output)
+                permuted_probs, _ = self.quantization_padding(
+                    permuted_probs.unsqueeze(-1), actual_tokens_per_expert
+                )
+            else:
+                permuted_probs = permuted_probs.unsqueeze(-1)
 
-        # Delay the offload of the moe act until after the linear_fc2 has been computed
-        # to make sure the fc1_output is reloaded to GPU before recomputing moe_act.
-        if self.offload_moe_act:
-            output = off_interface.group_commit(
-                output, name="moe_act", forced_released_tensors=[fc1_output]
-            )
-        output = self._apply_bias(output, output_bias, tokens_per_expert, permuted_probs)
+            if self.config.moe_apply_probs_on_input:
+                assert (
+                    self.config.moe_router_topk == 1
+                ), "`moe_apply_probs_on_input` only works with `moe_router_topk`=1."
+                original_dtype = permuted_local_hidden_states.dtype
+                permuted_local_hidden_states = permuted_probs * permuted_local_hidden_states
+                permuted_local_hidden_states = permuted_local_hidden_states.to(original_dtype)
+                # Probs already applied, so reset to 1.
+                permuted_probs = torch.ones_like(permuted_probs)
 
-        # upad and concat the output
-        if self.config.fp8 or self.config.fp4:
-            output = self.quantization_unpadding(output, actual_tokens_per_expert)
+            with off_interface(
+                self.offload_expert_fc1, permuted_local_hidden_states, "expert_fc1"
+            ) as permuted_local_hidden_states:
+                fc1_output, bias_parallel = apply_module(self.linear_fc1)(
+                    permuted_local_hidden_states, tokens_per_expert
+                )
+            if self.offload_expert_fc1:
+                fc1_output = off_interface.group_commit(
+                    fc1_output,
+                    name="expert_fc1",
+                    forced_released_tensors=[permuted_local_hidden_states],
+                )
 
-        output_bias = None
+            if self.activation_recompute:
+                self.activation_checkpoint = tensor_parallel.CheckpointWithoutOutput()
+                with off_interface(self.offload_moe_act, fc1_output, "moe_act") as fc1_output:
+                    bias_act_output = self.activation_checkpoint.checkpoint(
+                        self.bias_act_func, fc1_output, bias_parallel, permuted_probs
+                    )
+            else:
+                with off_interface(self.offload_moe_act, fc1_output, "moe_act") as fc1_output:
+                    bias_act_output = self.bias_act_func(fc1_output, bias_parallel, permuted_probs)
+            output, output_bias = apply_module(self.linear_fc2)(bias_act_output, tokens_per_expert)
+            if self.activation_recompute:
+                self.activation_checkpoint.discard_output_and_register_recompute(output)
 
-        return output, output_bias
+            # Delay the offload of the moe act until after the linear_fc2 has been computed
+            # to make sure the fc1_output is reloaded to GPU before recomputing moe_act.
+            if self.offload_moe_act:
+                output = off_interface.group_commit(
+                    output, name="moe_act", forced_released_tensors=[fc1_output]
+                )
+            output = self._apply_bias(output, output_bias, tokens_per_expert, permuted_probs)
+
+            # upad and concat the output
+            if self.config.fp8 or self.config.fp4:
+                output = self.quantization_unpadding(output, actual_tokens_per_expert)
+
+            output_bias = None
+
+            return output, output_bias
 
     def sharded_state_dict(
         self, prefix: str = '', sharded_offsets: tuple = (), metadata: Optional[dict] = None

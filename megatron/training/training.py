@@ -2273,12 +2273,18 @@ def training_log(
             elapsed_time_per_iteration * 10**12 * args.world_size
         )
         sonic_moe_timing_stats = None
+        baseline_moe_timing_stats = None
         try:
-            from megatron.core.transformer.moe.experts import pop_sonic_moe_timing_stats
+            from megatron.core.transformer.moe.experts import (
+                pop_baseline_moe_timing_stats,
+                pop_sonic_moe_timing_stats,
+            )
 
             sonic_moe_timing_stats = pop_sonic_moe_timing_stats()
+            baseline_moe_timing_stats = pop_baseline_moe_timing_stats()
         except Exception:
             sonic_moe_timing_stats = None
+            baseline_moe_timing_stats = None
 
         one_logger_utils.track_e2e_metrics(args.log_throughput, throughput)
 
@@ -2333,6 +2339,41 @@ def training_log(
                             'sonic-local-moe-forward-time': sonic_forward_ms,
                             'sonic-local-moe-backward-time': sonic_backward_ms,
                             'sonic-local-moe-total-time': sonic_total_ms,
+                        },
+                        iteration,
+                    )
+        if baseline_moe_timing_stats is not None:
+            normalizer = max(1.0, float(total_iterations))
+            baseline_forward_ms = baseline_moe_timing_stats["forward_ms"] / normalizer
+            baseline_backward_ms = baseline_moe_timing_stats["backward_ms"] / normalizer
+            baseline_total_ms = baseline_moe_timing_stats["total_ms"] / normalizer
+            baseline_forward_calls = baseline_moe_timing_stats["forward_calls"] / normalizer
+            baseline_backward_calls = baseline_moe_timing_stats["backward_calls"] / normalizer
+            log_string += (
+                ' baseline local MoE max fwd/bwd/total (ms): '
+                f'{baseline_forward_ms:.1f}/{baseline_backward_ms:.1f}/{baseline_total_ms:.1f} |'
+            )
+            log_string += (
+                ' baseline local MoE max fwd/bwd calls: '
+                f'{baseline_forward_calls:.1f}/{baseline_backward_calls:.1f} |'
+            )
+            if args.log_timers_to_tensorboard:
+                if writer:
+                    writer.add_scalar(
+                        'baseline-local-moe-forward-time', baseline_forward_ms, iteration
+                    )
+                    writer.add_scalar(
+                        'baseline-local-moe-backward-time', baseline_backward_ms, iteration
+                    )
+                    writer.add_scalar(
+                        'baseline-local-moe-total-time', baseline_total_ms, iteration
+                    )
+                if wandb_writer:
+                    wandb_writer.log(
+                        {
+                            'baseline-local-moe-forward-time': baseline_forward_ms,
+                            'baseline-local-moe-backward-time': baseline_backward_ms,
+                            'baseline-local-moe-total-time': baseline_total_ms,
                         },
                         iteration,
                     )
