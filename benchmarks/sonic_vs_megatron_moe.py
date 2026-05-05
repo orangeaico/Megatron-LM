@@ -160,9 +160,9 @@ def megatron_grouped_local_forward(
     w1_megatron: torch.Tensor,
     w2_megatron: torch.Tensor,
 ) -> torch.Tensor:
-    fc1 = grouped_mm(x_permuted, w1_megatron.transpose(1, 2), offsets)
+    fc1 = grouped_mm(x_permuted, w1_megatron, offsets)
     act = swiglu_interleaved(fc1) * sorted_scores.unsqueeze(-1)
-    return grouped_mm(act, w2_megatron.transpose(1, 2), offsets)
+    return grouped_mm(act, w2_megatron, offsets)
 
 
 def bench_forward(name: str, fn: Callable[[], torch.Tensor], warmup: int, repeats: int) -> float:
@@ -212,13 +212,12 @@ def main() -> None:
     topk_scores = topk_scores.detach().requires_grad_()
     sorted_scores = sorted_scores.detach().requires_grad_()
 
-    # Sonic uses [2I, H, E] and [H, I, E]. Interleaved GLU rows are [gate0, up0, ...].
-    w1_sonic = (0.02 * torch.randn(2 * I, H, E, device=device, dtype=torch_dtype)).requires_grad_()
-    w2_sonic = (0.02 * torch.randn(H, I, E, device=device, dtype=torch_dtype)).requires_grad_()
-
-    # Megatron grouped-mm baseline uses [E, out, in] expert weights.
-    w1_megatron = w1_sonic.permute(2, 0, 1).contiguous().detach().requires_grad_()
-    w2_megatron = w2_sonic.permute(2, 0, 1).contiguous().detach().requires_grad_()
+    # Allocate Megatron-style backing storage and pass Sonic the corresponding views.
+    # Sonic/QuACK requires the output dimension to have stride 1.
+    w1_megatron = (0.02 * torch.randn(E, H, 2 * I, device=device, dtype=torch_dtype)).requires_grad_()
+    w2_megatron = (0.02 * torch.randn(E, I, H, device=device, dtype=torch_dtype)).requires_grad_()
+    w1_sonic = w1_megatron.permute(2, 1, 0)
+    w2_sonic = w2_megatron.permute(2, 1, 0)
     x_permuted = x.detach().index_select(0, token_indices).requires_grad_()
 
     print(f"T {T}, I {I}, H {H}, E {E}, K {K}, dtype {args.dtype}, activation swiglu")
