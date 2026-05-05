@@ -282,6 +282,15 @@ class TopKRouter(Router):
                 return True
         return False
 
+    def can_use_sonic_topk_routing(self) -> bool:
+        """Return whether routing can produce Sonic fixed top-k metadata directly."""
+        return (
+            self.routing_type != "sinkhorn"
+            and self.config.moe_expert_capacity_factor is None
+            and not self.config.moe_router_fusion
+            and not self.is_aux_loss_enabled()
+        )
+
     def _apply_aux_loss(
         self,
         probs: torch.Tensor,
@@ -584,6 +593,22 @@ class TopKRouter(Router):
                     routing_map = routing_map & (~padding_mask)
                 self.local_tokens_per_expert += routing_map.sum(dim=0)
 
+    def _apply_expert_bias_from_topk(
+        self, top_indices: torch.Tensor, padding_mask: Optional[torch.Tensor] = None
+    ):
+        """Update expert bias counters from dense top-k indices without a dense routing map."""
+        if self.enable_expert_bias and torch.is_grad_enabled():
+            with torch.no_grad():
+                if padding_mask is not None:
+                    top_indices = top_indices[~padding_mask]
+                tokens_per_expert = torch.bincount(
+                    top_indices.reshape(-1).to(torch.int64),
+                    minlength=self.config.num_moe_experts,
+                )
+                self.local_tokens_per_expert += tokens_per_expert.to(
+                    dtype=self.local_tokens_per_expert.dtype
+                )
+
     def routing(self, logits: torch.Tensor, padding_mask: Optional[torch.Tensor] = None):
         """Top-k routing function
 
@@ -678,7 +703,12 @@ class TopKRouter(Router):
             self.global_tokens_per_expert.zero_()
             self.ga_steps.zero_()
 
-    def forward(self, input: torch.Tensor, padding_mask: Optional[torch.Tensor] = None):
+    def forward(
+        self,
+        input: torch.Tensor,
+        padding_mask: Optional[torch.Tensor] = None,
+        sonic_topk: bool = False,
+    ):
         """
         Forward pass of the router.
 
@@ -688,6 +718,9 @@ class TopKRouter(Router):
                                                    Shape [seq_length, bsz]. True for valid tokens,
                                                    False for padding tokens. Defaults to None.
         """
+        if sonic_topk:
+            return self.forward_for_sonic_topk(input, padding_mask=padding_mask)
+
         self._maintain_float32_expert_bias()
 
         # Apply input jitter
@@ -707,6 +740,52 @@ class TopKRouter(Router):
         probs, routing_map = self.routing(logits, padding_mask=padding_mask)
 
         return probs, routing_map
+
+    def forward_for_sonic_topk(
+        self, input: torch.Tensor, padding_mask: Optional[torch.Tensor] = None
+    ):
+        """Forward pass that returns dense [tokens, topk] routing for SonicMoE."""
+        if not self.can_use_sonic_topk_routing():
+            raise RuntimeError(
+                "Sonic fixed top-k routing requires non-sinkhorn routing, no token dropping, "
+                "router fusion disabled, and auxiliary load-balancing losses disabled."
+            )
+
+        self._maintain_float32_expert_bias()
+
+        input = self.apply_input_jitter(input)
+        logits = self.gating(input)
+
+        if self.config.moe_router_force_load_balancing:
+            logits = apply_random_logits(logits)
+
+        if self.config.moe_router_force_biased is not None:
+            logits = apply_biased_logits(
+                logits, self.config.moe_router_force_biased, self.layer_number
+            )
+
+        logits = logits.view(-1, self.config.num_moe_experts)
+        if padding_mask is not None:
+            padding_mask = padding_mask.reshape(-1)
+
+        logits = self.apply_z_loss(logits, padding_mask=padding_mask)
+        probs, top_indices = topk_routing_with_score_function(
+            logits,
+            self.topk,
+            use_pre_softmax=self.config.moe_router_pre_softmax,
+            num_groups=self.config.moe_router_num_groups,
+            group_topk=self.config.moe_router_group_topk,
+            scaling_factor=self.config.moe_router_topk_scaling_factor,
+            score_function=self.score_function,
+            expert_bias=self.expert_bias,
+            fused=False,
+            router_replay=self.router_replay,
+            dense_output=True,
+        )
+
+        self._apply_expert_bias_from_topk(top_indices, padding_mask=padding_mask)
+
+        return probs, top_indices
 
     def _load_from_state_dict(self, *args, **kwargs):
         """Load the state dict of the router."""
@@ -812,7 +891,12 @@ class InferenceTopKRouter(TopKRouter):
         )
         return probs.squeeze(1), top_indices.squeeze(1)
 
-    def forward(self, input: torch.Tensor, padding_mask: Optional[torch.Tensor] = None):
+    def forward(
+        self,
+        input: torch.Tensor,
+        padding_mask: Optional[torch.Tensor] = None,
+        sonic_topk: bool = False,
+    ):
         """Simplified forward pass for inference - returns dense tensors only.
 
         Args:
@@ -824,6 +908,8 @@ class InferenceTopKRouter(TopKRouter):
                 - probs: Normalized routing probabilities [num_tokens, topk]
                 - top_indices: Selected expert indices [num_tokens, topk]
         """
+        if sonic_topk:
+            return super().forward(input, padding_mask, sonic_topk=True)
 
         if self.training or not self.is_inference_cuda_graphed_iteration:
             return super().forward(input, padding_mask)

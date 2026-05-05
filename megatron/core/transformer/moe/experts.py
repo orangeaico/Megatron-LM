@@ -684,6 +684,7 @@ class SonicGroupedMLP(MegatronModule):
         setattr(self.linear_fc2_weight, "partition_stride", 1)
 
         self._logged_routed_forward = False
+        self._logged_topk_forward = False
         self._sonic_backward_timing_events: list[
             tuple[torch.cuda.Event, torch.cuda.Event] | None
         ] = []
@@ -778,6 +779,115 @@ class SonicGroupedMLP(MegatronModule):
         """Return whether Sonic can own local gather/aggregate for this rank."""
         return self.ep_group.size() == 1 and self.tp_group.size() == 1
 
+    def forward_from_topk(
+        self,
+        hidden_states: torch.Tensor,
+        probs: torch.Tensor,
+        topk_indices: torch.Tensor,
+    ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
+        """Forward using Sonic's fixed top-k local expert path."""
+        if not self.can_use_routed_forward():
+            raise RuntimeError(
+                "SonicGroupedMLP fixed top-k forward currently supports only EP=1 and "
+                "expert TP=1. Use the standard Sonic forward path for distributed modes."
+            )
+        if hidden_states.dtype not in (torch.bfloat16, torch.float16):
+            raise ValueError("SonicGroupedMLP supports BF16/FP16 activations only.")
+        if hidden_states.device.type != "cuda":
+            raise ValueError("SonicGroupedMLP requires CUDA tensors.")
+        if self.config.moe_apply_probs_on_input:
+            raise ValueError(
+                "SonicGroupedMLP fixed top-k forward does not support moe_apply_probs_on_input."
+            )
+        if not self._logged_topk_forward:
+            logger.info(
+                "SonicGroupedMLP using fixed top-k Sonic path; dense routing_map is bypassed."
+            )
+            self._logged_topk_forward = True
+
+        original_shape = hidden_states.shape
+        hidden_states = hidden_states.reshape(-1, original_shape[-1])
+        num_tokens = hidden_states.size(0)
+        probs = probs.reshape(num_tokens, -1)
+        topk_indices = topk_indices.reshape(num_tokens, -1)
+
+        if hidden_states.nelement() == 0 or probs.numel() == 0:
+            output = hidden_states.new_empty(hidden_states.shape)
+            zero = self.linear_fc1_weight.sum() * 0 + self.linear_fc2_weight.sum() * 0
+            return (output + zero).view(original_shape), None
+
+        try:
+            from sonicmoe.enums import ActivationType as SonicActivationType
+            from sonicmoe.functional import _DownProjection, _UpProjection
+            from sonicmoe.functional.triton_kernels import TC_topk_router_metadata_triton
+        except Exception as exc:
+            raise ImportError(
+                "SonicGroupedMLP requires the sonic-moe package. Install it in the "
+                "training container, for example with `pip install 'sonic-moe[cu13]'`."
+            ) from exc
+
+        if topk_indices.dtype != torch.int32:
+            topk_indices = topk_indices.to(torch.int32)
+        if probs.dtype != torch.float32:
+            probs = probs.float()
+
+        device = hidden_states.device
+        topk = topk_indices.size(1)
+        total_expert_freq = num_tokens * topk
+        s_scatter_idx = torch.empty(total_expert_freq, dtype=torch.int32, device=device)
+        s_reverse_scatter_idx = torch.empty(total_expert_freq, dtype=torch.int32, device=device)
+        expert_frequency = torch.empty(self.num_local_experts, dtype=torch.int32, device=device)
+        expert_frequency_offset = torch.empty(
+            self.num_local_experts + 1, dtype=torch.int32, device=device
+        )
+        x_gather_idx = torch.empty(total_expert_freq, dtype=torch.int32, device=device)
+        TC_topk_router_metadata_triton(
+            topk_indices,
+            self.num_local_experts,
+            expert_frequency,
+            expert_frequency_offset,
+            x_gather_idx,
+            s_scatter_idx,
+            s_reverse_scatter_idx,
+        )
+
+        w1, w2 = self._sonic_weights()
+        activation_type = SonicActivationType(self._sonic_activation_type())
+        a, h = _UpProjection.apply(
+            hidden_states,
+            w1,
+            None,
+            expert_frequency_offset,
+            total_expert_freq,
+            topk,
+            x_gather_idx,
+            s_scatter_idx,
+            s_reverse_scatter_idx,
+            None,
+            False,
+            activation_type,
+            not torch.is_grad_enabled(),
+            False,
+        )
+
+        output = _DownProjection.apply(
+            a,
+            h,
+            w2,
+            None,
+            probs,
+            expert_frequency_offset,
+            num_tokens,
+            topk,
+            x_gather_idx,
+            s_scatter_idx,
+            s_reverse_scatter_idx,
+            None,
+            False,
+            activation_type,
+        )
+        return output.view(original_shape), None
+
     def forward_from_routing(
         self,
         hidden_states: torch.Tensor,
@@ -864,9 +974,14 @@ class SonicGroupedMLP(MegatronModule):
         tokens_per_expert: Optional[torch.Tensor],
         permuted_probs: torch.Tensor,
         routing_map: Optional[torch.Tensor] = None,
+        topk_indices: Optional[torch.Tensor] = None,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         """Forward pass for SonicMoE local experts."""
         with _SonicMoETimingContext("forward"):
+            if topk_indices is not None:
+                return self.forward_from_topk(
+                    permuted_local_hidden_states, permuted_probs, topk_indices
+                )
             if routing_map is not None:
                 return self.forward_from_routing(
                     permuted_local_hidden_states, routing_map, permuted_probs

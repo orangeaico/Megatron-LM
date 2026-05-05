@@ -64,6 +64,7 @@ class ExpertsInterface(Protocol):
         permuted_probs: torch.Tensor,
         /,
         routing_map: torch.Tensor | None = None,
+        topk_indices: torch.Tensor | None = None,
     ) -> tuple[torch.Tensor, torch.Tensor | None]:
         """Forward pass of the experts layer."""
         ...
@@ -577,8 +578,31 @@ class MoELayer(BaseMoELayer):
             try:
                 if "route" in self.fwd_execution_map:
                     shared_expert_output = self.shared_experts_compute(hidden_states)
-                    probs, routing_map = self.route(hidden_states, padding_mask)
                     routed_experts = apply_module(self.experts)
+                    if (
+                        intermediate_tensors is None
+                        and self.config.moe_latent_size is None
+                        and not self.shared_expert_overlap
+                        and not self.config.overlap_dispatch_backward_with_experts_wgrad
+                        and hasattr(routed_experts, "forward_from_routing")
+                        and routed_experts.can_use_routed_forward()
+                        and hasattr(self.router, "forward_for_sonic_topk")
+                        and self.router.can_use_sonic_topk_routing()
+                    ):
+                        probs, topk_indices = apply_module(self.router)(
+                            hidden_states, padding_mask, sonic_topk=True
+                        )
+                        output, mlp_bias = routed_experts(
+                            hidden_states, None, probs, topk_indices=topk_indices
+                        )
+                        assert (
+                            mlp_bias is None
+                        ), f"mlp_bias is not supported for {type(self.token_dispatcher)}"
+                        if shared_expert_output is not None:
+                            output = output + shared_expert_output
+                        return output, mlp_bias
+
+                    probs, routing_map = self.route(hidden_states, padding_mask)
                     if (
                         intermediate_tensors is None
                         and self.config.moe_latent_size is None
