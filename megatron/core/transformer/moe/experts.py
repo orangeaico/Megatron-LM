@@ -71,6 +71,13 @@ _SONIC_MOE_TIMING_EVENTS: dict[str, list[tuple[torch.cuda.Event, torch.cuda.Even
     "forward": [],
     "backward": [],
 }
+_SONIC_MOE_DETAIL_TIMING_EVENTS: dict[str, list[tuple[torch.cuda.Event, torch.cuda.Event]]] = {
+    "topk_metadata": [],
+    "up_forward": [],
+    "down_forward": [],
+    "down_backward": [],
+    "up_backward": [],
+}
 _BASELINE_MOE_TIMING_EVENTS: dict[str, list[tuple[torch.cuda.Event, torch.cuda.Event]]] = {
     "forward": [],
     "backward": [],
@@ -101,6 +108,13 @@ def _sonic_moe_timing_stop(
     event_pair: tuple[torch.cuda.Event, torch.cuda.Event] | None,
 ) -> None:
     _moe_expert_timing_stop(_SONIC_MOE_TIMING_EVENTS, kind, event_pair)
+
+
+def _sonic_moe_detail_timing_stop(
+    kind: str,
+    event_pair: tuple[torch.cuda.Event, torch.cuda.Event] | None,
+) -> None:
+    _moe_expert_timing_stop(_SONIC_MOE_DETAIL_TIMING_EVENTS, kind, event_pair)
 
 
 def _baseline_moe_timing_stop(
@@ -145,13 +159,17 @@ def _pop_moe_expert_timing_stats(
     forward_ms, forward_calls = _moe_expert_timing_elapsed_ms(events_by_kind, "forward")
     backward_ms, backward_calls = _moe_expert_timing_elapsed_ms(events_by_kind, "backward")
 
+    distributed = torch.distributed.is_available() and torch.distributed.is_initialized()
+    if not distributed and forward_calls == 0 and backward_calls == 0:
+        return None
+
     device = torch.device("cuda", torch.cuda.current_device())
     stats = torch.tensor(
         [forward_ms, backward_ms, forward_calls, backward_calls],
         device=device,
         dtype=torch.float64,
     )
-    if torch.distributed.is_available() and torch.distributed.is_initialized():
+    if distributed:
         torch.distributed.all_reduce(stats, op=torch.distributed.ReduceOp.MAX)
     if stats[2].item() == 0 and stats[3].item() == 0:
         return None
@@ -175,6 +193,38 @@ def pop_sonic_moe_timing_stats() -> dict[str, float] | None:
     return _pop_moe_expert_timing_stats(_SONIC_MOE_TIMING_EVENTS)
 
 
+def pop_sonic_moe_detail_timing_stats() -> dict[str, dict[str, float]] | None:
+    """Return and reset detailed fixed-topk SonicMoE timing stats."""
+    if not _sonic_moe_timing_enabled():
+        return None
+
+    names = list(_SONIC_MOE_DETAIL_TIMING_EVENTS.keys())
+    local_values = []
+    for name in names:
+        elapsed_ms, calls = _moe_expert_timing_elapsed_ms(_SONIC_MOE_DETAIL_TIMING_EVENTS, name)
+        local_values.extend([elapsed_ms, float(calls)])
+
+    distributed = torch.distributed.is_available() and torch.distributed.is_initialized()
+    if not distributed and sum(local_values[1::2]) == 0:
+        return None
+
+    device = torch.device("cuda", torch.cuda.current_device())
+    stats = torch.tensor(local_values, device=device, dtype=torch.float64)
+    if distributed:
+        torch.distributed.all_reduce(stats, op=torch.distributed.ReduceOp.MAX)
+
+    if stats[1::2].sum().item() == 0:
+        return None
+
+    output = {}
+    for idx, name in enumerate(names):
+        output[name] = {
+            "ms": float(stats[2 * idx].item()),
+            "calls": float(stats[2 * idx + 1].item()),
+        }
+    return output
+
+
 def pop_baseline_moe_timing_stats() -> dict[str, float] | None:
     """Return and reset local baseline/default MoE expert timing stats."""
     return _pop_moe_expert_timing_stats(_BASELINE_MOE_TIMING_EVENTS)
@@ -191,6 +241,73 @@ class _SonicMoETimingContext:
     def __exit__(self, exc_type: Any, exc: Any, traceback: Any) -> None:
         del exc_type, exc, traceback
         _sonic_moe_timing_stop(self.kind, self.event_pair)
+
+
+class _SonicMoEDetailTimingContext:
+    def __init__(self, kind: str):
+        self.kind = kind
+        self.event_pair: tuple[torch.cuda.Event, torch.cuda.Event] | None = None
+
+    def __enter__(self) -> None:
+        self.event_pair = _sonic_moe_timing_start()
+
+    def __exit__(self, exc_type: Any, exc: Any, traceback: Any) -> None:
+        del exc_type, exc, traceback
+        _sonic_moe_detail_timing_stop(self.kind, self.event_pair)
+
+
+class _SonicBackwardDetailState:
+    def __init__(self):
+        self.down_event_pair: tuple[torch.cuda.Event, torch.cuda.Event] | None = None
+        self.up_event_pair: tuple[torch.cuda.Event, torch.cuda.Event] | None = None
+        self.down_stopped = False
+        self.up_started = False
+        self.up_stopped = False
+
+
+class _SonicBackwardDownStart(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, state: _SonicBackwardDetailState, tensor: torch.Tensor) -> torch.Tensor:
+        ctx.state = state
+        return tensor
+
+    @staticmethod
+    def backward(ctx, grad_output: torch.Tensor):
+        ctx.state.down_event_pair = _sonic_moe_timing_start()
+        return None, grad_output
+
+
+class _SonicBackwardDownStopUpStart(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, state: _SonicBackwardDetailState, tensor: torch.Tensor) -> torch.Tensor:
+        ctx.state = state
+        return tensor
+
+    @staticmethod
+    def backward(ctx, grad_output: torch.Tensor):
+        state = ctx.state
+        if state.down_event_pair is not None and not state.down_stopped:
+            _sonic_moe_detail_timing_stop("down_backward", state.down_event_pair)
+            state.down_stopped = True
+        if not state.up_started:
+            state.up_event_pair = _sonic_moe_timing_start()
+            state.up_started = True
+        return None, grad_output
+
+
+class _SonicBackwardUpStop(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, state: _SonicBackwardDetailState, tensor: torch.Tensor) -> torch.Tensor:
+        ctx.state = state
+        return tensor
+
+    @staticmethod
+    def backward(ctx, grad_output: torch.Tensor):
+        state = ctx.state
+        if state.up_event_pair is not None and not state.up_stopped:
+            _sonic_moe_detail_timing_stop("up_backward", state.up_event_pair)
+            state.up_stopped = True
+        return None, grad_output
 
 
 class _BaselineMoETimingContext:
@@ -841,51 +958,65 @@ class SonicGroupedMLP(MegatronModule):
             self.num_local_experts + 1, dtype=torch.int32, device=device
         )
         x_gather_idx = torch.empty(total_expert_freq, dtype=torch.int32, device=device)
-        TC_topk_router_metadata_triton(
-            topk_indices,
-            self.num_local_experts,
-            expert_frequency,
-            expert_frequency_offset,
-            x_gather_idx,
-            s_scatter_idx,
-            s_reverse_scatter_idx,
-        )
+        with _SonicMoEDetailTimingContext("topk_metadata"):
+            TC_topk_router_metadata_triton(
+                topk_indices,
+                self.num_local_experts,
+                expert_frequency,
+                expert_frequency_offset,
+                x_gather_idx,
+                s_scatter_idx,
+                s_reverse_scatter_idx,
+            )
 
         w1, w2 = self._sonic_weights()
         activation_type = SonicActivationType(self._sonic_activation_type())
-        a, h = _UpProjection.apply(
-            hidden_states,
-            w1,
-            None,
-            expert_frequency_offset,
-            total_expert_freq,
-            topk,
-            x_gather_idx,
-            s_scatter_idx,
-            s_reverse_scatter_idx,
-            None,
-            False,
-            activation_type,
-            not torch.is_grad_enabled(),
-            False,
+        backward_detail_state = _SonicBackwardDetailState() if torch.is_grad_enabled() else None
+        up_input = (
+            _SonicBackwardUpStop.apply(backward_detail_state, hidden_states)
+            if backward_detail_state is not None
+            else hidden_states
         )
+        with _SonicMoEDetailTimingContext("up_forward"):
+            a, h = _UpProjection.apply(
+                up_input,
+                w1,
+                None,
+                expert_frequency_offset,
+                total_expert_freq,
+                topk,
+                x_gather_idx,
+                s_scatter_idx,
+                s_reverse_scatter_idx,
+                None,
+                False,
+                activation_type,
+                not torch.is_grad_enabled(),
+                False,
+            )
+        if backward_detail_state is not None:
+            a = _SonicBackwardDownStopUpStart.apply(backward_detail_state, a)
+            h = _SonicBackwardDownStopUpStart.apply(backward_detail_state, h)
 
-        output = _DownProjection.apply(
-            a,
-            h,
-            w2,
-            None,
-            probs,
-            expert_frequency_offset,
-            num_tokens,
-            topk,
-            x_gather_idx,
-            s_scatter_idx,
-            s_reverse_scatter_idx,
-            None,
-            False,
-            activation_type,
-        )
+        with _SonicMoEDetailTimingContext("down_forward"):
+            output = _DownProjection.apply(
+                a,
+                h,
+                w2,
+                None,
+                probs,
+                expert_frequency_offset,
+                num_tokens,
+                topk,
+                x_gather_idx,
+                s_scatter_idx,
+                s_reverse_scatter_idx,
+                None,
+                False,
+                activation_type,
+            )
+        if backward_detail_state is not None:
+            output = _SonicBackwardDownStart.apply(backward_detail_state, output)
         return output.view(original_shape), None
 
     def forward_from_routing(

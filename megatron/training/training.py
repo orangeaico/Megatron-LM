@@ -2273,17 +2273,21 @@ def training_log(
             elapsed_time_per_iteration * 10**12 * args.world_size
         )
         sonic_moe_timing_stats = None
+        sonic_moe_detail_timing_stats = None
         baseline_moe_timing_stats = None
         try:
             from megatron.core.transformer.moe.experts import (
                 pop_baseline_moe_timing_stats,
+                pop_sonic_moe_detail_timing_stats,
                 pop_sonic_moe_timing_stats,
             )
 
             sonic_moe_timing_stats = pop_sonic_moe_timing_stats()
+            sonic_moe_detail_timing_stats = pop_sonic_moe_detail_timing_stats()
             baseline_moe_timing_stats = pop_baseline_moe_timing_stats()
         except Exception:
             sonic_moe_timing_stats = None
+            sonic_moe_detail_timing_stats = None
             baseline_moe_timing_stats = None
 
         one_logger_utils.track_e2e_metrics(args.log_throughput, throughput)
@@ -2340,6 +2344,48 @@ def training_log(
                             'sonic-local-moe-backward-time': sonic_backward_ms,
                             'sonic-local-moe-total-time': sonic_total_ms,
                         },
+                        iteration,
+                    )
+        if sonic_moe_detail_timing_stats is not None:
+            normalizer = max(1.0, float(total_iterations))
+            detail_names = [
+                "topk_metadata",
+                "up_forward",
+                "down_forward",
+                "down_backward",
+                "up_backward",
+            ]
+            detail_values = [
+                sonic_moe_detail_timing_stats[name]["ms"] / normalizer for name in detail_names
+            ]
+            detail_calls = [
+                sonic_moe_detail_timing_stats[name]["calls"] / normalizer
+                for name in detail_names
+            ]
+            log_string += (
+                ' sonic detail max meta/upf/downf/downb/upb (ms): '
+                f'{detail_values[0]:.1f}/{detail_values[1]:.1f}/{detail_values[2]:.1f}/'
+                f'{detail_values[3]:.1f}/{detail_values[4]:.1f} |'
+            )
+            log_string += (
+                ' sonic detail max meta/upf/downf/downb/upb calls: '
+                f'{detail_calls[0]:.1f}/{detail_calls[1]:.1f}/{detail_calls[2]:.1f}/'
+                f'{detail_calls[3]:.1f}/{detail_calls[4]:.1f} |'
+            )
+            if args.log_timers_to_tensorboard:
+                tensorboard_names = [
+                    'sonic-detail-topk-metadata-time',
+                    'sonic-detail-up-forward-time',
+                    'sonic-detail-down-forward-time',
+                    'sonic-detail-down-backward-time',
+                    'sonic-detail-up-backward-time',
+                ]
+                if writer:
+                    for name, value in zip(tensorboard_names, detail_values):
+                        writer.add_scalar(name, value, iteration)
+                if wandb_writer:
+                    wandb_writer.log(
+                        dict(zip(tensorboard_names, detail_values)),
                         iteration,
                     )
         if baseline_moe_timing_stats is not None:
