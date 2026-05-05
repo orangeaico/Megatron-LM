@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
 # Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
-"""Compare SonicMoE expert kernels against a Megatron-style grouped-mm expert block.
+"""Compare SonicMoE expert kernels against Megatron's TE grouped expert block.
 
 This mirrors the useful part of sonic-moe's benchmarks/moe-cute.py, but adds a
-Megatron-style local expert path. Both paths use the same T/H/I/E/K shape,
+Megatron TEGroupedMLP local expert path. Both paths use the same T/H/I/E/K shape,
 weights, top-k expert assignments, and router probabilities.
 
 What is timed:
   - Sonic local expert: TC_topk_router_metadata_triton + _UpProjection + _DownProjection.
-  - Megatron grouped local expert: grouped_mm fc1 + SwiGLU/prob scale + grouped_mm fc2
-    on already expert-sorted tokens.
+  - Megatron local expert: TEGroupedMLP on already expert-sorted tokens.
 
 What is intentionally not timed:
   - Router linear/top-k construction.
@@ -19,6 +18,7 @@ What is intentionally not timed:
 from __future__ import annotations
 
 import argparse
+import os
 import time
 from typing import Callable
 
@@ -44,28 +44,19 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def resolve_grouped_mm() -> Callable:
-    if hasattr(F, "grouped_mm"):
-        return lambda x, w, offsets: F.grouped_mm(x, w, offs=offsets)
-    if hasattr(torch, "_grouped_mm"):
-        return lambda x, w, offsets: torch._grouped_mm(x, w, offsets)
-    raise RuntimeError(
-        "No grouped_mm implementation found. Use a PyTorch build with "
-        "torch.nn.functional.grouped_mm or torch._grouped_mm."
-    )
-
-
-def swiglu_interleaved(h: torch.Tensor) -> torch.Tensor:
-    gate = h[..., 0::2]
-    up = h[..., 1::2]
-    return up * F.silu(gate)
-
-
 def make_routing(
     x: torch.Tensor,
     num_experts: int,
     topk: int,
-) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+) -> tuple[
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+]:
     router_w = torch.randn(num_experts, x.size(1), device=x.device, dtype=x.dtype) * 0.02
     logits = F.linear(x, router_w)
     topk_logits, topk_indices = logits.topk(topk, dim=-1)
@@ -83,7 +74,90 @@ def make_routing(
     tokens_per_expert = torch.bincount(flat_experts, minlength=num_experts).to(torch.int32)
     offsets = torch.cumsum(tokens_per_expert, dim=0).to(torch.int32)
 
-    return topk_scores, topk_indices.to(torch.int32), token_indices, sorted_scores, offsets, router_w
+    return (
+        topk_scores,
+        topk_indices.to(torch.int32),
+        token_indices,
+        sorted_scores,
+        tokens_per_expert,
+        offsets,
+        router_w,
+    )
+
+
+def build_megatron_te_grouped_mlp(
+    hidden_size: int,
+    expert_hidden_size: int,
+    num_experts: int,
+    topk: int,
+    dtype: torch.dtype,
+):
+    from megatron.core.extensions.transformer_engine import (
+        TEColumnParallelGroupedLinear,
+        TERowParallelGroupedLinear,
+    )
+    from megatron.core.process_groups_config import ProcessGroupCollection
+    from megatron.core.transformer.moe.experts import GroupedMLPSubmodules, TEGroupedMLP
+    from megatron.core.transformer.transformer_config import TransformerConfig
+
+    config = TransformerConfig(
+        num_layers=1,
+        hidden_size=hidden_size,
+        num_attention_heads=32 if hidden_size % 32 == 0 else 1,
+        ffn_hidden_size=expert_hidden_size,
+        num_moe_experts=num_experts,
+        moe_ffn_hidden_size=expert_hidden_size,
+        moe_router_topk=topk,
+        add_bias_linear=False,
+        gated_linear_unit=True,
+        activation_func=F.silu,
+        bias_activation_fusion=False,
+        bf16=dtype == torch.bfloat16,
+        fp16=dtype == torch.float16,
+        params_dtype=dtype,
+        perform_initialization=False,
+        tensor_model_parallel_size=1,
+        expert_tensor_parallel_size=1,
+        expert_model_parallel_size=1,
+        pipeline_model_parallel_size=1,
+        sequence_parallel=False,
+    )
+    submodules = GroupedMLPSubmodules(
+        linear_fc1=TEColumnParallelGroupedLinear,
+        linear_fc2=TERowParallelGroupedLinear,
+        activation_func=None,
+    )
+    pg_collection = ProcessGroupCollection(ep=None, expt_tp=None)
+    module = TEGroupedMLP(num_experts, config, submodules, pg_collection)
+    module.train()
+    return module
+
+
+def copy_megatron_te_weights(
+    module,
+    fc1_weight: torch.Tensor,
+    fc2_weight: torch.Tensor,
+) -> None:
+    """Copy [E, 2I, H] and [E, H, I] weights into TEGroupedMLP."""
+    with torch.no_grad():
+        for expert_idx in range(fc1_weight.size(0)):
+            getattr(module.linear_fc1, f"weight{expert_idx}").copy_(fc1_weight[expert_idx])
+            getattr(module.linear_fc2, f"weight{expert_idx}").copy_(fc2_weight[expert_idx])
+
+
+def make_sonic_weights_from_te_weights(
+    fc1_weight: torch.Tensor,
+    fc2_weight: torch.Tensor,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Convert TE chunked SwiGLU weights to Sonic's interleaved QuACK layout."""
+    gate, up = fc1_weight.chunk(2, dim=1)
+    fc1_interleaved = torch.stack((gate, up), dim=2).reshape_as(fc1_weight)
+    fc1_backing = fc1_interleaved.transpose(1, 2).contiguous()
+    fc2_backing = fc2_weight.transpose(1, 2).contiguous()
+    return (
+        fc1_backing.permute(2, 1, 0).detach().requires_grad_(),
+        fc2_backing.permute(2, 1, 0).detach().requires_grad_(),
+    )
 
 
 def sonic_local_forward(
@@ -153,17 +227,13 @@ def sonic_local_forward(
 
 
 def megatron_grouped_local_forward(
-    grouped_mm: Callable,
+    module,
     x_permuted: torch.Tensor,
     sorted_scores: torch.Tensor,
-    offsets: torch.Tensor,
-    w1_megatron: torch.Tensor,
-    w2_megatron: torch.Tensor,
+    tokens_per_expert: torch.Tensor,
 ) -> torch.Tensor:
-    fc1 = grouped_mm(x_permuted, w1_megatron, offsets)
-    act = swiglu_interleaved(fc1)
-    act = (act * sorted_scores.unsqueeze(-1)).to(act.dtype)
-    return grouped_mm(act, w2_megatron, offsets)
+    output, _ = module(x_permuted, tokens_per_expert, sorted_scores)
+    return output
 
 
 def bench_forward(name: str, fn: Callable[[], torch.Tensor], warmup: int, repeats: int) -> float:
@@ -196,6 +266,7 @@ def bench_forward_backward(
 
 def main() -> None:
     args = parse_args()
+    os.environ["MOE_EXPERT_LOG_TIMING"] = "0"
     torch_dtype = torch.bfloat16 if args.dtype == "bf16" else torch.float16
     T, H, I, E, K = args.thiek
     device = torch.device("cuda")
@@ -203,27 +274,34 @@ def main() -> None:
     from sonicmoe.enums import ActivationType
 
     activation_type = ActivationType.SWIGLU
-    grouped_mm = resolve_grouped_mm()
 
     torch.manual_seed(1111)
     torch.cuda.manual_seed_all(1111)
 
     x = (0.2 * torch.randn(T, H, device=device, dtype=torch_dtype)).requires_grad_()
-    topk_scores, topk_indices, token_indices, sorted_scores, offsets, _ = make_routing(x, E, K)
+    (
+        topk_scores,
+        topk_indices,
+        token_indices,
+        sorted_scores,
+        tokens_per_expert,
+        _,
+        _,
+    ) = make_routing(x, E, K)
     topk_scores = topk_scores.detach().requires_grad_()
     sorted_scores = sorted_scores.detach().requires_grad_()
 
-    # Allocate Megatron-style backing storage and pass Sonic the corresponding views.
-    # Sonic/QuACK requires the output dimension to have stride 1.
-    w1_megatron = (0.02 * torch.randn(E, H, 2 * I, device=device, dtype=torch_dtype)).requires_grad_()
-    w2_megatron = (0.02 * torch.randn(E, I, H, device=device, dtype=torch_dtype)).requires_grad_()
-    w1_sonic = w1_megatron.permute(2, 1, 0)
-    w2_sonic = w2_megatron.permute(2, 1, 0)
+    te_mlp = build_megatron_te_grouped_mlp(H, I, E, K, torch_dtype)
+    fc1_weight = 0.02 * torch.randn(E, 2 * I, H, device=device, dtype=torch_dtype)
+    fc2_weight = 0.02 * torch.randn(E, H, I, device=device, dtype=torch_dtype)
+    copy_megatron_te_weights(te_mlp, fc1_weight, fc2_weight)
+    w1_sonic, w2_sonic = make_sonic_weights_from_te_weights(fc1_weight, fc2_weight)
     x_permuted = x.detach().index_select(0, token_indices).requires_grad_()
+    te_grad_tensors = [x_permuted, sorted_scores, *te_mlp.parameters()]
 
     print(f"T {T}, I {I}, H {H}, E {E}, K {K}, dtype {args.dtype}, activation swiglu")
     print("Sonic path: TC_topk_router_metadata_triton + _UpProjection + _DownProjection")
-    print("Megatron path: grouped_mm fc1 + SwiGLU/prob scale + grouped_mm fc2 on sorted tokens")
+    print("Megatron path: TEGroupedMLP on sorted tokens")
 
     if not args.skip_correctness:
         with torch.enable_grad():
@@ -231,7 +309,7 @@ def main() -> None:
                 x, topk_scores, topk_indices, w1_sonic, w2_sonic, activation_type
             )
             megatron_permuted_out = megatron_grouped_local_forward(
-                grouped_mm, x_permuted, sorted_scores, offsets, w1_megatron, w2_megatron
+                te_mlp, x_permuted, sorted_scores, tokens_per_expert
             )
             megatron_out = torch.zeros_like(sonic_out)
             megatron_out.index_add_(0, token_indices, megatron_permuted_out)
@@ -244,11 +322,13 @@ def main() -> None:
 
     def megatron_fwd():
         return megatron_grouped_local_forward(
-            grouped_mm, x_permuted, sorted_scores, offsets, w1_megatron, w2_megatron
+            te_mlp, x_permuted, sorted_scores, tokens_per_expert
         )
 
     sonic_fwd_ms = bench_forward("Sonic local", sonic_fwd, args.warmup, args.repeats)
-    megatron_fwd_ms = bench_forward("Megatron grouped local", megatron_fwd, args.warmup, args.repeats)
+    megatron_fwd_ms = bench_forward(
+        "Megatron TE grouped local", megatron_fwd, args.warmup, args.repeats
+    )
 
     sonic_dout = torch.randn(T, H, device=device, dtype=torch_dtype)
     megatron_dout = torch.randn(T * K, H, device=device, dtype=torch_dtype)
@@ -264,12 +344,12 @@ def main() -> None:
         args.repeats,
     )
     megatron_e2e_ms = bench_forward_backward(
-        "Megatron grouped local",
+        "Megatron TE grouped local",
         lambda: (
             megatron_grouped_local_forward(
-                grouped_mm, x_permuted, sorted_scores, offsets, w1_megatron, w2_megatron
+                te_mlp, x_permuted, sorted_scores, tokens_per_expert
             ),
-            [x_permuted, sorted_scores, w1_megatron, w2_megatron],
+            te_grad_tensors,
         ),
         megatron_dout,
         args.warmup,
@@ -277,7 +357,7 @@ def main() -> None:
     )
 
     print(f"Sonic local Bwd Average time: {sonic_e2e_ms - sonic_fwd_ms:.3f} ms")
-    print(f"Megatron grouped local Bwd Average time: {megatron_e2e_ms - megatron_fwd_ms:.3f} ms")
+    print(f"Megatron TE grouped local Bwd Average time: {megatron_e2e_ms - megatron_fwd_ms:.3f} ms")
     print(f"Fwd speedup, Megatron/Sonic: {megatron_fwd_ms / sonic_fwd_ms:.3f}x")
     print(f"Fwd+Bwd speedup, Megatron/Sonic: {megatron_e2e_ms / sonic_e2e_ms:.3f}x")
 
