@@ -111,7 +111,10 @@ def build_megatron_te_grouped_mlp(
         add_bias_linear=False,
         gated_linear_unit=True,
         activation_func=F.silu,
-        bias_activation_fusion=False,
+        # Match Megatron training defaults for --swiglu. Without
+        # --no-bias-swiglu-fusion, TEGroupedMLP uses the weighted SwiGLU
+        # fusion even when linear bias is disabled.
+        bias_activation_fusion=True,
         bf16=dtype == torch.bfloat16,
         fp16=dtype == torch.float16,
         params_dtype=dtype,
