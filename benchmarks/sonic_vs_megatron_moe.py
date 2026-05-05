@@ -161,7 +161,8 @@ def megatron_grouped_local_forward(
     w2_megatron: torch.Tensor,
 ) -> torch.Tensor:
     fc1 = grouped_mm(x_permuted, w1_megatron, offsets)
-    act = swiglu_interleaved(fc1) * sorted_scores.unsqueeze(-1)
+    act = swiglu_interleaved(fc1)
+    act = (act * sorted_scores.unsqueeze(-1)).to(act.dtype)
     return grouped_mm(act, w2_megatron, offsets)
 
 
