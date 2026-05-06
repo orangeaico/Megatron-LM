@@ -96,7 +96,7 @@ EP_SIZE=1
 EXPERT_TP_SIZE=1
 PP_SIZE=1
 LAYERS_PER_VP=1
-MICRO_BATCH_SIZE=1 
+MICRO_BATCH_SIZE=${MICRO_BATCH_SIZE:-1} 
 GLOBAL_BATCH_SIZE=8
 NUM_LAYERS=4
 DTYPE="bf16"
@@ -150,7 +150,7 @@ MOE_ARGS=(
     --moe-permute-fusion
     --moe-router-dtype fp32
     # --moe-router-fusion # This is only supported in TransformerEngine 2.7.0 and above. Current installed TE is 2.2
-    # --moe-router-force-load-balancing
+    --moe-router-force-load-balancing
     # --moe-enable-deepep
     # --overlap-moe-expert-parallel-comm
 )
@@ -184,8 +184,8 @@ TRAINING_ARGS=(
     # Computation optimisation and recomputation args
     --transformer-impl transformer_engine
     --enable-experimental
-    --attention-backend flash
-    --use-flash-attn
+    --attention-backend fused
+    # --use-flash-attn
     --fused-linear-cross-entropy
     # --cross-entropy-loss-fusion
     # --cross-entropy-fusion-impl native
