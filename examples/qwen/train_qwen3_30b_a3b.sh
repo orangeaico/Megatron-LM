@@ -90,17 +90,17 @@ WORLD_SIZE=$(($GPUS_PER_NODE*$NUM_NODES))
 PRETRAIN_SCRIPT_PATH="pretrain_gpt.py"
 
 # Fixed model and training parameters for Qwen3-1.7B
-TP_SIZE=1
-CP_SIZE=1
-EP_SIZE=1
+TP_SIZE=4
+CP_SIZE=2
+EP_SIZE=4
 EXPERT_TP_SIZE=1
 PP_SIZE=1
 LAYERS_PER_VP=1
 MICRO_BATCH_SIZE=${MICRO_BATCH_SIZE:-1} 
 GLOBAL_BATCH_SIZE=8
-NUM_LAYERS=4
+NUM_LAYERS=48
 DTYPE="bf16"
-SEQ_LENGTH=${SEQ_LENGTH:-16000}
+SEQ_LENGTH=${SEQ_LENGTH:-65000}
 MOE_EXPERT_BACKEND=${MOE_EXPERT_BACKEND:-sonic}
 MAX_POSITION_EMBEDDINGS=262144 
 
@@ -316,7 +316,7 @@ CHECKPOINT_ARGS=(
     --ckpt-format torch
     --dist-ckpt-strictness log_all
     --distributed-timeout-minutes 60
-    # --load "$LOAD_CHECKPOINT_PATH"
+    --load "$LOAD_CHECKPOINT_PATH"
     --save "$SAVE_CHECKPOINT_PATH"
     --no-save-optim
     --no-save-rng
