@@ -1158,8 +1158,11 @@ class SonicGroupedMLP(MegatronModule):
             expert_frequency_offset[0].zero_()
             torch.cumsum(tokens_per_expert, dim=0, out=expert_frequency_offset[1:])
 
+            # The dispatcher has already expanded and sorted tokens into a flat local expert
+            # buffer, so this path is a dense grouped expert GEMM with identity gather/scatter.
+            # Passing per-token offsets here selects Sonic's varlen path and is orders of
+            # magnitude slower for EP-dispatched buffers.
             identity_indices = torch.arange(num_tokens, device=device, dtype=torch.int32)
-            token_offsets = torch.arange(num_tokens + 1, device=device, dtype=torch.int32)
             activation_type = SonicActivationType(self._sonic_activation_type())
 
             a, h = _UpProjection.apply(
@@ -1172,7 +1175,7 @@ class SonicGroupedMLP(MegatronModule):
                 identity_indices,
                 identity_indices,
                 identity_indices,
-                token_offsets,
+                None,
                 False,
                 activation_type,
                 not torch.is_grad_enabled(),
@@ -1191,7 +1194,7 @@ class SonicGroupedMLP(MegatronModule):
                 identity_indices,
                 identity_indices,
                 identity_indices,
-                token_offsets,
+                None,
                 False,
                 activation_type,
             )
