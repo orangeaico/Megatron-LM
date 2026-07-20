@@ -46,6 +46,12 @@ class Config:
         mamba_num_heads=None,
         moe_latent_size=None,
         num_experts=None,
+        # DeepSeek Sparse Attention (DSA) / lightning indexer
+        deepseek_sparse_attention=False,
+        dsa_index_topk=None,
+        dsa_index_n_heads=None,
+        dsa_index_head_dim=None,
+        dsa_num_indexer_layers=0,
     ):
         """Initialize configuration with default or provided values."""
         # Runtime parameters (set externally)
@@ -123,6 +129,17 @@ class Config:
         self.mamba_num_groups = mamba_num_groups
         self.mamba_num_heads = mamba_num_heads
         self.moe_latent_size = moe_latent_size
+
+        # DeepSeek Sparse Attention (DSA) / lightning indexer.
+        # When enabled, the main attention attends only to `dsa_index_topk`
+        # selected keys per query (on every layer), and the lightning indexer
+        # (which scores all preceding tokens to perform that selection) runs on
+        # `dsa_num_indexer_layers` layers only.
+        self.deepseek_sparse_attention = deepseek_sparse_attention
+        self.dsa_index_topk = dsa_index_topk
+        self.dsa_index_n_heads = dsa_index_n_heads
+        self.dsa_index_head_dim = dsa_index_head_dim
+        self.dsa_num_indexer_layers = dsa_num_indexer_layers
 
     def __repr__(self):
         """Return string representation of config."""

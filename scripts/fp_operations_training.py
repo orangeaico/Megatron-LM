@@ -1,13 +1,19 @@
 """FLOPs calculation script for various model configurations."""
 
-MODEL = "Kimi2.6"
+MODEL = "GLM5.2"
 
 # Global runtime parameters
 BATCH_SIZE = 1
-SEQ_LENGTH = 24000
+SEQ_LENGTH = 131072
 
 # Import the appropriate config class
-if MODEL == "Kimi2.6":
+if MODEL == "Qwen27B":
+    from flops_config_qwen27b import ConfigQwen27B
+    args = ConfigQwen27B()
+elif MODEL == "OLMoE1B":
+    from flops_config_olmoe1b import ConfigOLMoE1B
+    args = ConfigOLMoE1B()
+elif MODEL == "Kimi2.6":
     from flops_config_kimi26 import ConfigKimi26
     args = ConfigKimi26()
 elif MODEL == "397B":
@@ -25,6 +31,9 @@ elif MODEL == "1.7B":
 elif MODEL == "Minimax2.7":
     from flops_config_minimax27 import ConfigMinimax27
     args = ConfigMinimax27()
+elif MODEL == "GLM5.2":
+    from flops_config_glm52 import ConfigGLM52
+    args = ConfigGLM52()
 else:
     raise ValueError(f"Unknown MODEL: {MODEL}")
 
@@ -37,6 +46,22 @@ def is_linear_attention_variant(experimental_attention_variant):
     """Check if the experimental attention variant is a linear attention variant."""
     linear_attention_variants = ["gated_delta_net"]
     return experimental_attention_variant in linear_attention_variants
+
+
+def effective_attended_keys(seq_len, topk):
+    """Average number of keys a query attends to under causal top-k sparse attention.
+
+    With dense causal attention a query at position t attends to t keys, averaging
+    seq_len / 2 over the sequence. With DeepSeek Sparse Attention (DSA) top-k
+    selection, a query attends to at most `topk` keys, i.e. min(t, topk). This
+    returns the per-query average of min(t, topk) for t = 1..seq_len, which is the
+    factor that replaces seq_len / 2 in the core-attention FLOPs term.
+    """
+    if topk is None or seq_len <= topk:
+        return seq_len / 2.0
+    # sum_{t=1..topk} t + sum_{t=topk+1..seq_len} topk, divided by seq_len.
+    total = topk * (topk + 1) / 2.0 + (seq_len - topk) * topk
+    return total / seq_len
 
 
 def num_floating_point_operations(args, batch_size):
@@ -200,12 +225,21 @@ def num_floating_point_operations(args, batch_size):
 
         # - 3x: Each GEMM in the model needs to be performed 3 times (forward pass,
         #       backward wgrad [weight gradient], backward dgrad [data gradient]).
-        forward_backward_expansion_factor = 3
+        forward_backward_expansion_factor = 1
         # - 2x: A GEMM of a m*n tensor with a n*k tensor requires 2mnk floating-point operations.
         fma_expansion_factor = 2
         # - 3x (SwiGLU enabled): h->2*ffn_h GEMM and ffn_h->h GEMM are stacked.
         # - 2x (SwiGLU disabled): h->ffn_h GEMM and ffn_h->h GEMM are stacked.
         ffn_expansion_factor = 3 if args.swiglu else 2
+
+        # DeepSeek Sparse Attention (DSA): each query attends to only the top-k
+        # selected keys per layer, so the core-attention term scales with the
+        # average number of attended keys instead of seq_length / 2. For non-DSA
+        # models this reduces exactly to the standard seq_length / 2 causal average.
+        if getattr(args, "deepseek_sparse_attention", False):
+            effective_keys = effective_attended_keys(args.seq_length, args.dsa_index_topk)
+        else:
+            effective_keys = args.seq_length / 2
 
         if args.multi_latent_attention:
             assert not args.group_query_attention
@@ -251,11 +285,10 @@ def num_floating_point_operations(args, batch_size):
                     + args.hidden_size * args.qk_pos_emb_head_dim
                     ## o proj
                     + (args.num_attention_heads * args.v_head_dim) * args.hidden_size
-                    ## core attn
-                    + args.seq_length
+                    ## core attn (effective_keys handles DSA top-k sparsity / causal mask)
+                    + effective_keys
                     * (args.num_attention_heads * (args.qk_head_dim + args.qk_pos_emb_head_dim))
-                    / 2  # causal mask (only half of the mask is non-zero)
-                    + args.seq_length * args.num_attention_heads * args.v_head_dim / 2
+                    + effective_keys * args.num_attention_heads * args.v_head_dim
                 )
             )
 
@@ -277,10 +310,9 @@ def num_floating_point_operations(args, batch_size):
                         + value_projection_size
                         + gate_projection_size
                     )
-                    ## core attention
+                    ## core attention (effective_keys handles DSA top-k sparsity / causal mask)
                     + query_projection_size
-                    * args.seq_length
-                    / 2  # causal mask (only half of the mask is non-zero)
+                    * effective_keys
                     * 2  # QK^T and (QK^T)V
                     ## out proj
                     + query_projection_size
@@ -355,9 +387,36 @@ def num_floating_point_operations(args, batch_size):
             linear_self_attn_term = 0
             num_standard_attention_layers = num_layers
 
+        # DeepSeek Sparse Attention (DSA) lightning indexer.
+        # The indexer scores every preceding token against the current query to
+        # select the top-k keys for the main attention. It runs on a subset of
+        # layers (`dsa_num_indexer_layers`); the rest reuse the shared selection.
+        # Index score: I_{t,s} = sum_j w_{t,j} * ReLU(q^I_{t,j} . k^I_s), with
+        # `dsa_index_n_heads` (H_I) query heads of dim `dsa_index_head_dim` (d_I)
+        # and a single shared key k^I_s of dim d_I per token.
+        indexer_term = 0
+        if getattr(args, "deepseek_sparse_attention", False) and args.dsa_num_indexer_layers > 0:
+            h_i = args.dsa_index_n_heads
+            d_i = args.dsa_index_head_dim
+            indexer_per_layer = (
+                forward_backward_expansion_factor
+                * fma_expansion_factor
+                * (
+                    # Indexer projections (per token): per-head query q^I (H_I*d_I),
+                    # per-head scalar weights w (H_I), shared key k^I (d_I).
+                    args.hidden_size * (h_i * d_i + h_i + d_i)
+                    # Indexer scoring: H_I dot-products of dim d_I against every
+                    # preceding token (full causal average = seq_length / 2, since
+                    # the indexer must score all keys before top-k selection).
+                    + (args.seq_length / 2) * h_i * d_i
+                )
+            )
+            indexer_term = indexer_per_layer * args.dsa_num_indexer_layers
+
         self_attn_term = (
             linear_self_attn_term * num_linear_attention_layers
             + standard_self_attn_term * num_standard_attention_layers
+            + indexer_term
         )
 
         total_floating_point_operations = (
@@ -464,6 +523,11 @@ if __name__ == "__main__":
     print(f"  Group Query Attention: {args.group_query_attention}")
     print(f"  Multi-latent attention: {args.multi_latent_attention}")
     print(f"  Linear attention variant: {args.experimental_attention_variant}")
+    if getattr(args, "deepseek_sparse_attention", False):
+        print(f"  DeepSeek Sparse Attention: {args.deepseek_sparse_attention}")
+        print(f"    Index top-k: {args.dsa_index_topk}")
+        print(f"    Indexer heads x head dim: {args.dsa_index_n_heads} x {args.dsa_index_head_dim}")
+        print(f"    Indexer layers (of {args.num_layers}): {args.dsa_num_indexer_layers}")
     print(f"  Is hybrid model: {args.is_hybrid_model}")
     print(f"\n{'='*60}")
 
